@@ -22,6 +22,7 @@ const fileUrl = (() => {
 if (window.top !== window) throw new Error('埋め込みでは表示できません');
 const GAP = 12; // 左右ページの間隔（CSSの .row gap と合わせる）
 const MAX_CANVAS_PIXELS = 2 ** 24; // 1枚のcanvasの上限（約1600万画素）。拡大しすぎてメモリを食わないように
+const RENDER_QUALITY = 1.5; // 表示に必要な密度より細かく描いて、細字や斜線の粗さを抑える
 const ZOOMS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
 const state = {
@@ -199,9 +200,9 @@ function makeCanvas(vp, scale) {
   return canvas;
 }
 
-// 画面に表示される大きさ（拡大率 × 画面の解像度）に合わせた画素数で描く
+// 原文もcanvas画像で表示するため、画面の解像度・拡大率に余裕を持たせて描く。
 function pixelScale(r) {
-  const want = (window.devicePixelRatio || 1) * viewZoom();
+  const want = (window.devicePixelRatio || 1) * viewZoom() * RENDER_QUALITY;
   return Math.min(want, Math.sqrt(MAX_CANVAS_PIXELS / (r.vp.width * r.vp.height)));
 }
 

@@ -10,6 +10,7 @@ const element = () => {
   const classes = new Set(), attributes = new Map();
   return {
     value: '', style: { setProperty() {} },
+    children: [],
     classList: {
       add: (...names) => names.forEach((name) => classes.add(name)),
       remove: (...names) => names.forEach((name) => classes.delete(name)),
@@ -18,6 +19,13 @@ const element = () => {
     },
     setAttribute: (name, value) => attributes.set(name, value),
     getAttribute: (name) => attributes.get(name),
+    prepend(child) { child.parent = this; this.children.unshift(child); },
+    replaceWith(next) {
+      const index = this.parent.children.indexOf(this);
+      this.parent.children[index] = next;
+      next.parent = this.parent;
+    },
+    querySelector() { return this.children.find((child) => child.tagName === 'canvas') || null; },
     append() {}, appendChild() {}, replaceChildren() {}, remove() {}, querySelectorAll: () => [],
   };
 };
@@ -26,7 +34,12 @@ async function viewer(engine = 'gemini', localTranslator = {}) {
   const document = {
     body: { dataset: {} }, documentElement: { scrollHeight: 1000, style: { setProperty() {} } },
     querySelector: (name) => { if (!elements.has(name)) elements.set(name, element()); return elements.get(name); },
-    createElement: element,
+    createElement: (tagName) => {
+      const el = element();
+      el.tagName = tagName;
+      if (tagName === 'canvas') el.getContext = () => ({ drawImage() {} });
+      return el;
+    },
   };
   const window = {}; window.top = window;
   const context = {
@@ -47,12 +60,13 @@ async function viewer(engine = 'gemini', localTranslator = {}) {
   if (engine === 'chrome') context.self.Translator = context.Translator;
   // Run the actual viewer orchestration. Only PDF/canvas/DOM rendering is replaced.
   const source = viewerSource.replace(/^import .*;\n/gm, '').replaceAll('import.meta.url', JSON.stringify(new URL('../viewer.js', import.meta.url).href)).replace(/\nload\(\);\s*$/, `
+    const rendering = { pixelScale, makeCanvas, renderPage, releasePage };
     renderPage = async () => {};
     getPageBlocks = async (r) => r.blocks;
     releasePage = () => {};
     placeBlock = () => elementStub();
     fillBlock = (_el, b, text) => { b.ja = text; };
-    return { state, start, enqueue, translateAll, status: () => $('#status').textContent, startButton: $('#start'), beginTranslation };
+    return { state, start, enqueue, translateAll, status: () => $('#status').textContent, startButton: $('#start'), beginTranslation, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -187,4 +201,46 @@ test('completion of an older task cannot clear the current loading indicator', a
   assert.equal(api.startButton.disabled, true);
   finishNew();
   assert.equal(api.startButton.disabled, false);
+});
+
+test('both PDF canvases render above display density and rerender after zooming', async () => {
+  const api = await viewer();
+  const renders = [];
+  const r = {
+    vp: { width: 800, height: 1100 }, left: element(), right: element(),
+    page: { render: (options) => { renders.push(options); return { promise: Promise.resolve() }; } },
+  };
+  api.window.devicePixelRatio = 1;
+  await api.rendering.renderPage(r);
+  assert.equal(r.srcCanvas.width, 1200);
+  assert.equal(r.srcCanvas.height, 1650);
+  assert.equal(r.srcCanvas.style.width, '800px');
+  assert.equal(r.left.children[0].width, r.right.children[0].width);
+  assert.equal(r.left.children[0].height, r.right.children[0].height);
+  assert.equal(renders[0].transform[0], 1.5);
+  await api.rendering.renderPage(r);
+  assert.equal(renders.length, 1);
+
+  api.state.zoom = 1.25;
+  await api.rendering.renderPage(r);
+  assert.equal(renders.length, 2);
+  assert.equal(r.srcCanvas.width, 1500);
+  assert.equal(r.srcCanvas.height, 2062);
+  assert.equal(r.srcCanvas.style.width, '800px');
+});
+
+test('high DPI and single-page display increase density while respecting the canvas budget', async () => {
+  const api = await viewer();
+  const r = { vp: { width: 800, height: 1100 } };
+  api.window.devicePixelRatio = 2;
+  assert.equal(api.rendering.pixelScale(r), 3);
+  api.viewSelect.value = 'orig';
+  api.state.fit = 2;
+  assert.equal(api.rendering.pixelScale({ vp: { width: 200, height: 300 } }), 6);
+  api.viewSelect.value = 'both';
+  api.state.zoom = 3;
+  const scale = api.rendering.pixelScale(r);
+  assert.ok(scale < 9);
+  const canvas = api.rendering.makeCanvas(r.vp, scale);
+  assert.ok(canvas.width * canvas.height <= 2 ** 24);
 });
