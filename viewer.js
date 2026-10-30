@@ -42,6 +42,24 @@ const state = {
 
 const setStatus = (t) => { $('#status').textContent = t; };
 
+// 古い翻訳の終了で、新しい翻訳のローディングを消さないよう世代ごとに管理する。
+const translationActivities = new Set();
+function beginTranslation() {
+  const activity = { version: state.translationVersion };
+  translationActivities.add(activity);
+  updateStartButton();
+  return () => { translationActivities.delete(activity); updateStartButton(); };
+}
+
+function updateStartButton() {
+  const busy = [...translationActivities].some((a) => a.version === state.translationVersion);
+  const button = $('#start');
+  button.disabled = busy;
+  button.classList.toggle('loading', busy);
+  button.setAttribute('aria-busy', String(busy));
+  button.textContent = busy ? '翻訳中…' : '翻訳開始';
+}
+
 // ---------- 設定の保存 ----------
 srcSel.value = localStorage.getItem('src') || 'en';
 dstSel.value = localStorage.getItem('dst') || 'ja';
@@ -564,6 +582,7 @@ async function redoBlock(el) {
   if (!tr || el.classList.contains('pending')) return;
   tools.remove();
   el.classList.add('pending');
+  const finish = beginTranslation();
   try {
     const t = await tr.retranslateBlock(b);
     if (tr !== state.translator) return;
@@ -575,6 +594,7 @@ async function redoBlock(el) {
     setStatus('訳し直しに失敗しました: ' + e.message);
   } finally {
     el.classList.remove('pending');
+    finish();
   }
 }
 
@@ -596,44 +616,52 @@ async function start() {
   const controller = new AbortController();
   state.translationAbort = controller;
 
-  let translator;
-  if (engine === 'gemini') {
-    const onProgress = (message) => { if (version === state.translationVersion) setStatus(message); };
-    translator = createDocumentTranslator({
-      rows: state.rows,
-      getBlocks: getPageBlocks,
-      onProgress,
-      signal: controller.signal,
-      translator: createGeminiTranslator({
-        apiKey: geminiKey, model: geminiModel, sourceLanguage, targetLanguage,
-        onWait: onProgress, signal: controller.signal,
-      }),
-    });
-  } else {
-    translator = await createChromeTranslator(sourceLanguage, targetLanguage);
-    if (!translator) return; // 理由はステータスに表示済み
-  }
-  if (version !== state.translationVersion) return;
-  state.translator = translator;
+  const finish = beginTranslation();
+  try {
+    let translator;
+    if (engine === 'gemini') {
+      const onProgress = (message) => { if (version === state.translationVersion) setStatus(message); };
+      translator = createDocumentTranslator({
+        rows: state.rows,
+        getBlocks: getPageBlocks,
+        onProgress,
+        signal: controller.signal,
+        translator: createGeminiTranslator({
+          apiKey: geminiKey, model: geminiModel, sourceLanguage, targetLanguage,
+          onWait: onProgress, signal: controller.signal,
+        }),
+      });
+    } else {
+      translator = await createChromeTranslator(sourceLanguage, targetLanguage);
+      if (!translator) return; // 理由はステータスに表示済み
+    }
+    if (version !== state.translationVersion) return;
+    state.translator = translator;
 
-  // やり直し：状態をリセット
-  state.queue = [];
-  for (const r of state.rows) {
-    r.translated = false;
-    r.queued = false;
-    r.srcLayer.replaceChildren();
-    r.dstLayer.replaceChildren();
+    // やり直し：状態をリセット
+    state.queue = [];
+    for (const r of state.rows) {
+      r.translated = false;
+      r.queued = false;
+      r.srcLayer.replaceChildren();
+      r.dstLayer.replaceChildren();
+    }
+    state.enabled = true;
+    setStatus('翻訳中…');
+    if (translator.ready) {
+      const finishDocument = beginTranslation();
+      translator.ready().then(() => {
+        if (translator === state.translator) setStatus('全文の翻訳が完了しました');
+      }).catch((e) => {
+        if (translator === state.translator) setStatus('全文の翻訳に失敗しました: ' + e.message);
+      }).finally(finishDocument);
+    }
+    for (const r of state.rows) if (r.visible) enqueue(r);
+  } catch (e) {
+    if (version === state.translationVersion) setStatus('翻訳の準備に失敗しました: ' + e.message);
+  } finally {
+    finish();
   }
-  state.enabled = true;
-  setStatus('翻訳中…');
-  if (translator.ready) {
-    translator.ready().then(() => {
-      if (translator === state.translator) setStatus('全文の翻訳が完了しました');
-    }).catch((e) => {
-      if (translator === state.translator) setStatus('全文の翻訳に失敗しました: ' + e.message);
-    });
-  }
-  for (const r of state.rows) if (r.visible) enqueue(r);
 }
 
 // Chrome内蔵の Translator API（1段落ずつ順に訳す）
@@ -685,6 +713,7 @@ async function pump() {
   while (state.queue.length) {
     const r = state.queue.shift();
     const translator = state.translator;
+    const finish = beginTranslation();
     if (!state.exporting && !translator.ready) setStatus(`翻訳中… ${r.index}/${state.rows.length}ページ`);
     try {
       // 途中で「翻訳開始」や設定変更があっても、その時点の翻訳エンジンを使う
@@ -697,6 +726,8 @@ async function pump() {
       r.queued = false;
       r.failed = true;
       showPageError(r, e);
+    } finally {
+      finish();
     }
   }
   state.working = false;

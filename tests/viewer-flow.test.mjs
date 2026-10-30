@@ -6,11 +6,22 @@ import { createGeminiTranslator } from '../gemini.js';
 import { createDocumentTranslator } from '../document-translator.js';
 
 const viewerSource = await readFile(new URL('../viewer.js', import.meta.url), 'utf8');
-const element = () => ({
-  value: '', style: { setProperty() {} }, classList: { add() {}, remove() {} },
-  append() {}, appendChild() {}, replaceChildren() {}, remove() {}, querySelectorAll: () => [],
-});
-async function viewer(engine = 'gemini') {
+const element = () => {
+  const classes = new Set(), attributes = new Map();
+  return {
+    value: '', style: { setProperty() {} },
+    classList: {
+      add: (...names) => names.forEach((name) => classes.add(name)),
+      remove: (...names) => names.forEach((name) => classes.delete(name)),
+      toggle: (name, on) => on ? classes.add(name) : classes.delete(name),
+      contains: (name) => classes.has(name),
+    },
+    setAttribute: (name, value) => attributes.set(name, value),
+    getAttribute: (name) => attributes.get(name),
+    append() {}, appendChild() {}, replaceChildren() {}, remove() {}, querySelectorAll: () => [],
+  };
+};
+async function viewer(engine = 'gemini', localTranslator = {}) {
   const elements = new Map();
   const document = {
     body: { dataset: {} }, documentElement: { scrollHeight: 1000, style: { setProperty() {} } },
@@ -30,6 +41,7 @@ async function viewer(engine = 'gemini') {
     Translator: {
       availability: async () => 'available',
       create: async () => ({ translate: async (text) => 'ローカル訳: ' + text }),
+      ...localTranslator,
     },
   };
   if (engine === 'chrome') context.self.Translator = context.Translator;
@@ -40,7 +52,7 @@ async function viewer(engine = 'gemini') {
     releasePage = () => {};
     placeBlock = () => elementStub();
     fillBlock = (_el, b, text) => { b.ja = text; };
-    return { state, start, enqueue, translateAll, status: () => $('#status').textContent };
+    return { state, start, enqueue, translateAll, status: () => $('#status').textContent, startButton: $('#start'), beginTranslation };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -108,6 +120,8 @@ test('viewer rejects incomplete output and export without additional requests', 
   await assert.rejects(api.translateAll());
   assert.equal(calls, 1);
   assert.match(api.status(), /失敗|エラー/);
+  assert.equal(api.startButton.disabled, false);
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'false');
 });
 
 test('restart aborts the old request and only displays the new result', async (t) => {
@@ -131,4 +145,46 @@ test('restart aborts the old request and only displays the new result', async (t
   assert.equal(api.state.rows[0].blocks[0].ja, '訳文 p1-b0');
   assert.ok(!api.state.rows[0].failed);
   assert.equal(api.status(), '全文の翻訳が完了しました');
+});
+
+test('start button stays busy during the full request and returns to normal on completion', async (t) => {
+  let release, started;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const requestStarted = new Promise((resolve) => { started = resolve; });
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    started();
+    await gate;
+    return success(JSON.parse(JSON.parse(init.body).input));
+  });
+  const api = await viewer();
+  await api.start();
+  await requestStarted;
+  assert.equal(api.startButton.disabled, true);
+  assert.equal(api.startButton.textContent, '翻訳中…');
+  assert.ok(api.startButton.classList.contains('loading'));
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'true');
+  release();
+  await idle(api);
+  assert.equal(api.startButton.disabled, false);
+  assert.equal(api.startButton.textContent, '翻訳開始');
+  assert.ok(!api.startButton.classList.contains('loading'));
+});
+
+test('failed local translator preparation releases the start button', async () => {
+  const api = await viewer('chrome', { availability: async () => 'unavailable' });
+  await api.start();
+  assert.match(api.status(), /未対応/);
+  assert.equal(api.startButton.disabled, false);
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'false');
+});
+
+test('completion of an older task cannot clear the current loading indicator', async () => {
+  const api = await viewer();
+  const finishOld = api.beginTranslation();
+  api.state.translationVersion++;
+  const finishNew = api.beginTranslation();
+  finishOld();
+  assert.equal(api.startButton.disabled, true);
+  finishNew();
+  assert.equal(api.startButton.disabled, false);
 });

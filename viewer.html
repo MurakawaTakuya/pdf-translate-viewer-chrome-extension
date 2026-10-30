@@ -31,7 +31,7 @@
         <option value="ko">韓国語</option>
       </select>
     </label>
-    <button id="start">翻訳開始</button>
+    <button id="start" aria-busy="false">翻訳開始</button>
     <label>表示
       <select id="view">
         <option value="both">対訳（左右）</option>
@@ -46,7 +46,7 @@
     </span>
     <button id="download" title="今の表示のままPDFに保存します">PDFで保存</button>
     <button id="openSettings" title="翻訳エンジンの設定">⚙ 設定</button>
-    <span id="status"></span>
+    <span id="status" role="status" aria-live="polite"></span>
   </header>
 
   <dialog id="settings">

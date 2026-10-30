@@ -19,6 +19,13 @@ select, button { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px s
 button { cursor: pointer; }
 #start, button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 button:disabled { opacity: .5; cursor: progress; }
+#start.loading { display: inline-flex; align-items: center; gap: 6px; }
+#start.loading::before {
+  content: ''; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; animation: loading-spin .8s linear infinite;
+}
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #start.loading::before { animation: none; } }
 #status { font-size: 13px; opacity: .8; margin-left: auto; }
 
 #pages { padding: 12px 14px 60px; display: flex; flex-direction: column; gap: 14px; }
