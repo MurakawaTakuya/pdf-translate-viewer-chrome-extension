@@ -1,6 +1,6 @@
 // Gemini API（Interactions API）で、PDF全文を一括翻訳する
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
-export const DEFAULT_MODEL = 'gemini-3.8-flash';
+export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
 const LANG_NAMES = {
   en: 'English', ja: 'Japanese', zh: 'Simplified Chinese', ko: 'Korean',
