@@ -1,6 +1,7 @@
 import * as pdfjsLib from './lib/pdf.min.mjs';
 import { loadSettings, openSettings } from './settings.js';
 import { createGeminiTranslator } from './gemini.js';
+import { createDocumentTranslator } from './document-translator.js';
 import { toRuns } from './math.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./lib/pdf.worker.min.mjs', import.meta.url).href;
@@ -27,6 +28,8 @@ const state = {
   pdf: null,
   rows: [],
   translator: null,
+  translationAbort: null,
+  translationVersion: 0,
   enabled: false,
   queue: [],
   working: false,
@@ -238,6 +241,15 @@ function fontInfo(page, styles, fontName) {
     ascent: clamp(f?.ascent, 0.6, 1.1, 0.85),
     descent: clamp(-(f?.descent ?? NaN), 0.1, 0.4, 0.25),
   };
+}
+
+function getPageBlocks(r) {
+  if (r.blocks) return Promise.resolve(r.blocks);
+  // 全文を先に読む場合も、フォント情報を読み込んでから段落を判定する。
+  return r.blocksP ??= r.page.getOperatorList().then(() => extractBlocks(r)).then((blocks) => (r.blocks = blocks)).catch((e) => {
+    r.blocksP = null;
+    throw e;
+  });
 }
 
 async function extractBlocks(r) {
@@ -553,13 +565,12 @@ async function redoBlock(el) {
   tools.remove();
   el.classList.add('pending');
   try {
-    await tr.translateBatch([b.text], (_, t) => {
-      if (tr !== state.translator) return false;
-      if (t == null) { setStatus('この段落はうまく訳し直せませんでした。もう一度お試しください'); return; }
-      if (b.failed) { b.failed = false; b.hidden = false; } // 訳せなかった段落に、やっと訳が付いた
-      fillBlock(el, b, t);
-    });
+    const t = await tr.retranslateBlock(b);
+    if (tr !== state.translator) return;
+    if (b.failed) { b.failed = false; b.hidden = false; }
+    fillBlock(el, b, t);
   } catch (e) {
+    if (tr !== state.translator) return;
     console.error(e);
     setStatus('訳し直しに失敗しました: ' + e.message);
   } finally {
@@ -574,18 +585,35 @@ async function start() {
   localStorage.setItem('src', sourceLanguage);
   localStorage.setItem('dst', targetLanguage);
   if (sourceLanguage === targetLanguage) { setStatus('原文と訳が同じ言語です'); return; }
-
+  if (!state.pdf) return;
   const { engine, geminiKey, geminiModel } = state.settings;
+  if (engine === 'gemini' && !geminiKey) {
+    setStatus('設定でGeminiのAPIキーを入力してください'); showSettings(); return;
+  }
+
+  const version = ++state.translationVersion;
+  state.translationAbort?.abort();
+  const controller = new AbortController();
+  state.translationAbort = controller;
+
   let translator;
   if (engine === 'gemini') {
-    if (!geminiKey) { setStatus('設定でGeminiのAPIキーを入力してください'); showSettings(); return; }
-    translator = createGeminiTranslator({
-      apiKey: geminiKey, model: geminiModel, sourceLanguage, targetLanguage, onWait: setStatus,
+    const onProgress = (message) => { if (version === state.translationVersion) setStatus(message); };
+    translator = createDocumentTranslator({
+      rows: state.rows,
+      getBlocks: getPageBlocks,
+      onProgress,
+      signal: controller.signal,
+      translator: createGeminiTranslator({
+        apiKey: geminiKey, model: geminiModel, sourceLanguage, targetLanguage,
+        onWait: onProgress, signal: controller.signal,
+      }),
     });
   } else {
     translator = await createChromeTranslator(sourceLanguage, targetLanguage);
     if (!translator) return; // 理由はステータスに表示済み
   }
+  if (version !== state.translationVersion) return;
   state.translator = translator;
 
   // やり直し：状態をリセット
@@ -598,6 +626,13 @@ async function start() {
   }
   state.enabled = true;
   setStatus('翻訳中…');
+  if (translator.ready) {
+    translator.ready().then(() => {
+      if (translator === state.translator) setStatus('全文の翻訳が完了しました');
+    }).catch((e) => {
+      if (translator === state.translator) setStatus('全文の翻訳に失敗しました: ' + e.message);
+    });
+  }
   for (const r of state.rows) if (r.visible) enqueue(r);
 }
 
@@ -646,23 +681,28 @@ async function pump() {
   if (state.working) return;
   state.working = true;
   let error = null;
+  let errorTranslator = null;
   while (state.queue.length) {
     const r = state.queue.shift();
-    if (!state.exporting) setStatus(`翻訳中… ${r.index}/${state.rows.length}ページ`);
+    const translator = state.translator;
+    if (!state.exporting && !translator.ready) setStatus(`翻訳中… ${r.index}/${state.rows.length}ページ`);
     try {
       // 途中で「翻訳開始」や設定変更があっても、その時点の翻訳エンジンを使う
-      await translatePage(r, state.translator);
+      await translatePage(r, translator);
     } catch (e) {
+      if (translator !== state.translator) continue;
       console.error(e);
       error = e;
+      errorTranslator = translator;
       r.queued = false;
       r.failed = true;
       showPageError(r, e);
     }
   }
   state.working = false;
-  if (error) setStatus('翻訳エラー: ' + error.message);
-  else if (!state.exporting) setStatus('翻訳済み（スクロールすると続きを翻訳します）');
+  if (error && errorTranslator === state.translator) setStatus('翻訳エラー: ' + error.message);
+  else if (!state.exporting) setStatus(state.translator.ready
+    ? '全文の翻訳が完了しました' : '翻訳済み（スクロールすると続きを翻訳します）');
 }
 
 // 訳せなかった段落は原文の表示に戻し、ページの上にエラーと「再試行」ボタンを出す
@@ -672,8 +712,8 @@ function showPageError(r, e) {
   msg.className = 'page-msg err';
   msg.append('翻訳エラー: ' + e.message + ' ');
   const retry = document.createElement('button');
-  retry.textContent = 'このページを再試行';
-  retry.onclick = () => { msg.remove(); enqueue(r); };
+  retry.textContent = state.translator.ready ? '全文を再試行' : 'このページを再試行';
+  retry.onclick = () => { msg.remove(); state.translator.ready ? start() : enqueue(r); };
   msg.append(retry);
   r.dstLayer.appendChild(msg);
 }
@@ -689,9 +729,12 @@ async function translatePage(r, translator) {
 }
 
 async function translatePageInner(r, translator) {
+  if (translator.ready) await translator.ready();
+  if (translator !== state.translator) return;
   await renderPage(r);
-  if (!r.blocks) {
-    r.blocks = await extractBlocks(r);
+  await getPageBlocks(r);
+  if (translator !== state.translator) return;
+  if (r.blocks.some((b) => b.translate && !b.colors)) {
     // 背景色・文字色は訳文に関係ないので、ページ画像の読み出し（重い）は1ページにつき1回だけ
     const pix = r.srcCanvas.getContext('2d').getImageData(0, 0, r.srcCanvas.width, r.srcCanvas.height);
     for (const b of r.blocks) if (b.translate) b.colors = pickColors(r, pix, b);
@@ -712,11 +755,13 @@ async function translatePageInner(r, translator) {
   }
 
   const els = targets.map((b) => placeBlock(r, b));
-  await translator.translateBatch(targets.map((b) => b.text), (i, text) => {
+  const onEach = (i, text) => {
     if (translator !== state.translator) return false; // 言語や設定を切り替えられた
     if (text == null) { markFailed(els[i], targets[i]); return; } // 訳せなかった段落は原文のまま
     fillBlock(els[i], targets[i], text);
-  });
+  };
+  if (translator.translatePage) await translator.translatePage(r, onEach);
+  else await translator.translateBatch(targets.map((b) => b.text), onEach);
   if (translator !== state.translator) return;
   r.translated = true;
 }
@@ -755,6 +800,8 @@ async function download() {
 // まだ訳していないページもすべて訳し終わるまで待つ
 async function translateAll() {
   const translator = state.translator;
+  if (translator.ready) await translator.ready();
+  if (translator !== state.translator) throw new Error('翻訳がやり直されました');
   for (const r of state.rows) enqueue(r);
   for (;;) {
     if (translator !== state.translator) throw new Error('翻訳がやり直されました');
