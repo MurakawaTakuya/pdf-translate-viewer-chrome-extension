@@ -29,6 +29,7 @@ const state = {
   pdf: null,
   rows: [],
   translator: null,
+  engine: null, // 翻訳ボタンで明示的に選んだエンジン
   translationAbort: null,
   translationVersion: 0,
   enabled: false,
@@ -54,11 +55,15 @@ function beginTranslation() {
 
 function updateStartButton() {
   const busy = [...translationActivities].some((a) => a.version === state.translationVersion);
-  const button = $('#start');
-  button.disabled = busy;
-  button.classList.toggle('loading', busy);
-  button.setAttribute('aria-busy', String(busy));
-  button.textContent = busy ? '翻訳中…' : '翻訳開始';
+  for (const [engine, selector, label] of [
+    ['chrome', '#startLocal', 'ローカルAI'], ['gemini', '#startGemini', 'Gemini'],
+  ]) {
+    const button = $(selector), active = busy && state.engine === engine;
+    button.disabled = busy;
+    button.classList.toggle('loading', active);
+    button.setAttribute('aria-busy', String(active));
+    button.textContent = `${label}で${active ? '翻訳中…' : '翻訳'}`;
+  }
 }
 
 // ---------- 設定の保存 ----------
@@ -134,7 +139,7 @@ async function load() {
     return;
   }
   await buildRows();
-  setStatus(`${state.pdf.numPages}ページ。「翻訳開始」を押してください`);
+  setStatus(`${state.pdf.numPages}ページ。ローカルAIかGeminiの翻訳ボタンを押してください`);
 }
 
 async function buildRows() {
@@ -549,7 +554,7 @@ function showTools(el) {
   toolsFor = el;
   const b = el._b;
   // Chrome内蔵は何度訳しても同じ結果になるので、訳し直しは Gemini のときだけ
-  redoBtn.hidden = (b.hidden && !b.failed) || state.settings.engine !== 'gemini';
+  redoBtn.hidden = (b.hidden && !b.failed) || state.engine !== 'gemini';
   toggleBtn.hidden = !!b.failed; // まだ訳がない段落は、表示の切り替えもできない
   toggleBtn.textContent = b.hidden ? '訳を表示' : '原文を表示';
   toggleBtn.title = b.hidden ? 'この段落の訳を元に戻します' : 'この段落の訳を消して、原文が見えるようにします';
@@ -600,24 +605,28 @@ async function redoBlock(el) {
 }
 
 // ---------- 翻訳 ----------
-async function start() {
+async function start(engine = state.engine) {
   const sourceLanguage = srcSel.value;
   const targetLanguage = dstSel.value;
   localStorage.setItem('src', sourceLanguage);
   localStorage.setItem('dst', targetLanguage);
   if (sourceLanguage === targetLanguage) { setStatus('原文と訳が同じ言語です'); return; }
   if (!state.pdf) return;
-  const { engine, geminiKey, geminiModel } = state.settings;
+  if (engine !== 'chrome' && engine !== 'gemini') {
+    setStatus('ローカルAIかGeminiの翻訳ボタンを選んでください'); return;
+  }
+  const { geminiKey, geminiModel } = state.settings;
   if (engine === 'gemini' && !geminiKey) {
     setStatus('設定でGeminiのAPIキーを入力してください'); showSettings(); return;
   }
 
+  const previousEngine = state.engine;
   const version = ++state.translationVersion;
-  state.translationAbort?.abort();
   const controller = new AbortController();
-  state.translationAbort = controller;
+  state.engine = engine;
 
   const finish = beginTranslation();
+  let prepared = false;
   try {
     let translator;
     if (engine === 'gemini') {
@@ -637,7 +646,11 @@ async function start() {
       if (!translator) return; // 理由はステータスに表示済み
     }
     if (version !== state.translationVersion) return;
+    // 切替先の準備が成功するまでは、既存の翻訳結果を使えるようにしておく。
+    state.translationAbort?.abort();
+    state.translationAbort = controller;
     state.translator = translator;
+    prepared = true;
 
     // やり直し：状態をリセット
     state.queue = [];
@@ -661,6 +674,10 @@ async function start() {
   } catch (e) {
     if (version === state.translationVersion) setStatus('翻訳の準備に失敗しました: ' + e.message);
   } finally {
+    if (!prepared) {
+      controller.abort();
+      if (version === state.translationVersion) state.engine = previousEngine;
+    }
     finish();
   }
 }
@@ -717,7 +734,7 @@ async function pump() {
     const finish = beginTranslation();
     if (!state.exporting && !translator.ready) setStatus(`翻訳中… ${r.index}/${state.rows.length}ページ`);
     try {
-      // 途中で「翻訳開始」や設定変更があっても、その時点の翻訳エンジンを使う
+      // 途中で翻訳方法や言語を変更しても、その時点の翻訳エンジンを使う
       await translatePage(r, translator);
     } catch (e) {
       if (translator !== state.translator) continue;
@@ -859,13 +876,9 @@ function saveFile(bytes, filename) {
 
 // ---------- 設定 ----------
 async function showSettings() {
-  const prev = state.settings;
-  const next = await openSettings(prev);
+  const next = await openSettings(state.settings);
   if (!next) return;
   state.settings = next;
-  const changed = next.engine !== prev.engine
-    || (next.engine === 'gemini' && (next.geminiKey !== prev.geminiKey || next.geminiModel !== prev.geminiModel));
-  if (changed && state.enabled) start(); // 新しい設定で訳し直す
 }
 
 // 翻訳はいらないとき：このPDFだけ、いつものビューアで開き直す
@@ -877,7 +890,8 @@ if (fileUrl && self.chrome?.tabs) {
   };
 }
 
-$('#start').onclick = start;
+$('#startLocal').onclick = () => start('chrome');
+$('#startGemini').onclick = () => start('gemini');
 $('#openSettings').onclick = showSettings;
 $('#download').onclick = download;
 srcSel.onchange = dstSel.onchange = () => { if (state.enabled) start(); };

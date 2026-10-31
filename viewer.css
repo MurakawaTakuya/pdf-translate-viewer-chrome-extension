@@ -17,15 +17,15 @@ header {
 header label { font-size: 13px; display: flex; gap: 4px; align-items: center; }
 select, button { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
 button { cursor: pointer; }
-#start, button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.translate-button, button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 button:disabled { opacity: .5; cursor: progress; }
-#start.loading { display: inline-flex; align-items: center; gap: 6px; }
-#start.loading::before {
+.translate-button.loading { display: inline-flex; align-items: center; gap: 6px; }
+.translate-button.loading::before {
   content: ''; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent;
   border-radius: 50%; animation: loading-spin .8s linear infinite;
 }
 @keyframes loading-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { #start.loading::before { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .translate-button.loading::before { animation: none; } }
 #status { font-size: 13px; opacity: .8; margin-left: auto; }
 
 #pages { padding: 12px 14px 60px; display: flex; flex-direction: column; gap: 14px; }
@@ -45,15 +45,6 @@ button:disabled { opacity: .5; cursor: progress; }
 }
 #settings::backdrop { background: rgba(0, 0, 0, .35); }
 #settings h2 { margin: 0 0 12px; font-size: 17px; }
-#settings .engine {
-  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 8px;
-  border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
-}
-#settings .engine:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
-#settings .engine input { margin-top: 3px; }
-#settings .engine small { display: block; opacity: .75; margin-top: 2px; }
-#settings .gemini-only { display: none; margin-top: 14px; }
-#settings[data-engine="gemini"] .gemini-only { display: block; }
 #settings .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
 #settings .field .name { font-weight: 600; font-size: 13px; }
 #settings .row-input { display: flex; gap: 6px; }

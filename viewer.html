@@ -31,7 +31,8 @@
         <option value="ko">韓国語</option>
       </select>
     </label>
-    <button id="start" aria-busy="false">翻訳開始</button>
+    <button id="startLocal" class="translate-button" aria-busy="false" title="Chrome内蔵AIで翻訳します。文章は外部に送られません。">ローカルAIで翻訳</button>
+    <button id="startGemini" class="translate-button" aria-busy="false" title="PDF全文をGemini APIへ送って翻訳します。APIキーが必要です。">Geminiで翻訳</button>
     <label>表示
       <select id="view">
         <option value="both">対訳（左右）</option>
@@ -45,21 +46,13 @@
       <button id="zoomIn" title="拡大">＋</button>
     </span>
     <button id="download" title="今の表示のままPDFに保存します">PDFで保存</button>
-    <button id="openSettings" title="翻訳エンジンの設定">⚙ 設定</button>
+    <button id="openSettings" title="GeminiのAPIキー・モデルの設定">⚙ 設定</button>
     <span id="status" role="status" aria-live="polite"></span>
   </header>
 
   <dialog id="settings">
     <form method="dialog">
-      <h2>翻訳の設定</h2>
-      <label class="engine">
-        <input type="radio" name="engine" value="chrome">
-        <span><b>無料（Chrome内蔵）</b><small>PCの中で翻訳します。文章は外部に送られません。</small></span>
-      </label>
-      <label class="engine">
-        <input type="radio" name="engine" value="gemini">
-        <span><b>高精度（Gemini API）</b><small>全文をGoogleのサーバーへ送り、一括翻訳します。APIキーが必要です。</small></span>
-      </label>
+      <h2>Gemini APIの設定</h2>
 
       <div class="gemini-only">
         <div class="field">
@@ -83,7 +76,7 @@
           <button type="button" id="testKey">接続テスト</button>
           <span id="testResult"></span>
         </div>
-        <p class="note">⚠ Gemini APIの<b>無料枠</b>では、送った文章がGoogleのサービス改善に使われ、人が読む場合があります。未公開の論文など外に出したくない文書には「無料（Chrome内蔵）」を使ってください。</p>
+        <p class="note">⚠ Gemini APIの<b>無料枠</b>では、送った文章がGoogleのサービス改善に使われ、人が読む場合があります。未公開の論文など外に出したくない文書には「ローカルAIで翻訳」を使ってください。</p>
         <p class="note">APIキーはこのブラウザの、この拡張機能専用の保存領域にだけ保存され、Gemini API以外には送られません。</p>
       </div>
 

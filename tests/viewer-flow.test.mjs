@@ -29,7 +29,7 @@ const element = () => {
     append() {}, appendChild() {}, replaceChildren() {}, remove() {}, querySelectorAll: () => [],
   };
 };
-async function viewer(engine = 'gemini', localTranslator = {}) {
+async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = null) {
   const elements = new Map();
   const document = {
     body: { dataset: {} }, documentElement: { scrollHeight: 1000, style: { setProperty() {} } },
@@ -50,14 +50,14 @@ async function viewer(engine = 'gemini', localTranslator = {}) {
     pdfjsLib: { GlobalWorkerOptions: {} },
     createGeminiTranslator, createDocumentTranslator,
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),
-    openSettings: async () => null,
+    openSettings: async () => nextSettings,
     Translator: {
       availability: async () => 'available',
       create: async () => ({ translate: async (text) => 'ローカル訳: ' + text }),
       ...localTranslator,
     },
   };
-  if (engine === 'chrome') context.self.Translator = context.Translator;
+  context.self.Translator = context.Translator;
   // Run the actual viewer orchestration. Only PDF/canvas/DOM rendering is replaced.
   const source = viewerSource.replace(/^import .*;\n/gm, '').replaceAll('import.meta.url', JSON.stringify(new URL('../viewer.js', import.meta.url).href)).replace(/\nload\(\);\s*$/, `
     const rendering = { pixelScale, makeCanvas, renderPage, releasePage };
@@ -66,7 +66,7 @@ async function viewer(engine = 'gemini', localTranslator = {}) {
     releasePage = () => {};
     placeBlock = () => elementStub();
     fillBlock = (_el, b, text) => { b.ja = text; };
-    return { state, start, enqueue, translateAll, status: () => $('#status').textContent, startButton: $('#start'), beginTranslation, rendering, window, viewSelect: viewSel };
+    return { state, start, enqueue, translateAll, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -96,7 +96,7 @@ test('viewer translates all pages on start and renders unseen pages for export w
     const input = JSON.parse(JSON.parse(init.body).input); requests.push(input); return success(input);
   });
   const api = await viewer();
-  await api.start();
+  await api.start('gemini');
   await idle(api);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].pages.length, 3);
@@ -112,12 +112,98 @@ test('viewer translates all pages on start and renders unseen pages for export w
 test('viewer preserves Chrome local per-page translation', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => assert.fail('must not use API'));
   const api = await viewer('chrome');
-  await api.start();
+  await api.start('chrome');
   await idle(api);
   assert.equal(api.state.rows[0].blocks[0].ja, 'ローカル訳: Paragraph on page 1');
   assert.ok(!api.state.rows[2].translated);
   await api.translateAll();
   assert.ok(api.state.rows.every((r) => r.translated));
+});
+
+test('separate buttons choose local or Gemini regardless of the legacy saved engine', async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    calls++; return success(JSON.parse(JSON.parse(init.body).input));
+  });
+  const api = await viewer('gemini');
+  await api.localButton.onclick();
+  await idle(api);
+  assert.equal(calls, 0);
+  assert.equal(api.state.engine, 'chrome');
+  assert.equal(api.state.rows[0].blocks[0].ja, 'ローカル訳: Paragraph on page 1');
+  await api.startButton.onclick();
+  await idle(api);
+  assert.equal(calls, 1);
+  assert.equal(api.state.engine, 'gemini');
+  assert.equal(api.state.rows[0].blocks[0].ja, '訳文 1');
+  await api.localButton.onclick();
+  await idle(api);
+  assert.equal(calls, 1);
+  assert.equal(api.state.engine, 'chrome');
+  assert.equal(api.state.rows[0].blocks[0].ja, 'ローカル訳: Paragraph on page 1');
+});
+
+test('missing Gemini key does not prevent local translation or choose an engine automatically', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('must not use API'));
+  const api = await viewer('gemini');
+  api.state.settings.geminiKey = '';
+  await api.start();
+  assert.equal(api.state.engine, null);
+  assert.match(api.status(), /翻訳ボタンを選んで/);
+  await api.startButton.onclick();
+  assert.match(api.status(), /APIキーを入力/);
+  assert.equal(api.state.engine, null);
+  await api.localButton.onclick();
+  await idle(api);
+  assert.equal(api.state.engine, 'chrome');
+  assert.equal(api.state.rows[0].blocks[0].ja, 'ローカル訳: Paragraph on page 1');
+});
+
+test('local preparation shows its own spinner and disables both buttons', async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const api = await viewer('gemini', { availability: async () => { await gate; return 'available'; } });
+  const pending = api.localButton.onclick();
+  assert.equal(api.localButton.textContent, 'ローカルAIで翻訳中…');
+  assert.equal(api.localButton.getAttribute('aria-busy'), 'true');
+  assert.ok(api.localButton.classList.contains('loading'));
+  assert.equal(api.localButton.disabled, true);
+  assert.equal(api.startButton.disabled, true);
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'false');
+  assert.ok(!api.startButton.classList.contains('loading'));
+  release();
+  await pending;
+  await idle(api);
+  assert.equal(api.localButton.textContent, 'ローカルAIで翻訳');
+  assert.equal(api.localButton.disabled, false);
+  assert.equal(api.startButton.disabled, false);
+});
+
+test('saving Gemini settings does not start a request or switch local translation', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('must not use API'));
+  const api = await viewer('chrome', {}, { geminiKey: 'new-mock-key', geminiModel: 'another-model' });
+  await api.localButton.onclick();
+  await idle(api);
+  await api.settingsButton.onclick();
+  assert.equal(api.state.engine, 'chrome');
+  assert.equal(api.state.settings.geminiModel, 'another-model');
+});
+
+test('failed local switch preserves the existing Gemini result for unseen pages and export', async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    calls++; return success(JSON.parse(JSON.parse(init.body).input));
+  });
+  const api = await viewer('gemini', { availability: async () => 'unavailable' });
+  await api.startButton.onclick();
+  await idle(api);
+  await api.localButton.onclick();
+  assert.match(api.status(), /未対応/);
+  assert.equal(api.state.engine, 'gemini');
+  assert.equal(api.state.translationAbort.signal.aborted, false);
+  await api.translateAll();
+  assert.ok(api.state.rows.every((r) => r.translated));
+  assert.equal(calls, 1);
 });
 
 test('viewer rejects incomplete output and export without additional requests', async (t) => {
@@ -126,7 +212,7 @@ test('viewer rejects incomplete output and export without additional requests', 
     calls++; return Response.json({ status: 'incomplete', steps: [] });
   });
   const api = await viewer();
-  await api.start();
+  await api.start('gemini');
   await idle(api);
   assert.equal(calls, 1);
   assert.ok(api.state.rows[0].failed);
@@ -151,9 +237,9 @@ test('restart aborts the old request and only displays the new result', async (t
     return success(input);
   });
   const api = await viewer();
-  await api.start();
+  await api.start('gemini');
   await firstStarted;
-  await api.start();
+  await api.start('gemini');
   await idle(api);
   assert.equal(calls, 2);
   assert.equal(api.state.rows[0].blocks[0].ja, '訳文 1');
@@ -171,22 +257,26 @@ test('start button stays busy during the full request and returns to normal on c
     return success(JSON.parse(JSON.parse(init.body).input));
   });
   const api = await viewer();
-  await api.start();
+  await api.start('gemini');
   await requestStarted;
   assert.equal(api.startButton.disabled, true);
-  assert.equal(api.startButton.textContent, '翻訳中…');
+  assert.equal(api.startButton.textContent, 'Geminiで翻訳中…');
   assert.ok(api.startButton.classList.contains('loading'));
   assert.equal(api.startButton.getAttribute('aria-busy'), 'true');
+  assert.equal(api.localButton.disabled, true);
+  assert.equal(api.localButton.getAttribute('aria-busy'), 'false');
+  assert.ok(!api.localButton.classList.contains('loading'));
   release();
   await idle(api);
   assert.equal(api.startButton.disabled, false);
-  assert.equal(api.startButton.textContent, '翻訳開始');
+  assert.equal(api.startButton.textContent, 'Geminiで翻訳');
   assert.ok(!api.startButton.classList.contains('loading'));
+  assert.equal(api.localButton.disabled, false);
 });
 
 test('failed local translator preparation releases the start button', async () => {
   const api = await viewer('chrome', { availability: async () => 'unavailable' });
-  await api.start();
+  await api.start('chrome');
   assert.match(api.status(), /未対応/);
   assert.equal(api.startButton.disabled, false);
   assert.equal(api.startButton.getAttribute('aria-busy'), 'false');
@@ -194,6 +284,7 @@ test('failed local translator preparation releases the start button', async () =
 
 test('completion of an older task cannot clear the current loading indicator', async () => {
   const api = await viewer();
+  api.state.engine = 'gemini';
   const finishOld = api.beginTranslation();
   api.state.translationVersion++;
   const finishNew = api.beginTranslation();
