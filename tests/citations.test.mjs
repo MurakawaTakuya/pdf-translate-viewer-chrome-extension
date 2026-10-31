@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { citationIdentifier, detectCitationIdentifier, parseArxivMetadata, matchingPublication, createCitationService } from '../citations.js';
+import { citationIdentifier, detectCitationIdentifier, parseArxivMetadata, matchingPublication, createCitationService, formatBibtex } from '../citations.js';
 
 const doi = '10.1234/paper';
 const title = 'Self-supervised learning from images';
@@ -107,4 +107,26 @@ test('HTML citation responses become copyable text without the known abstract', 
     : `<div class="csl-block">Smith &amp; Jones. <i>Paper</i>.</div><div class="csl-block">${abstract}</div>`) });
   await service.resolve(doi);
   assert.equal(await service.formatted(doi, 'iso'), 'Smith & Jones. Paper.');
+});
+
+test('BibTeX gets field newlines while retaining commas, braces, quoted values and macros', () => {
+  const source = '@inproceedings{Assran_2023, title={A {Nested, Title}}, author={Assran, Mahmoud and Duval, Quentin}, note="a, quoted {value}", month=June, year=2023 }';
+  const expected = '@inproceedings{Assran_2023,\n  title={A {Nested, Title}},\n  author={Assran, Mahmoud and Duval, Quentin},\n  note="a, quoted {value}",\n  month=June,\n  year=2023\n}';
+  assert.equal(formatBibtex(source), expected);
+  assert.equal(formatBibtex(expected), expected);
+  assert.equal(formatBibtex('@article(key, title={Test, Title}, year=2023,)'), '@article(key,\n  title={Test, Title},\n  year=2023\n)');
+  assert.equal(formatBibtex('@article{incomplete, title={Test}'), '@article{incomplete, title={Test}');
+  assert.equal(formatBibtex('@string{publisher="A, B"}'), '@string{publisher="A, B"}');
+});
+
+test('BibTeX export returns the same multiline text for the UI, clipboard and download', async () => {
+  let requests = 0;
+  const service = createCitationService({ fetch: async () => {
+    requests++;
+    return new Response('@article{key, title={Title}, author={Smith, Jane}, year={2023} }');
+  } });
+  const text = await service.exported(doi, 'bibtex');
+  assert.equal(text, '@article{key,\n  title={Title},\n  author={Smith, Jane},\n  year={2023}\n}');
+  assert.equal(await service.exported(doi, 'bibtex'), text);
+  assert.equal(requests, 1);
 });

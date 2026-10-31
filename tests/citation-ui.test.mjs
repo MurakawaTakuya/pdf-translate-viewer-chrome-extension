@@ -8,7 +8,7 @@ function fixture(fileUrl = 'https://doi.org/10.1234/paper', overrides = {}) {
   const $ = (id) => {
     if (!elements.has(id)) elements.set(id, {
       hidden: true, open: false, style: {}, value: '', textContent: '', disabled: false,
-      classList: { toggle() {} }, setAttribute() {}, focus() {},
+      classList: { toggle() {} }, setAttribute() {}, focus() {}, addEventListener() {},
       getBoundingClientRect: () => ({ bottom: 60 }),
       showModal() { this.open = true; }, close() { this.open = false; this.onclose?.(); },
     });
@@ -17,7 +17,7 @@ function fixture(fileUrl = 'https://doi.org/10.1234/paper', overrides = {}) {
   const service = {
     resolve: async (id) => { calls.push(id); return { doi: '10.1234/paper', title: 'Paper title', version: 'DOI登録情報' }; },
     formatted: async (_doi, style) => style + ' citation',
-    exported: async (_doi, format) => format + ' source',
+    exported: async (_doi, format) => format === 'bibtex' ? '@article{key,\n  title={Paper}\n}' : format + ' source',
     ...overrides,
   };
   const controller = createCitationDialog({
@@ -35,6 +35,9 @@ test('citation panel fetches only on opening and supports three copies and refer
   assert.equal(f.$('#citations').open, true);
   assert.equal(f.$('#citations').style.top, '68px');
   assert.equal(f.$('#citationContent').hidden, false);
+  const scholar = new URL(f.$('#citationScholar').href);
+  assert.equal(scholar.origin, 'https://scholar.google.com');
+  assert.equal(scholar.searchParams.get('q'), '"Paper title"');
   for (const style of ['mla', 'apa', 'iso']) {
     assert.equal(f.$(`#citation-${style}`).textContent, style + ' citation');
     await f.$(`#copy-${style}`).onclick();
@@ -46,6 +49,8 @@ test('citation panel fetches only on opening and supports three copies and refer
     f.$('#citationExportSave').onclick();
   }
   assert.deepEqual(f.downloads.map((d) => d.filename), ['citation.bib', 'citation.ris', 'citation.ris', 'citation.ris']);
+  assert.equal(f.downloads[0].text, '@article{key,\n  title={Paper}\n}');
+  assert.equal(f.copied[3], f.downloads[0].text);
 });
 
 test('unknown PDFs require an identifier, with validation before service calls', async () => {

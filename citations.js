@@ -89,6 +89,34 @@ export const CITATION_EXPORTS = [
   { id: 'refworks', label: 'RefWorks', format: 'ris', extension: 'ris' },
 ];
 
+// 値の中のカンマ、入れ子の波括弧、引用符は保持し、フィールドの区切りだけを改行する。
+export function formatBibtex(value) {
+  const text = value.trim();
+  const head = /^(@[a-z]+\s*)([{(])/i.exec(text);
+  if (!head || /^@(comment|string|preamble)\b/i.test(text)) return text;
+  const open = head[2], close = open === '{' ? '}' : ')';
+  const base = open === '{' ? 1 : 0;
+  let depth = base, quoted = false, start = head[0].length, end = -1;
+  const parts = [];
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '\\') { i++; continue; }
+    if (ch === '"' && depth === base) quoted = !quoted;
+    if (!quoted && depth === base && ch === close) {
+      parts.push(text.slice(start, i).trim());
+      end = i;
+      break;
+    }
+    if (!quoted && depth === base && ch === ',') { parts.push(text.slice(start, i).trim()); start = i + 1; }
+    if (ch === '{') depth++;
+    if (ch === '}') depth--;
+  }
+  // 複数エントリや不完全なデータは、推測で書き換えない。
+  if (end < 0 || quoted || text.slice(end + 1).trim() || parts.length < 2) return text;
+  const [key, ...fields] = parts;
+  return `${head[1]}${open}${key},\n${fields.filter(Boolean).map((field) => `  ${field}`).join(',\n')}\n${close}`;
+}
+
 export function createCitationService({ fetch: fetcher = globalThis.fetch } = {}) {
   const cache = new Map(), records = new Map();
   function cached(key, work) {
@@ -159,7 +187,10 @@ export function createCitationService({ fetch: fetcher = globalThis.fetch } = {}
   function exported(doi, format) {
     const accepts = { bibtex: 'application/x-bibtex', ris: 'application/x-research-info-systems' };
     if (!accepts[format]) return Promise.reject(new Error('未対応の出力形式です'));
-    return cached(`export:${doi.toLowerCase()}:${format}`, () => request(doiUrl(doi), accepts[format]));
+    return cached(`export:${doi.toLowerCase()}:${format}`, async () => {
+      const text = await request(doiUrl(doi), accepts[format]);
+      return format === 'bibtex' ? formatBibtex(text) : text;
+    });
   }
   return { resolve, formatted, exported };
 }

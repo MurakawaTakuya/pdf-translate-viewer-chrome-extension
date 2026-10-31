@@ -1,5 +1,6 @@
 // Gemini APIの設定（翻訳方法はビューアのボタンで選ぶ）
 import { createGeminiTranslator, DEFAULT_MODEL } from './gemini.js';
+import { dismissOnOutsideClick } from './dialog.js';
 
 const DEFAULTS = { geminiKey: '', geminiModel: DEFAULT_MODEL };
 
@@ -21,6 +22,7 @@ const $ = (s) => document.querySelector(s);
 // 設定ダイアログを開く。保存されたら新しい設定、キャンセルなら null を返す
 export function openSettings(current) {
   const dlg = $('#settings');
+  dismissOnOutsideClick(dlg);
   const form = dlg.querySelector('form');
   const keyInput = $('#apiKey');
   const modelInput = $('#model');
@@ -49,10 +51,13 @@ export function openSettings(current) {
 
   dlg.showModal();
   return new Promise((resolve) => {
+    let saving = false;
     dlg.oncancel = () => resolve(null); // Esc
+    dlg.onclose = () => { if (!saving) resolve(null); }; // 外側クリックもキャンセル扱い
     // close イベントは描画のタイミングまで遅れることがあるので、ボタンの submit で判定する
     form.onsubmit = async (e) => {
       if (e.submitter?.value !== 'save') { resolve(null); return; }
+      saving = true;
       const next = {
         geminiKey: keyInput.value.trim(),
         geminiModel: modelInput.value.trim() || DEFAULT_MODEL,

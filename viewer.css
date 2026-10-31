@@ -154,7 +154,7 @@ button:disabled { opacity: .5; cursor: progress; }
 #citationStatus:empty { display: none; }
 #citationStatus.error { color: #d84a3a; }
 #citationPaperTitle { font-weight: 600; margin: 12px 0 5px; }
-.citation-source { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; font-size: 11px; }
+.citation-source { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; font-size: 11px; }
 .citation-source a { color: var(--accent); overflow-wrap: anywhere; }
 .citation-source button { padding: 2px 5px; font-size: 11px; }
 .citation-row { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 14px 0; border-top: 1px solid var(--border); }

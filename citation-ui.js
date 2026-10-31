@@ -1,8 +1,10 @@
 import { CITATION_STYLES, CITATION_EXPORTS, createCitationService, citationIdentifier, detectCitationIdentifier } from './citations.js';
+import { dismissOnOutsideClick } from './dialog.js';
 
 export function createCitationDialog({ document, getPdf, fileUrl, download, clipboard = globalThis.navigator?.clipboard, service = createCitationService() }) {
   const $ = (s) => document.querySelector(s);
   const dialog = $('#citations');
+  dismissOnOutsideClick(dialog);
   let generation = 0, exportGeneration = 0, source = null, exportText = '', exportFormat = null, detected;
   const text = (selector, value) => { $(selector).textContent = value; };
 
@@ -37,6 +39,10 @@ export function createCitationDialog({ document, getPdf, fileUrl, download, clip
       const link = $('#citationSource');
       link.textContent = `${result.version} · DOI: ${result.doi}`;
       link.href = 'https://doi.org/' + result.doi.split('/').map(encodeURIComponent).join('/');
+      const scholar = new URL('https://scholar.google.com/scholar');
+      scholar.searchParams.set('hl', 'ja');
+      scholar.searchParams.set('q', `"${result.title}"`);
+      $('#citationScholar').href = scholar.href;
       let failed = 0;
       for (const [i, entry] of CITATION_STYLES.entries()) {
         const value = formats[i];
