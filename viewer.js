@@ -193,6 +193,9 @@ window.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 const refit = () => {
+  // 横スクロールから独立した固定ヘッダーの分だけ、PDF上端に余白を確保する。
+  const height = $('header').getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--toolbar-height', `${height}px`);
   if (state.fitMode) fitToViewport(state.fitMode, currentFitRow(), false);
   schedulePageNavigation();
   citationDialog?.position();

@@ -45,8 +45,11 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     setZoom: () => assert.fail('PDF zoom must not set Chrome zoom or open its popover'),
   };
   let nextFrame = 0;
+  const rootStyles = new Map();
   const document = {
-    body: { dataset: {} }, documentElement: { scrollHeight: 1000, clientHeight: 900, style: { setProperty() {} } },
+    body: { dataset: {} }, documentElement: { scrollHeight: 1000, clientHeight: 900, style: {
+      setProperty: (name, value) => rootStyles.set(name, value), getPropertyValue: (name) => rootStyles.get(name),
+    } },
     querySelector: (name) => { if (!elements.has(name)) elements.set(name, element()); return elements.get(name); },
     createElement: (tagName) => {
       const el = element();
@@ -520,6 +523,7 @@ test('height fit uses the page at the viewport and subtracts toolbar and margins
   assert.equal(api.element('#fitHeight').getAttribute('aria-pressed'), 'true');
   api.element('header').height = 120;
   api.headerResize();
+  assert.equal(api.document.documentElement.style.getPropertyValue('--toolbar-height'), '120px');
   near(api.rendering.viewZoom() * 1000, 900 - 120 - 24);
   api.document.documentElement.clientHeight = 600;
   api.resize();

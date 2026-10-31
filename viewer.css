@@ -7,7 +7,7 @@
   :root { --bg: #202124; --fg: #e8e8e8; --panel: #2d2e31; --border: #4a4b4f; --accent: #8ab4f8; }
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+body { margin: 0; padding-top: var(--toolbar-height, 53px); background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
 select, button { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
 button { cursor: pointer; }
 button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -21,7 +21,7 @@ button:disabled { opacity: .5; cursor: progress; }
 
 /* PDFの操作を中央、翻訳の操作を右にまとめたツールバー */
 .viewer-toolbar {
-  position: sticky; top: 0; z-index: 10; padding: 8px 16px;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 10; padding: 8px 16px;
   background: #242528; color: #e5e7eb; border-bottom: 1px solid #3c3e43; color-scheme: dark;
 }
 .toolbar-row {
