@@ -25,6 +25,7 @@ if (window.top !== window) throw new Error('埋め込みでは表示できませ
 const GAP = 12; // 左右ページの間隔（CSSの .row gap と合わせる）
 const MAX_CANVAS_PIXELS = 2 ** 24; // 1枚のcanvasの上限（約1600万画素）。拡大しすぎてメモリを食わないように
 const RENDER_QUALITY = 1.5; // 表示に必要な密度より細かく描いて、細字や斜線の粗さを抑える
+const LOCAL_TRANSLATION_LOOKAHEAD = 15;
 const ZOOMS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
 const state = {
@@ -318,11 +319,11 @@ async function buildRows() {
       r.visible = e.isIntersecting;
       if (e.isIntersecting) {
         renderPage(r);
-        if (state.enabled) enqueue(r);
       } else {
         releasePage(r); // 画面から遠いページの画像は捨てる（戻ってきたら描き直す）
       }
     }
+    enqueueVisiblePages();
     schedulePageNavigation();
   }, { rootMargin: '700px 0px' });
 
@@ -837,7 +838,7 @@ async function start(engine = state.engine) {
         if (translator === state.translator) setStatus('全文の翻訳に失敗しました: ' + e.message);
       }).finally(finishDocument);
     }
-    for (const r of state.rows) if (r.visible) enqueue(r);
+    enqueueVisiblePages();
   } catch (e) {
     if (version === state.translationVersion) setStatus('翻訳の準備に失敗しました: ' + e.message);
   } finally {
@@ -882,6 +883,20 @@ async function createChromeTranslator(sourceLanguage, targetLanguage) {
   }
 }
 
+function enqueueVisiblePages() {
+  if (!state.enabled) return;
+  const visible = state.rows.filter((r) => r.visible);
+  const targets = [...visible];
+  if (state.engine === 'chrome' && visible.length) {
+    const last = visible.at(-1).index;
+    targets.push(...state.rows.slice(last, last + LOCAL_TRANSLATION_LOOKAHEAD));
+  }
+  for (const r of targets) enqueue(r);
+  // 先読み中に大きくスクロールしたら、移動先とその先を古い先読みより優先する。
+  const priority = new Map(targets.map((r, i) => [r, i]));
+  state.queue.sort((a, b) => (priority.get(a) ?? Infinity) - (priority.get(b) ?? Infinity));
+}
+
 function enqueue(r) {
   if (r.queued || r.translated) return;
   r.queued = true;
@@ -918,7 +933,7 @@ async function pump() {
   state.working = false;
   if (error && errorTranslator === state.translator && state.rows.some((r) => r.failed)) setStatus('翻訳エラー: ' + error.message);
   else if (!state.exporting) setStatus(state.translator.ready
-    ? '全文の翻訳が完了しました' : '翻訳済み（スクロールすると続きを翻訳します）');
+    ? '全文の翻訳が完了しました' : '先読み範囲の翻訳が完了しました');
 }
 
 // 訳せなかった段落は原文の表示に戻し、ページの上にエラーと「再試行」ボタンを出す

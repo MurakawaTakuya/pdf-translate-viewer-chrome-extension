@@ -93,7 +93,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     placeBlock = () => elementStub();
     fillBlock = (_el, b, text) => { b.ja = text; };
     saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
-    return { state, start, enqueue, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
+    return { state, start, enqueue, enqueueVisiblePages, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -145,9 +145,65 @@ test('viewer preserves Chrome local per-page translation', async (t) => {
   await api.start('chrome');
   await idle(api);
   assert.equal(api.state.rows[0].blocks[0].ja, 'ローカル訳: Paragraph on page 1');
-  assert.ok(!api.state.rows[2].translated);
+  assert.ok(api.state.rows[2].translated);
   await api.translateAll();
   assert.ok(api.state.rows.every((r) => r.translated));
+});
+
+function localPages(api, count) {
+  api.state.rows = Array.from({ length: count }, (_, i) => ({
+    index: i + 1, visible: i === 0, srcLayer: element(), dstLayer: element(),
+    blocks: [{ text: `Page ${i + 1}`, translate: true, colors: {} }],
+  }));
+}
+
+test('local AI translates fifteen pages ahead, advances on scrolling and reuses translated pages', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('local lookahead must not call Gemini'));
+  const calls = [];
+  const api = await viewer('chrome', { create: async () => ({ translate: async (text) => { calls.push(text); return '訳 ' + text; } }) });
+  localPages(api, 30);
+  await api.start('chrome');
+  await idle(api);
+  assert.deepEqual(calls, Array.from({ length: 16 }, (_, i) => `Page ${i + 1}`));
+  assert.equal(api.state.rows[15].translated, true);
+  assert.ok(!api.state.rows[16].translated);
+  for (const r of api.state.rows) r.visible = r.index === 10;
+  api.enqueueVisiblePages();
+  await idle(api);
+  assert.deepEqual(calls.slice(16), Array.from({ length: 9 }, (_, i) => `Page ${i + 17}`));
+  assert.ok(!api.state.rows[25].translated);
+  for (const r of api.state.rows) r.visible = r.index === 30;
+  api.enqueueVisiblePages();
+  await idle(api);
+  assert.equal(calls.at(-1), 'Page 30');
+  assert.equal(calls.length, 26); // No read-ahead beyond the final page.
+  for (const r of api.state.rows) r.visible = r.index === 1;
+  api.enqueueVisiblePages();
+  await idle(api);
+  assert.equal(calls.length, 26);
+});
+
+test('newly visible local pages take priority over queued lookahead after a jump', async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const calls = [];
+  const api = await viewer('chrome', { create: async () => ({ translate: async (text) => {
+    calls.push(text);
+    if (calls.length === 1) await gate;
+    return '訳 ' + text;
+  } }) });
+  localPages(api, 40);
+  await api.start('chrome');
+  for (let i = 0; i < 10 && !calls.length; i++) await new Promise(setImmediate);
+  assert.deepEqual(calls, ['Page 1']);
+  for (const r of api.state.rows) r.visible = r.index === 20;
+  api.enqueueVisiblePages();
+  release();
+  await idle(api);
+  assert.equal(calls[1], 'Page 20');
+  assert.deepEqual(calls.slice(1, 17), Array.from({ length: 16 }, (_, i) => `Page ${i + 20}`));
+  assert.equal(new Set(calls).size, calls.length);
+  assert.ok(!api.state.rows[35].translated);
 });
 
 test('separate buttons choose local or Gemini regardless of the legacy saved engine', async (t) => {
