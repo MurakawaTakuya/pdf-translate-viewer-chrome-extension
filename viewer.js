@@ -46,6 +46,7 @@ const setStatus = (t) => { $('#status').textContent = t; };
 
 // 古い翻訳の終了で、新しい翻訳のローディングを消さないよう世代ごとに管理する。
 const translationActivities = new Set();
+const repairingTranslators = new WeakSet();
 function beginTranslation() {
   const activity = { version: state.translationVersion };
   translationActivities.add(activity);
@@ -749,7 +750,7 @@ async function pump() {
     }
   }
   state.working = false;
-  if (error && errorTranslator === state.translator) setStatus('翻訳エラー: ' + error.message);
+  if (error && errorTranslator === state.translator && state.rows.some((r) => r.failed)) setStatus('翻訳エラー: ' + error.message);
   else if (!state.exporting) setStatus(state.translator.ready
     ? '全文の翻訳が完了しました' : '翻訳済み（スクロールすると続きを翻訳します）');
 }
@@ -757,14 +758,51 @@ async function pump() {
 // 訳せなかった段落は原文の表示に戻し、ページの上にエラーと「再試行」ボタンを出す
 function showPageError(r, e) {
   for (const el of r.dstLayer.querySelectorAll('.blk.pending')) { el._src?.remove(); el.remove(); }
+  for (const el of r.dstLayer.querySelectorAll('.page-msg')) el.remove();
   const msg = document.createElement('div');
   msg.className = 'page-msg err';
   msg.append('翻訳エラー: ' + e.message + ' ');
   const retry = document.createElement('button');
-  retry.textContent = state.translator.ready ? '全文を再試行' : 'このページを再試行';
-  retry.onclick = () => { msg.remove(); state.translator.ready ? start() : enqueue(r); };
+  const translator = state.translator;
+  retry.textContent = translator.missingCount
+    ? `不足${translator.missingCount}段落だけ再翻訳`
+    : translator.ready ? '全文を再試行' : 'このページを再試行';
+  if (translator.missingCount) retry.title = '全文を文脈として添え、不足分だけを翻訳します。追加のAPIリクエストを通常1回使います。';
+  retry.onclick = () => {
+    if (translator !== state.translator) return;
+    if (translator.missingCount) return repairMissingTranslations();
+    msg.remove();
+    return translator.ready ? start() : enqueue(r);
+  };
   msg.append(retry);
   r.dstLayer.appendChild(msg);
+}
+
+async function repairMissingTranslations() {
+  const translator = state.translator;
+  if (!translator?.missingCount || repairingTranslators.has(translator)) return;
+  repairingTranslators.add(translator);
+  const finish = beginTranslation();
+  for (const r of state.rows) {
+    for (const button of r.dstLayer.querySelectorAll('.page-msg button')) button.disabled = true;
+  }
+  try {
+    await translator.repairMissing();
+    if (translator !== state.translator) return;
+    for (const r of state.rows) {
+      r.failed = false;
+      for (const el of r.dstLayer.querySelectorAll('.page-msg')) el.remove();
+    }
+    setStatus('全文の翻訳が完了しました');
+    for (const r of state.rows) if (r.visible) enqueue(r);
+  } catch (e) {
+    if (translator !== state.translator) return;
+    setStatus('不足分の再翻訳に失敗しました: ' + e.message);
+    for (const r of state.rows) if (r.visible) showPageError(r, e);
+  } finally {
+    repairingTranslators.delete(translator);
+    finish();
+  }
 }
 
 async function translatePage(r, translator) {

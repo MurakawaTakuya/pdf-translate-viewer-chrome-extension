@@ -101,6 +101,21 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
 
 class BadOutput extends Error {}
 
+// 訳抜けだけなら、検証済みの応答を画面内に保持して手動補完に使える。
+// 原文や訳文がconsole.errorやJSONに展開されないようprivateフィールドにする。
+export class MissingTranslationsError extends BadOutput {
+  #partial;
+  #missing;
+  constructor(message, partial, missing) {
+    super(message);
+    this.name = 'MissingTranslationsError';
+    this.#partial = partial;
+    this.#missing = missing;
+  }
+  get partialTranslations() { return new Map(this.#partial); }
+  get missingIds() { return [...this.#missing]; }
+}
+
 function parse(body, ids) {
   if (body.status === 'incomplete') throw new BadOutput('全文の翻訳が途中で切れました（出力上限など）。完了した翻訳としては表示しません');
   if (body.status && body.status !== 'completed') throw new BadOutput(`翻訳が完了しませんでした（${body.status}）`);
@@ -127,11 +142,17 @@ function parse(body, ids) {
     else if (!value.trim()) empty++;
     out.set(id, value);
   }
-  const missing = ids.filter((_, i) => !out.has(i + 1)).length;
+  const missingIds = ids.filter((_, i) => !out.has(i + 1));
+  const missing = missingIds.length;
   if (missing || extra || duplicate || empty || invalid || translations.length !== ids.length) {
     // 原文・訳文・APIキーはエラーに含めず、再現時に原因を区別できる件数だけを表示する。
     const details = [`必要${ids.length}件／受信${translations.length}件`, `不足${missing}件`, `対象外${extra}件`, `重複${duplicate}件`, `空欄${empty}件`, `形式不正${invalid}件`];
-    throw new BadOutput(`全文の翻訳を検証できませんでした（${details.join('、')}）。全文を再試行してください`);
+    const message = `全文の翻訳を検証できませんでした（${details.join('、')}）。`;
+    if (missing && !extra && !duplicate && !empty && !invalid && translations.length === ids.length - missing) {
+      const partial = new Map(ids.flatMap((id, i) => out.has(i + 1) ? [[id, out.get(i + 1)]] : []));
+      throw new MissingTranslationsError(`${message}受信済みの訳文を保持しています。不足分だけ再翻訳できます`, partial, missingIds);
+    }
+    throw new BadOutput(`${message}全文を再試行してください`);
   }
   // 応答順は使わず、検証済みの番号から元のブロックIDに戻す。
   return new Map(ids.map((id, i) => [id, out.get(i + 1)]));

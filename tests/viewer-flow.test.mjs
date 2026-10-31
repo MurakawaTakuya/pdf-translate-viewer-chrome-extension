@@ -31,19 +31,21 @@ const element = () => {
 };
 async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = null) {
   const elements = new Map();
+  const createdElements = [];
   const document = {
     body: { dataset: {} }, documentElement: { scrollHeight: 1000, style: { setProperty() {} } },
     querySelector: (name) => { if (!elements.has(name)) elements.set(name, element()); return elements.get(name); },
     createElement: (tagName) => {
       const el = element();
       el.tagName = tagName;
+      createdElements.push(el);
       if (tagName === 'canvas') el.getContext = () => ({ drawImage() {} });
       return el;
     },
   };
   const window = {}; window.top = window;
   const context = {
-    document, window, self: {}, location: { search: '' },
+    document, window, createdElements, self: {}, location: { search: '' },
     localStorage: { getItem: () => null, setItem() {} },
     matchMedia: () => ({ addEventListener() {} }), devicePixelRatio: 1, scrollY: 0, scrollTo() {},
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
@@ -66,7 +68,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     releasePage = () => {};
     placeBlock = () => elementStub();
     fillBlock = (_el, b, text) => { b.ja = text; };
-    return { state, start, enqueue, translateAll, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
+    return { state, start, enqueue, translateAll, createdElements, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -222,6 +224,44 @@ test('viewer rejects incomplete output and export without additional requests', 
   assert.match(api.status(), /失敗|エラー/);
   assert.equal(api.startButton.disabled, false);
   assert.equal(api.startButton.getAttribute('aria-busy'), 'false');
+});
+
+test('missing-only retry button repairs one paragraph and reuses the full result for export', async (t) => {
+  let calls = 0, release, started;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const repairStarted = new Promise((resolve) => { started = resolve; });
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const input = JSON.parse(JSON.parse(init.body).input);
+    calls++;
+    if (calls === 2) { started(); await gate; }
+    const translations = input.pages.flatMap((p) => p.blocks
+      .filter((b) => b.translate_id !== undefined && (calls > 1 || b.translate_id !== 2))
+      .map((b) => ({ id: b.translate_id, text: calls === 1 ? '初回訳 ' + b.translate_id : '補完した訳文' })));
+    return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: JSON.stringify({ translations }) }] }] });
+  });
+  const api = await viewer();
+  await api.startButton.onclick();
+  await idle(api);
+  assert.equal(calls, 1);
+  assert.equal(api.state.translator.missingCount, 1);
+  assert.ok(api.state.rows.every((r) => !r.blocks[0].ja));
+  await assert.rejects(api.translateAll());
+  assert.equal(calls, 1);
+  const retry = api.createdElements.find((e) => e.textContent === '不足1段落だけ再翻訳');
+  assert.ok(retry);
+  const repairing = retry.onclick();
+  await retry.onclick(); // A second click cannot start another request.
+  await repairStarted;
+  assert.equal(calls, 2);
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'true');
+  release();
+  await repairing;
+  await idle(api);
+  await api.translateAll();
+  assert.deepEqual(api.state.rows.map((r) => r.blocks[0].ja), ['初回訳 1', '補完した訳文', '初回訳 3']);
+  assert.equal(calls, 2);
+  assert.equal(api.state.translator.missingCount, 0);
+  assert.equal(api.startButton.disabled, false);
 });
 
 test('restart aborts the old request and only displays the new result', async (t) => {

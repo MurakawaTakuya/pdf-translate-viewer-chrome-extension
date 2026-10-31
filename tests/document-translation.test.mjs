@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGeminiTranslator } from '../gemini.js';
+import { createGeminiTranslator, MissingTranslationsError } from '../gemini.js';
+import { inspect } from 'node:util';
 import { createDocumentTranslator } from '../document-translator.js';
 
 const options = { apiKey: 'mock-key', sourceLanguage: 'en', targetLanguage: 'ja' };
@@ -128,6 +129,7 @@ test('malformed or incomplete output never causes splitting, resending, or parti
       });
       await assert.rejects(tr.translatePage(rows[0], () => { displays++; }));
       await assert.rejects(tr.ready());
+      assert.equal(tr.missingCount, name === 'missing' ? 1 : 0);
       assert.equal(calls, 1);
       assert.equal(displays, 0);
     });
@@ -147,6 +149,103 @@ test('malformed or incomplete output never causes splitting, resending, or parti
     await assert.rejects(createGeminiTranslator(options).translateDocument([], ['a']), /応答を読み取れ/);
     assert.equal(calls, 1);
   });
+});
+
+test('281 valid translations are retained and only the missing target is repaired on demand', async (t) => {
+  const rows = [1, 2, 3].map((index) => ({ index }));
+  const blocks = rows.map((r) => [
+    { text: `Reference ${r.index}`, translate: false },
+    ...Array.from({ length: 94 }, (_, i) => ({ text: `Paragraph ${r.index}:${i}`, translate: true })),
+  ]);
+  const requests = [], gate = deferred(), repairStarted = deferred();
+  const missingText = 'Paragraph 2:29';
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const input = JSON.parse(JSON.parse(init.body).input);
+    requests.push(input);
+    if (requests.length === 1) {
+      return response(targets(input).filter((b) => b.text !== missingText).map((b) => ({ id: b.translate_id, text: '初回訳 ' + b.text })));
+    }
+    assert.equal(requests.length, 2);
+    repairStarted.resolve();
+    await gate.promise;
+    return response([{ id: 1, text: '補完した訳文' }]);
+  });
+  const tr = createDocumentTranslator({ rows, translator: createGeminiTranslator(options), getBlocks: async (r) => blocks[r.index - 1] });
+  await assert.rejects(tr.ready(), (error) => {
+    assert.ok(error instanceof MissingTranslationsError);
+    assert.deepEqual(error.missingIds, ['p2-b30']);
+    assert.equal(error.partialTranslations.size, 281);
+    assert.ok(!inspect(error).includes('初回訳'));
+    assert.ok(!JSON.stringify(error).includes('初回訳'));
+    return true;
+  });
+  assert.equal(tr.missingCount, 1);
+  await assert.rejects(tr.translatePage(rows[0], () => assert.fail('must not display incomplete document')));
+  assert.equal(requests.length, 1);
+  const repair = tr.repairMissing();
+  assert.equal(tr.repairMissing(), repair);
+  assert.equal(tr.ready(), repair);
+  await repairStarted.promise;
+  assert.equal(requests.length, 2);
+  assert.deepEqual(contextText(requests[1]), contextText(requests[0]));
+  assert.equal(requests[1].translate_count, 1);
+  assert.deepEqual(targets(requests[1]), [{ translate_id: 1, text: missingText }]);
+  gate.resolve();
+  const result = await repair;
+  assert.equal(result.size, 282);
+  assert.equal(tr.missingCount, 0);
+  for (const r of rows) {
+    const shown = [];
+    await tr.translatePage(r, (i, text) => { shown[i] = text; });
+    assert.deepEqual(shown, blocks[r.index - 1].filter((b) => b.translate).map((b) => b.text === missingText ? '補完した訳文' : '初回訳 ' + b.text));
+  }
+  await tr.repairMissing();
+  assert.equal(requests.length, 2);
+});
+
+test('partial repair and API failure retain successful results for the next manual attempt', async (t) => {
+  const row = { index: 1 }, requests = [];
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    requests.push(JSON.parse(JSON.parse(init.body).input));
+    switch (requests.length) {
+      case 1: return response([{ id: 1, text: '初回訳' }]);
+      case 2: return response([{ id: 2, text: '一部補完' }]);
+      case 3: return Response.json({ error: { message: 'mock failure' } }, { status: 400 });
+      case 4: return response([{ id: 1, text: '最後の補完' }]);
+      default: assert.fail('unexpected request');
+    }
+  });
+  const tr = createDocumentTranslator({ rows: [row], translator: createGeminiTranslator(options), getBlocks: async () => ['A', 'B', 'C'].map((text) => ({ text, translate: true })) });
+  await assert.rejects(tr.ready());
+  assert.equal(tr.missingCount, 2);
+  await assert.rejects(tr.repairMissing());
+  assert.equal(tr.missingCount, 1);
+  await assert.rejects(tr.repairMissing(), /400/);
+  assert.equal(tr.missingCount, 1);
+  await assert.rejects(tr.ready());
+  assert.equal(requests.length, 3);
+  const result = await tr.repairMissing();
+  assert.deepEqual([...result].sort(), [['p1-b0', '初回訳'], ['p1-b1', '最後の補完'], ['p1-b2', '一部補完']]);
+  assert.deepEqual(requests.map((r) => targets(r).map((b) => b.text)), [['A', 'B', 'C'], ['B', 'C'], ['B'], ['B']]);
+});
+
+test('cancelling a repair stops its request and does not complete the document', async (t) => {
+  const controller = new AbortController(), started = deferred();
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (_url, { signal }) => {
+    calls++;
+    if (calls === 1) return response([{ id: 1, text: '初回訳' }]);
+    started.resolve();
+    await new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+  });
+  const tr = createDocumentTranslator({ rows: [{ index: 1 }], signal: controller.signal, translator: createGeminiTranslator({ ...options, signal: controller.signal }), getBlocks: async () => ['A', 'B'].map((text) => ({ text, translate: true })) });
+  await assert.rejects(tr.ready());
+  const pending = tr.repairMissing();
+  await started.promise;
+  controller.abort();
+  await assert.rejects(pending, { name: 'AbortError' });
+  assert.equal(tr.missingCount, 1);
+  assert.equal(calls, 2);
 });
 
 test('reported 282/196 ID drift is rejected without guessing matches or resending', async (t) => {
