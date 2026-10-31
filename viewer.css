@@ -45,12 +45,13 @@ button:disabled { opacity: .5; cursor: progress; }
 .viewer-toolbar [hidden] { display: none; }
 .viewer-toolbar button:hover:not(:disabled), .viewer-toolbar select:hover { background: #ffffff12; }
 .viewer-toolbar button:focus-visible, .viewer-toolbar select:focus-visible { outline: 2px solid #9dbbff; outline-offset: 2px; }
-.viewer-toolbar select { cursor: pointer; padding: 0 4px; }
+.viewer-toolbar select { cursor: pointer; padding: 0 4px; border-color: #50545d; background: #ffffff06; }
+.viewer-toolbar select:hover { border-color: #777c86; }
 .viewer-toolbar select option { background: #242528; color: #e5e7eb; }
 #view { width: 112px; }
 #src { width: 96px; }
 #dst { width: 76px; }
-.language-pair { gap: 0; }
+.language-pair { gap: 4px; }
 .page-navigation { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 #pageNumber {
   width: 40px; min-width: 40px; max-width: 64px; height: 32px; padding: 0 4px;
