@@ -44,7 +44,14 @@
           </span>
         </span>
         <span class="toolbar-separator" aria-hidden="true"></span>
-        <button id="download" class="icon-button" title="今の表示のままPDFで保存" aria-label="PDFで保存"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 16v4h16v-4"/></svg></button>
+        <span class="download-control">
+          <button id="download" class="icon-button" title="保存するPDFを選ぶ" aria-label="PDFで保存" aria-haspopup="menu" aria-expanded="false"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 16v4h16v-4"/></svg></button>
+          <span id="downloadMenu" class="download-menu" role="menu" aria-label="保存するPDF" hidden>
+            <button id="downloadOriginal" role="menuitem">翻訳前の原文</button>
+            <button id="downloadTranslated" role="menuitem" disabled>翻訳後</button>
+            <button id="downloadBoth" role="menuitem" disabled>原文・訳文を交互</button>
+          </span>
+        </span>
       </div>
 
       <div class="toolbar-translation" role="group" aria-label="翻訳">

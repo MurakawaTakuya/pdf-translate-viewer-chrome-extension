@@ -990,21 +990,41 @@ async function translatePageInner(r, translator) {
 }
 
 // ---------- PDFとして保存 ----------
-async function download() {
-  const mode = viewSel.value;
+function canExportTranslation() {
+  return state.enabled && !state.translator?.missingCount
+    && state.rows.some((r) => r.translated && r.blocks?.some((b) => b.ja));
+}
+
+function closeDownloadMenu() {
+  $('#downloadMenu').hidden = true;
+  $('#download').setAttribute('aria-expanded', 'false');
+}
+
+function toggleDownloadMenu() {
+  const menu = $('#downloadMenu');
+  $('#downloadOriginal').disabled = !state.pdf || state.exporting;
+  $('#downloadTranslated').disabled = !canExportTranslation() || state.exporting;
+  $('#downloadBoth').disabled = !canExportTranslation() || state.exporting;
+  menu.hidden = !menu.hidden;
+  $('#download').setAttribute('aria-expanded', String(!menu.hidden));
+}
+
+async function download(mode) {
+  closeDownloadMenu();
   if (!state.pdf) return;
+  if (!['orig', 'ja', 'both'].includes(mode)) return;
+  if (mode !== 'orig' && !canExportTranslation()) { setStatus('翻訳が完了してから保存してください'); return; }
   const btn = $('#download');
   btn.disabled = true;
   state.exporting = true;
   try {
     if (mode !== 'orig') {
-      if (!state.enabled) await start();
-      if (!state.enabled) return; // 翻訳の準備に失敗（理由はステータスに表示済み）
       await translateAll();
     }
     setStatus('PDFを作成中…');
-    const { exportPdf } = await import('./export.js');
-    const bytes = await exportPdf(mode, await state.pdf.getData(), state.rows, setStatus);
+    // 原文はPDFのバイト列をそのまま保存する。翻訳処理も書き込み用ライブラリも不要。
+    const original = await state.pdf.getData();
+    const bytes = mode === 'orig' ? original : await (await import('./export.js')).exportPdf(mode, original, state.rows, setStatus);
     const base = state.name.replace(/\.pdf$/i, '');
     const suffix = { orig: '', ja: '_ja', both: '_対訳' }[mode];
     saveFile(bytes, `${base}${suffix}.pdf`);
@@ -1067,7 +1087,14 @@ if (fileUrl && self.chrome?.tabs) {
 $('#startLocal').onclick = () => start('chrome');
 $('#startGemini').onclick = () => start('gemini');
 $('#openSettings').onclick = showSettings;
-$('#download').onclick = download;
+$('#download').onclick = toggleDownloadMenu;
+$('#downloadOriginal').onclick = () => download('orig');
+$('#downloadTranslated').onclick = () => download('ja');
+$('#downloadBoth').onclick = () => download('both');
+window.addEventListener('pointerdown', (e) => {
+  if (!$('#downloadMenu').hidden && !e.target?.closest?.('.download-control')) closeDownloadMenu();
+});
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDownloadMenu(); });
 srcSel.onchange = dstSel.onchange = () => { if (state.enabled) start(); };
 
 load();

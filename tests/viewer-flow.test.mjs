@@ -34,6 +34,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   const createdElements = [];
   const listeners = new Map(), resizeObservers = [];
   const pageFrames = [], scrollCalls = [];
+  const savedFiles = [];
   let nextFrame = 0;
   const document = {
     body: { dataset: {} }, documentElement: { scrollHeight: 1000, clientHeight: 900, style: { setProperty() {} } },
@@ -48,7 +49,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   };
   const window = { addEventListener: (event, callback) => listeners.set(event, callback) }; window.top = window;
   const context = {
-    document, window, createdElements, self: {}, location: { search: '' },
+    document, window, createdElements, savedFiles, self: {}, location: { search: '' },
     scrollCalls,
     dispatchResize: () => listeners.get('resize')?.(),
     dispatchScroll: () => listeners.get('scroll')?.(),
@@ -80,7 +81,8 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     releasePage = () => {};
     placeBlock = () => elementStub();
     fillBlock = (_el, b, text) => { b.ja = text; };
-    return { state, start, enqueue, translateAll, createdElements, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
+    saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
+    return { state, start, enqueue, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -90,6 +92,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     blocks: [{ text: `Paragraph on page ${index}`, translate: true, colors: {} }],
   }));
   api.updatePageNavigation();
+  api.element('#downloadMenu').hidden = true;
   return api;
 }
 async function idle(api) {
@@ -548,4 +551,54 @@ test('page navigation keeps height fit when the destination page has a different
   assert.equal(api.element('#prevPage').disabled, true);
   assert.equal(api.element('#nextPage').disabled, true);
   assert.equal(api.goToPage(1), false);
+});
+
+test('download menu offers the original only before translation and saves its exact bytes', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('saving must not start translation'));
+  const api = await viewer();
+  const bytes = new Uint8Array([37, 80, 68, 70]);
+  api.state.pdf.getData = async () => bytes;
+  api.state.name = 'paper.pdf';
+  api.element('#download').onclick();
+  assert.equal(api.element('#downloadMenu').hidden, false);
+  assert.equal(api.element('#downloadOriginal').disabled, false);
+  assert.equal(api.element('#downloadTranslated').disabled, true);
+  assert.equal(api.element('#downloadBoth').disabled, true);
+  await api.element('#downloadTranslated').onclick();
+  assert.equal(api.savedFiles.length, 0);
+  await api.element('#downloadBoth').onclick();
+  assert.equal(api.savedFiles.length, 0);
+  await api.element('#downloadOriginal').onclick();
+  assert.equal(api.savedFiles.length, 1);
+  assert.equal(api.savedFiles[0].bytes, bytes);
+  assert.equal(api.savedFiles[0].name, 'paper.pdf');
+  assert.equal(api.element('#downloadMenu').hidden, true);
+  assert.equal(api.state.enabled, false);
+});
+
+test('translated download choices become available after local translation', async () => {
+  const api = await viewer();
+  await api.localButton.onclick();
+  await idle(api);
+  api.element('#download').onclick();
+  assert.equal(api.element('#downloadOriginal').disabled, false);
+  assert.equal(api.element('#downloadTranslated').disabled, false);
+  assert.equal(api.element('#downloadBoth').disabled, false);
+});
+
+test('missing Gemini output does not enable translated downloads or resend on save', async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls++;
+    return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: '{"translations":[{"id":1,"text":"訳文"}]}' }] }] });
+  });
+  const api = await viewer();
+  await api.startButton.onclick();
+  await idle(api);
+  api.element('#download').onclick();
+  assert.equal(api.element('#downloadTranslated').disabled, true);
+  assert.equal(api.element('#downloadBoth').disabled, true);
+  await api.element('#downloadBoth').onclick();
+  assert.equal(calls, 1);
+  assert.equal(api.savedFiles.length, 0);
 });
