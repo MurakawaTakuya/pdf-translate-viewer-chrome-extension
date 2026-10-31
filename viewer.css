@@ -31,7 +31,8 @@ button:disabled { opacity: .5; cursor: progress; }
 .toolbar-file, .toolbar-reading, .toolbar-translation, .language-pair {
   display: flex; align-items: center; gap: 6px; min-width: 0;
 }
-.toolbar-translation { justify-self: end; }
+.toolbar-translation { justify-self: end; gap: 8px; }
+.toolbar-translation #startLocal, .toolbar-translation #openSettings { margin-left: 4px; }
 .toolbar-file { gap: 10px; }
 #filename { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toolbar-icon { width: 20px; height: 20px; display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -49,9 +50,8 @@ button:disabled { opacity: .5; cursor: progress; }
 .viewer-toolbar select:hover { border-color: #777c86; }
 .viewer-toolbar select option { background: #242528; color: #e5e7eb; }
 #view { width: 112px; }
-#src { width: 96px; }
-#dst { width: 76px; }
-.language-pair { gap: 4px; }
+#src, #dst { width: 88px; }
+.language-pair { gap: 3px; }
 .page-navigation { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 #pageNumber {
   width: 40px; min-width: 40px; max-width: 64px; height: 32px; padding: 0 4px;
@@ -63,7 +63,7 @@ button:disabled { opacity: .5; cursor: progress; }
 .viewer-toolbar .page-navigation button:disabled { cursor: default; opacity: .3; }
 .language-arrow { width: 14px; height: 14px; color: #a6aab3; }
 .toolbar-separator { width: 1px; height: 20px; background: #ffffff29; margin: 0 5px; flex: none; }
-.viewer-toolbar .translate-button { width: 96px; gap: 6px; background: #ffffff0f; border-color: #ffffff12; }
+.viewer-toolbar .translate-button { width: 88px; gap: 6px; background: #ffffff0f; border-color: #ffffff12; }
 .viewer-toolbar #startGemini { background: #9dbbff1c; border-color: #9dbbff38; color: #b7cbff; }
 .viewer-toolbar .translate-button:hover:not(:disabled) { background: #ffffff20; }
 .viewer-toolbar #startGemini:hover:not(:disabled) { background: #9dbbff30; }
@@ -89,8 +89,7 @@ button:disabled { opacity: .5; cursor: progress; }
   .toolbar-file #filename, .file-mark { display: none; }
   .toolbar-translation { gap: 4px; }
   .viewer-toolbar .translate-button { width: 86px; }
-  #src { width: 78px; }
-  #dst { width: 66px; }
+  #src, #dst { width: 72px; }
   .toolbar-reading { display: grid; grid-template-columns: auto auto; gap: 6px 14px; }
   .toolbar-reading > .toolbar-separator { display: none; }
   .page-navigation { grid-column: 1; grid-row: 1; justify-self: center; }
