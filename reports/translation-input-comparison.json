@@ -1,0 +1,489 @@
+{
+  "recordedAt": "2026-11-01T01:46:14+0900",
+  "plan": {
+    "recordedAt": "2026-11-01T01:38:03+0900",
+    "model": "gemini-3.5-flash-lite",
+    "order": [
+      "A1",
+      "C1",
+      "C2",
+      "A2"
+    ],
+    "maximumGenerationRequests": 4,
+    "retries": 0,
+    "changes": "Coordinate-based reading order, mixed-style logical paragraphs, preserved line-end hyphens, semantic hints, full reference pages separate from target list. Combined change; effects are not separately identified.",
+    "inputs": {
+      "A": "1c26dac8961ae5a423a7b461a215f24b8e94200f7d086772d54e057e474ae0a6",
+      "C": "32f7c1a02556cf65aca6fe92eec43fc64e6ae6eaba25d74ae5a9ea449602703d"
+    },
+    "pages": 17,
+    "semanticPanel": [
+      {
+        "original": "p1-b0",
+        "candidate": "p1-b0",
+        "matches": 1
+      },
+      {
+        "original": "p1-b12",
+        "candidate": "p1-b3",
+        "matches": 1
+      },
+      {
+        "original": "p1-b13",
+        "candidate": "p1-b4",
+        "matches": 1
+      },
+      {
+        "original": "p1-b14",
+        "candidate": "p1-b5",
+        "matches": 1
+      },
+      {
+        "original": "p1-b39",
+        "candidate": "p1-b32",
+        "matches": 1
+      },
+      {
+        "original": "p1-b41",
+        "candidate": "p1-b33",
+        "matches": 1
+      },
+      {
+        "original": "p2-b7",
+        "candidate": "p2-b17",
+        "matches": 1
+      },
+      {
+        "original": "p2-b15",
+        "candidate": "p2-b20",
+        "matches": 1
+      },
+      {
+        "original": "p2-b25",
+        "candidate": "p2-b23",
+        "matches": 1
+      },
+      {
+        "original": "p2-b26",
+        "candidate": "p2-b24",
+        "matches": 1
+      },
+      {
+        "original": "p2-b27",
+        "candidate": "p2-b25",
+        "matches": 1
+      },
+      {
+        "original": "p2-b28",
+        "candidate": "p2-b26",
+        "matches": 1
+      },
+      {
+        "original": "p2-b35",
+        "candidate": "p2-b33",
+        "matches": 1
+      },
+      {
+        "original": "p2-b36",
+        "candidate": "p2-b34",
+        "matches": 1
+      },
+      {
+        "original": "p6-b30",
+        "candidate": "p6-b27",
+        "matches": 1
+      },
+      {
+        "original": "p6-b33",
+        "candidate": "p6-b29",
+        "matches": 1
+      },
+      {
+        "original": "p6-b38",
+        "candidate": "p6-b31",
+        "matches": 1
+      },
+      {
+        "original": "p6-b64",
+        "candidate": "p6-b55",
+        "matches": 1
+      },
+      {
+        "original": "p6-b70",
+        "candidate": "p6-b60",
+        "matches": 1
+      },
+      {
+        "original": "p7-b52",
+        "candidate": "p7-b49",
+        "matches": 1
+      }
+    ],
+    "primary": "ID coverage, duplicate/unknown IDs and manual source-scope alignment on the fixed panel, including merged caption and inline-heading targets.",
+    "secondary": "Time to first complete item, total latency, input/output tokens. No speed-only acceptance; one paper with two repeats per variant is preliminary.",
+    "stopping": "Four calls maximum with no retries. Stop on HTTP/transport errors or absent completion. No prompt changes after results.",
+    "requests": {
+      "A": {
+        "sha256": "82e8565db7def4e23af4c1d2789e46f2188c632bb72c6e7fb556b559c6aa1ddf",
+        "targets": 282,
+        "inputChars": 87106
+      },
+      "C": {
+        "sha256": "68ca4fdeff1f390087f2a6dc4f54419152cddb53617ef4b63708bd77ff997f85",
+        "targets": 217,
+        "inputChars": 156779
+      }
+    }
+  },
+  "runs": [
+    {
+      "label": "A1",
+      "variant": "sequential-flat",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 47589,
+        "total_input_tokens": 24237,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 24237
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 23352,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 24351
+      },
+      "timing": {
+        "totalMs": 108219.726584,
+        "firstTextMs": 1454.520792,
+        "firstItemMs": 1502.015459
+      },
+      "chunks": 912,
+      "outputChars": 50556,
+      "error": null,
+      "analysis": {
+        "valid": false,
+        "status": "completed",
+        "expected": 282,
+        "received": 278,
+        "missing": 4,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [
+          279,
+          280,
+          281,
+          282
+        ],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 2,
+          "17": 2
+        }
+      }
+    },
+    {
+      "label": "C1",
+      "variant": "logical-paragraphs-separated-targets",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 67427,
+        "total_input_tokens": 43605,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 43605
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 23822,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 43719
+      },
+      "timing": {
+        "totalMs": 96383.85520800001,
+        "firstTextMs": 1383.0647079999908,
+        "firstItemMs": 1431.7793329999986
+      },
+      "chunks": 899,
+      "outputChars": 52179,
+      "error": null,
+      "analysis": {
+        "valid": false,
+        "status": "completed",
+        "expected": 217,
+        "received": 201,
+        "missing": 16,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [
+          118,
+          119,
+          120,
+          205,
+          206,
+          207,
+          208,
+          209,
+          210,
+          211,
+          212,
+          213,
+          214,
+          215,
+          216,
+          217
+        ],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 3,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 11,
+          "17": 2
+        }
+      }
+    },
+    {
+      "label": "C2",
+      "variant": "logical-paragraphs-separated-targets",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 66514,
+        "total_input_tokens": 43605,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 43605
+          }
+        ],
+        "total_cached_tokens": 40720,
+        "cached_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 40720
+          }
+        ],
+        "total_output_tokens": 22909,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 43719
+      },
+      "timing": {
+        "totalMs": 86220.58299999998,
+        "firstTextMs": 1329.5068749999919,
+        "firstItemMs": 1389.2775839999958
+      },
+      "chunks": 891,
+      "outputChars": 49939,
+      "error": null,
+      "analysis": {
+        "valid": true,
+        "status": "completed",
+        "expected": 217,
+        "received": 217,
+        "missing": 0,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 0,
+          "17": 0
+        }
+      }
+    },
+    {
+      "label": "A2",
+      "variant": "sequential-flat",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 44234,
+        "total_input_tokens": 24237,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 24237
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 19997,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 24351
+      },
+      "timing": {
+        "totalMs": 69379.123709,
+        "firstTextMs": 1071.8234589999774,
+        "firstItemMs": 1128.0708339999546
+      },
+      "chunks": 779,
+      "outputChars": 45593,
+      "error": null,
+      "analysis": {
+        "valid": false,
+        "status": "completed",
+        "expected": 282,
+        "received": 281,
+        "missing": 1,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [
+          282
+        ],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 0,
+          "17": 1
+        }
+      }
+    }
+  ],
+  "manualPanelReview": {
+    "A1": {
+      "differentSourceIds": [
+        "p6-b30",
+        "p6-b38",
+        "p6-b64"
+      ],
+      "untranslatedSourceIds": []
+    },
+    "C1": {
+      "differentSourceIds": [
+        "p2-b25",
+        "p2-b26",
+        "p2-b33",
+        "p2-b34",
+        "p6-b27",
+        "p6-b29",
+        "p6-b31",
+        "p6-b55",
+        "p6-b60",
+        "p7-b49"
+      ],
+      "untranslatedSourceIds": []
+    },
+    "C2": {
+      "differentSourceIds": [],
+      "untranslatedSourceIds": [
+        "p1-b0",
+        "p1-b32",
+        "p7-b49"
+      ]
+    },
+    "A2": {
+      "differentSourceIds": [
+        "p1-b39",
+        "p1-b41",
+        "p2-b7",
+        "p2-b15",
+        "p2-b25",
+        "p2-b26",
+        "p2-b27",
+        "p2-b28",
+        "p2-b35",
+        "p2-b36",
+        "p6-b30",
+        "p6-b33",
+        "p6-b38",
+        "p6-b64",
+        "p6-b70",
+        "p7-b52"
+      ],
+      "untranslatedSourceIds": []
+    }
+  },
+  "manualReviewLimit": "Non-blinded human inspection of source scope on the fixed 20-block panel, not a complete translation quality score. Merged candidate targets inspected as whole paragraphs.",
+  "rawResultSha256": {
+    "A1": "cd71c6dfbccb5d4c81fffded54dfbea9127159d0cfb98544502fd41e4634bf1e",
+    "C1": "5537819cea3433f991b1a1624e8be2e70a621878c25dfd830f1a0791dafb28f2",
+    "C2": "3e71a270b86b98b0078967b31ad9fd3a9970889db49a0d9bda01235b813c7c4f",
+    "A2": "dc70e664999911f6cc862a3591bdea03ec3ea36cfca9ef230483c148442ada1e"
+  },
+  "decision": {
+    "separatedInput": "rejected-as-default; evaluator-only explicit option",
+    "layout": "enabled with local regression coverage",
+    "layoutOnlyGenerationArm": false,
+    "additionalGenerationRequests": 0
+  }
+}

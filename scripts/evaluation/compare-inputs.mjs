@@ -21,7 +21,7 @@ export async function productionCase(pages) {
     return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: JSON.stringify({ translations: targets.map((_b,i) => ({ id: i+1, text: 'fixture' })) }) }] }] });
   };
   try {
-    await createGeminiTranslator({ apiKey: 'offline-placeholder', model: DEFAULT_MODEL, sourceLanguage: 'en', targetLanguage: 'ja' }).translateDocument(pages, targets.map((b) => b.id));
+    await createGeminiTranslator({ apiKey: 'offline-placeholder', model: DEFAULT_MODEL, sourceLanguage: 'en', targetLanguage: 'ja', inputFormat: 'separate-targets' }).translateDocument(pages, targets.map((b) => b.id));
   } finally { globalThis.fetch = original; }
   return { name: 'logical-paragraphs-separated-targets', protocol: 'sequential-flat', request, targets: targets.map((b,i) => ({ ...b, wire: i+1 })) };
 }

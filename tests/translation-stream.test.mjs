@@ -5,7 +5,7 @@ import { createGeminiTranslator } from '../gemini.js';
 import { createDocumentTranslator } from '../document-translator.js';
 import { streamFixture, until } from './helpers/stream.mjs';
 
-const options = { apiKey: 'mock-key', sourceLanguage: 'en', targetLanguage: 'ja' };
+const options = { apiKey: 'mock-key', sourceLanguage: 'en', targetLanguage: 'ja', inputFormat: 'separate-targets' };
 
 test('SSE handles byte-split UTF-8, CRLF, multiline events and only complete translation objects', async () => {
   const f = streamFixture(), shown = [];

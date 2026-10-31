@@ -43,3 +43,15 @@ test('semantic panel prefers an exact label over a paragraph mentioning it', () 
   ]);
   assert.equal(panel.find((entry)=>entry.original==='p1-b12').candidate,'p1-b3');
 });
+
+test('normal viewer requests keep the frozen wire protocol; separated input needs explicit opt-in', async (t) => {
+  const { createGeminiTranslator } = await import('../gemini.js');
+  const pages = [{page:1,blocks:[{id:'a',text:'Context only',kind:'other'},{id:'b',text:'A full caption.',kind:'caption'}]}];
+  let request;
+  t.mock.method(globalThis,'fetch',async (_url,init)=>{
+    request=JSON.parse(init.body);
+    return Response.json({status:'completed',steps:[{type:'model_output',content:[{type:'text',text:'{"translations":[{"id":1,"text":"訳文"}]}'}]}]});
+  });
+  await createGeminiTranslator({apiKey:'fixture',sourceLanguage:'en',targetLanguage:'ja'}).translateDocument(pages,['b']);
+  assert.deepEqual(request,legacyRequest(pages,['b']));
+});

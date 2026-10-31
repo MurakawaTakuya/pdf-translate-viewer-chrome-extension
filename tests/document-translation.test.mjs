@@ -4,7 +4,7 @@ import { createGeminiTranslator, MissingTranslationsError } from '../gemini.js';
 import { inspect } from 'node:util';
 import { createDocumentTranslator } from '../document-translator.js';
 
-const options = { apiKey: 'mock-key', sourceLanguage: 'en', targetLanguage: 'ja' };
+const options = { apiKey: 'mock-key', sourceLanguage: 'en', targetLanguage: 'ja', inputFormat: 'separate-targets' };
 const response = (translations, extra = {}) => Response.json({
   status: 'completed',
   steps: [{ type: 'model_output', content: [{ type: 'text', text: JSON.stringify({ translations }) }] }],

@@ -29,10 +29,12 @@ Results contain API completion status, token usage, first-text/first-complete-it
 node scripts/evaluation/extract-pages.mjs /path/to/paper.pdf /path/to/revised-pages.json
 ```
 
-`compare-inputs.mjs` compares the frozen legacy request on the original extraction (A) with the current production request on the revised extraction (C). It retains full reference text and lists exact source targets separately; this intentionally duplicates target source in the input, increasing input tokens. The output schema is unchanged. Preparation is offline by default; an exclusive new output directory is required each time.
+`compare-inputs.mjs` compares the frozen legacy request on the original extraction (A) with the experimental separated-target request on the revised extraction (C). It retains full reference text and lists exact source targets separately; this intentionally duplicates target source in the input, increasing input tokens. The output schema is unchanged. Preparation is offline by default; an exclusive new output directory is required each time.
 
 ```sh
 node scripts/evaluation/compare-inputs.mjs --baseline-input /path/to/original-pages.json --input /path/to/revised-pages.json --output /path/to/new-plan
 ```
 
 Only `--run --project PROJECT_ID --key-resource RESOURCE` enables up to four generation calls, in fixed A1/C1/C2/A2 order, without retries. The fixed panel from the first comparison is mapped to revised targets before inference, allowing a former fragment to belong to a larger logical paragraph. Inspect the whole revised target's source scope, not just its old fragment. Extraction, order and input protocol change together, so this experiment does not isolate the contribution of each. No output format or prompt tuning is done after observing the results.
+
+The separated-target protocol is explicitly selected only by the evaluator (`inputFormat: 'separate-targets'`). The viewer uses the legacy wire format by default because the live comparison still exhibited severe content/ID mismatches. Layout reconstruction remains enabled. This default combination has local regression coverage; the fixed four-call comparison did not include a separate layout-only generation arm.
