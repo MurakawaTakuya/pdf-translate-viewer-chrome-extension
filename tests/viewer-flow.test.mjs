@@ -32,8 +32,9 @@ const element = () => {
 async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = null) {
   const elements = new Map();
   const createdElements = [];
+  const listeners = new Map(), resizeObservers = [];
   const document = {
-    body: { dataset: {} }, documentElement: { scrollHeight: 1000, style: { setProperty() {} } },
+    body: { dataset: {} }, documentElement: { scrollHeight: 1000, clientHeight: 900, style: { setProperty() {} } },
     querySelector: (name) => { if (!elements.has(name)) elements.set(name, element()); return elements.get(name); },
     createElement: (tagName) => {
       const el = element();
@@ -43,9 +44,13 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
       return el;
     },
   };
-  const window = {}; window.top = window;
+  const window = { addEventListener: (event, callback) => listeners.set(event, callback) }; window.top = window;
   const context = {
     document, window, createdElements, self: {}, location: { search: '' },
+    dispatchResize: () => listeners.get('resize')?.(),
+    dispatchHeaderResize: () => resizeObservers.forEach((callback) => callback()),
+    getComputedStyle: (el) => el.computedStyle,
+    ResizeObserver: class { constructor(callback) { resizeObservers.push(callback); } observe() {} },
     localStorage: { getItem: () => null, setItem() {} },
     matchMedia: () => ({ addEventListener() {} }), devicePixelRatio: 1, scrollY: 0, scrollTo() {},
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
@@ -62,13 +67,13 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   context.self.Translator = context.Translator;
   // Run the actual viewer orchestration. Only PDF/canvas/DOM rendering is replaced.
   const source = viewerSource.replace(/^import .*;\n/gm, '').replaceAll('import.meta.url', JSON.stringify(new URL('../viewer.js', import.meta.url).href)).replace(/\nload\(\);\s*$/, `
-    const rendering = { pixelScale, makeCanvas, renderPage, releasePage };
+    const rendering = { pixelScale, makeCanvas, renderPage, releasePage, viewZoom };
     renderPage = async () => {};
     getPageBlocks = async (r) => r.blocks;
     releasePage = () => {};
     placeBlock = () => elementStub();
     fillBlock = (_el, b, text) => { b.ja = text; };
-    return { state, start, enqueue, translateAll, createdElements, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
+    return { state, start, enqueue, translateAll, createdElements, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -374,4 +379,79 @@ test('high DPI and single-page display increase density while respecting the can
   assert.ok(scale < 9);
   const canvas = api.rendering.makeCanvas(r.vp, scale);
   assert.ok(canvas.width * canvas.height <= 2 ** 24);
+});
+
+function fitFixture(api) {
+  const pages = api.element('#pages'), header = api.element('header');
+  pages.clientWidth = 1200;
+  pages.computedStyle = { paddingLeft: '14px', paddingRight: '14px', paddingTop: '12px' };
+  header.height = 60;
+  header.getBoundingClientRect = () => ({ top: 0, bottom: header.height, height: header.height });
+  for (const [i, row] of api.state.rows.entries()) {
+    row.vp = { width: 500, height: 700 };
+    for (const [side, visible] of [['left', 'orig'], ['right', 'ja']]) {
+      row[side] = { getBoundingClientRect: () => api.document.body.dataset.view === (visible === 'orig' ? 'ja' : 'orig')
+        ? { top: 0, bottom: 0, height: 0 }
+        : { top: 80 + i * 720, bottom: 780 + i * 720, height: 700 } };
+    }
+  }
+}
+const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
+
+test('width fit accounts for two pages and their gap, and follows single-side view changes', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('zoom must not call translation API'));
+  const api = await viewer();
+  fitFixture(api);
+  api.element('#fitWidth').onclick();
+  near(api.rendering.viewZoom() * (500 * 2 + 12), 1200 - 28);
+  assert.equal(api.element('#fitWidth').getAttribute('aria-pressed'), 'true');
+  assert.equal(api.element('#fitHeight').getAttribute('aria-pressed'), 'false');
+  api.viewSelect.value = 'orig';
+  api.viewSelect.onchange();
+  near(api.rendering.viewZoom() * 500, 1200 - 28);
+  api.viewSelect.value = 'ja'; // The left page was visible before this change.
+  api.viewSelect.onchange();
+  near(api.rendering.viewZoom() * 500, 1200 - 28);
+  api.element('#pages').clientWidth = 1600;
+  api.resize();
+  near(api.rendering.viewZoom() * 500, 1600 - 28);
+});
+
+test('height fit uses the page at the viewport and subtracts toolbar and margins', async () => {
+  const api = await viewer();
+  fitFixture(api);
+  api.state.rows[0].left.getBoundingClientRect = () => ({ top: -800, bottom: -100 });
+  api.state.rows[1].left.getBoundingClientRect = () => ({ top: -90, bottom: 910 });
+  api.state.rows[1].vp.height = 1000;
+  api.element('#fitHeight').onclick();
+  near(api.rendering.viewZoom() * 1000, 900 - 60 - 24);
+  assert.equal(api.element('#fitHeight').getAttribute('aria-pressed'), 'true');
+  api.element('header').height = 120;
+  api.headerResize();
+  near(api.rendering.viewZoom() * 1000, 900 - 120 - 24);
+  api.document.documentElement.clientHeight = 600;
+  api.resize();
+  near(api.rendering.viewZoom() * 1000, 600 - 120 - 24);
+});
+
+test('manual zoom exits fit mode and steps to the nearest preset from a fractional fit', async () => {
+  const api = await viewer();
+  fitFixture(api);
+  api.document.documentElement.clientHeight = 588; // (588 - 60 - 24) / 700 = 72%.
+  api.element('#fitHeight').onclick();
+  near(api.state.zoom, 0.72);
+  api.element('#zoomIn').onclick();
+  near(api.state.zoom, 0.75);
+  assert.equal(api.state.fitMode, null);
+  assert.equal(api.element('#fitHeight').getAttribute('aria-pressed'), 'false');
+  api.resize();
+  near(api.state.zoom, 0.75);
+  api.element('#fitHeight').onclick();
+  api.element('#zoomOut').onclick();
+  near(api.state.zoom, 0.67);
+  api.element('#fitWidth').onclick();
+  api.element('#zoomReset').onclick();
+  assert.equal(api.state.zoom, 1);
+  assert.equal(api.state.fitMode, null);
+  assert.equal(api.element('#zoomLabel').textContent, '100%');
 });

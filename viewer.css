@@ -32,11 +32,17 @@ button:disabled { opacity: .5; cursor: progress; }
 .row { display: grid; grid-template-columns: auto auto; gap: 12px; justify-content: center; zoom: var(--zoom, 1); }
 
 /* 拡大・縮小ボタン */
+.zoom-controls { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; white-space: nowrap; }
 .zoom { display: flex; }
 .zoom button { border-radius: 0; margin-left: -1px; }
 .zoom button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
 .zoom button:last-child { border-radius: 0 6px 6px 0; }
 #zoomLabel { display: inline-block; min-width: 3.2em; text-align: center; }
+.zoom-fit { display: flex; gap: 4px; }
+.zoom-fit button[aria-pressed="true"] {
+  border-color: var(--accent); color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+}
 
 /* 設定ダイアログ */
 #settings {
@@ -60,6 +66,7 @@ button:disabled { opacity: .5; cursor: progress; }
 
 /* 表示の切り替え：片側だけのときはもう片方を隠す */
 body[data-view="ja"] .page.orig, body[data-view="orig"] .page.trans { display: none; }
+body[data-view="ja"] .row, body[data-view="orig"] .row { grid-template-columns: auto; }
 
 /* 1ページ = 紙面画像（canvas）＋ その上に重ねるレイヤー */
 .page { position: relative; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); overflow: hidden; }

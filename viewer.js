@@ -38,6 +38,7 @@ const state = {
   exporting: false,
   name: 'document.pdf',
   zoom: Number(localStorage.getItem('zoom')) || 1, // ユーザーが選んだ倍率
+  fitMode: null, // width / height。手動の倍率変更で解除する
   fit: 2, // 片側だけ表示するときに画面幅に合わせる倍率（buildRows で計算）
   settings: await loadSettings(),
 };
@@ -74,9 +75,11 @@ viewSel.value = localStorage.getItem('view') || 'both';
 
 // ---------- 表示の切り替え（保存もこの表示に合わせる） ----------
 function applyView() {
+  const fitRow = state.fitMode ? currentFitRow() : null;
   document.body.dataset.view = viewSel.value;
   localStorage.setItem('view', viewSel.value);
-  applyZoom();
+  if (state.fitMode && fitRow) fitToViewport(state.fitMode, fitRow);
+  else applyZoom();
 }
 
 // ---------- 拡大・縮小 ----------
@@ -87,19 +90,68 @@ function applyZoom() {
   const ratio = scrollY / Math.max(1, document.documentElement.scrollHeight);
   document.documentElement.style.setProperty('--zoom', viewZoom());
   $('#zoomLabel').textContent = Math.round(state.zoom * 100) + '%';
+  $('#fitWidth').setAttribute('aria-pressed', String(state.fitMode === 'width'));
+  $('#fitHeight').setAttribute('aria-pressed', String(state.fitMode === 'height'));
   localStorage.setItem('zoom', state.zoom);
   scrollTo(0, ratio * document.documentElement.scrollHeight); // だいたい同じ場所を表示し続ける
   rerenderVisible();
 }
 
 function stepZoom(dir) {
-  const i = ZOOMS.findIndex((z) => z >= state.zoom - 1e-6);
-  state.zoom = ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, (i < 0 ? ZOOMS.length - 1 : i) + dir))];
+  const next = dir > 0
+    ? ZOOMS.find((z) => z > state.zoom + 1e-6)
+    : ZOOMS.findLast((z) => z < state.zoom - 1e-6);
+  if (next !== undefined) state.zoom = next;
+  state.fitMode = null;
   applyZoom();
 }
+
+function currentFitRow() {
+  if (!state.rows.length) return null;
+  const top = $('header').getBoundingClientRect().bottom;
+  const shownView = document.body.dataset.view || viewSel.value;
+  // IntersectionObserverのvisibleは先読み領域を含むので、実際に画面内にあるページを選ぶ。
+  return state.rows.find((r) => {
+    const box = shownView === 'ja' ? r.right : r.left;
+    return box.getBoundingClientRect().bottom > top + 1;
+  }) || state.rows.at(-1);
+}
+
+function fitToViewport(mode, row = currentFitRow(), align = true) {
+  if (!row) return;
+  const cs = getComputedStyle(pagesEl);
+  const padding = (name) => parseFloat(cs[name]) || 0;
+  const headerHeight = $('header').getBoundingClientRect().height;
+  const width = pagesEl.clientWidth - padding('paddingLeft') - padding('paddingRight');
+  const height = document.documentElement.clientHeight - headerHeight - 2 * padding('paddingTop');
+  const columns = viewSel.value === 'both' ? 2 : 1;
+  const displayScale = mode === 'width'
+    ? width / (row.vp.width * columns + GAP * (columns - 1))
+    : height / row.vp.height;
+  const zoom = displayScale / (columns === 2 ? 1 : state.fit);
+  if (!Number.isFinite(zoom) || zoom <= 0) return;
+  const changed = state.fitMode !== mode || Math.abs(state.zoom - zoom) > 1e-6;
+  state.fitMode = mode;
+  state.zoom = zoom;
+  if (!align && !changed) return; // ResizeObserverで同じ倍率を繰り返し適用しない
+  applyZoom();
+  if (align) {
+    const box = viewSel.value === 'ja' ? row.right : row.left;
+    scrollTo(0, Math.max(0, scrollY + box.getBoundingClientRect().top - headerHeight - padding('paddingTop')));
+  }
+}
+
 $('#zoomIn').onclick = () => stepZoom(+1);
 $('#zoomOut').onclick = () => stepZoom(-1);
-$('#zoomReset').onclick = () => { state.zoom = 1; applyZoom(); };
+$('#zoomReset').onclick = () => { state.fitMode = null; state.zoom = 1; applyZoom(); };
+$('#fitWidth').onclick = () => fitToViewport('width');
+$('#fitHeight').onclick = () => fitToViewport('height');
+
+const refit = () => { if (state.fitMode) fitToViewport(state.fitMode, currentFitRow(), false); };
+window.addEventListener('resize', refit);
+// ツールバーが折り返した場合も、ページに使える高さを更新する。
+const headerResize = new ResizeObserver(refit);
+headerResize.observe($('header'));
 
 // ブラウザのズーム（Ctrl＋ホイール）や別の画面への移動で解像度が変わったら描き直す
 (function watchDpr() {
@@ -184,6 +236,7 @@ async function buildRows() {
     state.rows.push(r);
     io.observe(row);
   }
+  if (state.fitMode) fitToViewport(state.fitMode);
 }
 
 function makePage(vp, cls) {

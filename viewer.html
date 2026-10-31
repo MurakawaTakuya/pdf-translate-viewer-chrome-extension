@@ -40,10 +40,16 @@
         <option value="orig">原文のみ</option>
       </select>
     </label>
-    <span class="zoom">
-      <button id="zoomOut" title="縮小">−</button>
-      <button id="zoomReset" title="100%に戻す"><span id="zoomLabel">100%</span></button>
-      <button id="zoomIn" title="拡大">＋</button>
+    <span class="zoom-controls" role="group" aria-label="表示倍率">
+      <span class="zoom">
+        <button id="zoomOut" title="縮小">−</button>
+        <button id="zoomReset" title="100%に戻す"><span id="zoomLabel">100%</span></button>
+        <button id="zoomIn" title="拡大">＋</button>
+      </span>
+      <span class="zoom-fit">
+        <button id="fitWidth" title="タブの横幅に合わせる（対訳では左右2ページ）" aria-label="幅に合わせる" aria-pressed="false">↔ 幅</button>
+        <button id="fitHeight" title="現在のページをタブの高さに合わせる" aria-label="高さに合わせる" aria-pressed="false">↕ 高さ</button>
+      </span>
     </span>
     <button id="download" title="今の表示のままPDFに保存します">PDFで保存</button>
     <button id="openSettings" title="GeminiのAPIキー・モデルの設定">⚙ 設定</button>
