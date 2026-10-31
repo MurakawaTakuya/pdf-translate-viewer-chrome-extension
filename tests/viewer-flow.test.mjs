@@ -171,7 +171,7 @@ test('local preparation shows its own spinner and disables both buttons', async 
   const gate = new Promise((resolve) => { release = resolve; });
   const api = await viewer('gemini', { availability: async () => { await gate; return 'available'; } });
   const pending = api.localButton.onclick();
-  assert.equal(api.localButton.textContent, 'ローカルAIで翻訳中…');
+  assert.equal(api.localButton.textContent, '翻訳中…');
   assert.equal(api.localButton.getAttribute('aria-busy'), 'true');
   assert.ok(api.localButton.classList.contains('loading'));
   assert.equal(api.localButton.disabled, true);
@@ -181,7 +181,7 @@ test('local preparation shows its own spinner and disables both buttons', async 
   release();
   await pending;
   await idle(api);
-  assert.equal(api.localButton.textContent, 'ローカルAIで翻訳');
+  assert.equal(api.localButton.textContent, 'ローカルAI');
   assert.equal(api.localButton.disabled, false);
   assert.equal(api.startButton.disabled, false);
 });
@@ -305,7 +305,7 @@ test('start button stays busy during the full request and returns to normal on c
   await api.start('gemini');
   await requestStarted;
   assert.equal(api.startButton.disabled, true);
-  assert.equal(api.startButton.textContent, 'Geminiで翻訳中…');
+  assert.equal(api.startButton.textContent, '翻訳中…');
   assert.ok(api.startButton.classList.contains('loading'));
   assert.equal(api.startButton.getAttribute('aria-busy'), 'true');
   assert.equal(api.localButton.disabled, true);
@@ -314,7 +314,7 @@ test('start button stays busy during the full request and returns to normal on c
   release();
   await idle(api);
   assert.equal(api.startButton.disabled, false);
-  assert.equal(api.startButton.textContent, 'Geminiで翻訳');
+  assert.equal(api.startButton.textContent, 'Gemini');
   assert.ok(!api.startButton.classList.contains('loading'));
   assert.equal(api.localButton.disabled, false);
 });

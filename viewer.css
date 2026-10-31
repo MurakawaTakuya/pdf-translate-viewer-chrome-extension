@@ -8,40 +8,92 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
-header {
-  position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-  padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--border);
-}
-#openOriginal { font-size: 12px; padding: 3px 8px; }
-#filename { font-weight: 600; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-header label { font-size: 13px; display: flex; gap: 4px; align-items: center; }
 select, button { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
 button { cursor: pointer; }
-.translate-button, button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 button:disabled { opacity: .5; cursor: progress; }
-.translate-button.loading { display: inline-flex; align-items: center; gap: 6px; }
 .translate-button.loading::before {
   content: ''; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent;
   border-radius: 50%; animation: loading-spin .8s linear infinite;
 }
 @keyframes loading-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .translate-button.loading::before { animation: none; } }
-#status { font-size: 13px; opacity: .8; margin-left: auto; }
+
+/* PDFの操作を中央、翻訳の操作を右にまとめたツールバー */
+.viewer-toolbar {
+  position: sticky; top: 0; z-index: 10; padding: 8px 16px;
+  background: #242528; color: #e5e7eb; border-bottom: 1px solid #3c3e43; color-scheme: dark;
+}
+.toolbar-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center; gap: 16px; min-height: 36px;
+}
+.toolbar-file, .toolbar-reading, .toolbar-translation, .language-pair {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+}
+.toolbar-translation { justify-self: end; }
+.toolbar-file { gap: 10px; }
+#filename { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolbar-icon { width: 20px; height: 20px; display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.file-mark { color: #9dbbff; }
+.viewer-toolbar button, .viewer-toolbar select {
+  height: 32px; border: 1px solid transparent; border-radius: 5px; margin: 0;
+  background: transparent; color: inherit; font-size: 12px; font-weight: 500; vertical-align: middle;
+}
+.viewer-toolbar button { display: inline-flex; align-items: center; justify-content: center; padding: 0 8px; line-height: 1; flex: none; }
+.viewer-toolbar .icon-button { width: 32px; padding: 0; }
+.viewer-toolbar [hidden] { display: none; }
+.viewer-toolbar button:hover:not(:disabled), .viewer-toolbar select:hover { background: #ffffff12; }
+.viewer-toolbar button:focus-visible, .viewer-toolbar select:focus-visible { outline: 2px solid #9dbbff; outline-offset: 2px; }
+.viewer-toolbar select { cursor: pointer; padding: 0 4px; }
+.viewer-toolbar select option { background: #242528; color: #e5e7eb; }
+#view { width: 112px; }
+#src { width: 96px; }
+#dst { width: 76px; }
+.language-pair { gap: 0; }
+.language-arrow { width: 14px; height: 14px; color: #a6aab3; }
+.toolbar-separator { width: 1px; height: 20px; background: #ffffff29; margin: 0 5px; flex: none; }
+.viewer-toolbar .translate-button { width: 96px; gap: 6px; background: #ffffff0f; border-color: #ffffff12; }
+.viewer-toolbar #startGemini { background: #9dbbff1c; border-color: #9dbbff38; color: #b7cbff; }
+.viewer-toolbar .translate-button:hover:not(:disabled) { background: #ffffff20; }
+.viewer-toolbar #startGemini:hover:not(:disabled) { background: #9dbbff30; }
+#status {
+  position: absolute; top: calc(100% + 8px); right: 16px; max-width: min(640px, calc(100vw - 32px));
+  padding: 9px 13px; border: 1px solid #4c5058; border-radius: 7px; background: #292b30;
+  color: #e5e7eb; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere;
+  box-shadow: 0 4px 18px #0003;
+}
+#status.error { border-color: #a95353; color: #ffb5ad; }
+@media (max-width: 1340px) {
+  .toolbar-row { grid-template-columns: minmax(80px, 1fr) auto auto; gap: 10px; }
+}
+@media (max-width: 1080px) {
+  .toolbar-row { grid-template-columns: minmax(60px, 1fr) auto; gap: 6px 12px; }
+  .toolbar-file { grid-column: 1; grid-row: 1; }
+  .toolbar-translation { grid-column: 2; grid-row: 1; }
+  .toolbar-reading { grid-column: 1 / -1; grid-row: 2; justify-self: center; }
+}
+@media (max-width: 620px) {
+  .viewer-toolbar { padding: 6px 8px; }
+  .toolbar-file { gap: 2px; }
+  .toolbar-file #filename, .file-mark { display: none; }
+  .toolbar-translation { gap: 4px; }
+  .viewer-toolbar .translate-button { width: 86px; }
+  #src { width: 78px; }
+  #dst { width: 66px; }
+}
 
 #pages { padding: 12px 14px 60px; display: flex; flex-direction: column; gap: 14px; }
 .row { display: grid; grid-template-columns: auto auto; gap: 12px; justify-content: center; zoom: var(--zoom, 1); }
 
 /* 拡大・縮小ボタン */
-.zoom-controls { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; white-space: nowrap; }
-.zoom { display: flex; }
-.zoom button { border-radius: 0; margin-left: -1px; }
-.zoom button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
-.zoom button:last-child { border-radius: 0 6px 6px 0; }
+.zoom-controls { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; white-space: nowrap; }
+.zoom { display: flex; align-items: center; gap: 2px; }
+#zoomReset { min-width: 52px; background: #ffffff0c; font-variant-numeric: tabular-nums; }
 #zoomLabel { display: inline-block; min-width: 3.2em; text-align: center; }
-.zoom-fit { display: flex; gap: 4px; }
-.zoom-fit button[aria-pressed="true"] {
-  border-color: var(--accent); color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+.zoom-fit { display: flex; align-items: center; gap: 2px; }
+.viewer-toolbar .zoom-fit button[aria-pressed="true"] {
+  border-color: #9dbbff50; color: #b7cbff; background: #9dbbff1c;
 }
 
 /* 設定ダイアログ */

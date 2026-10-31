@@ -43,7 +43,18 @@ const state = {
   settings: await loadSettings(),
 };
 
-const setStatus = (t) => { $('#status').textContent = t; };
+let statusTimer;
+const setStatus = (t) => {
+  clearTimeout(statusTimer);
+  const status = $('#status');
+  status.textContent = t;
+  status.hidden = !t;
+  const error = /失敗|エラー|未対応|できません|拒否|正しくありません|APIキーを入力|同じ言語/.test(t);
+  status.classList.toggle('error', error);
+  if (!error && /完了しました|翻訳済み|保存しました/.test(t)) {
+    statusTimer = setTimeout(() => { status.hidden = true; }, 3000);
+  }
+};
 
 // 古い翻訳の終了で、新しい翻訳のローディングを消さないよう世代ごとに管理する。
 const translationActivities = new Set();
@@ -64,7 +75,8 @@ function updateStartButton() {
     button.disabled = busy;
     button.classList.toggle('loading', active);
     button.setAttribute('aria-busy', String(active));
-    button.textContent = `${label}で${active ? '翻訳中…' : '翻訳'}`;
+    button.textContent = active ? '翻訳中…' : label;
+    button.setAttribute('aria-label', `${label}で${active ? '翻訳中' : '翻訳'}`);
   }
 }
 
@@ -178,6 +190,7 @@ async function load() {
   try { name = decodeURIComponent(fileUrl.split('?')[0].split('/').pop()) || fileUrl; } catch {}
   state.name = name;
   $('#filename').textContent = name;
+  $('#filename').title = name;
   document.title = name + ' - PDF翻訳ビューア';
 
   setStatus('PDFを読み込み中…');
@@ -192,7 +205,7 @@ async function load() {
     return;
   }
   await buildRows();
-  setStatus(`${state.pdf.numPages}ページ。ローカルAIかGeminiの翻訳ボタンを押してください`);
+  setStatus('');
 }
 
 async function buildRows() {

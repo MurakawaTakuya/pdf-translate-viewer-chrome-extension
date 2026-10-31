@@ -8,52 +8,64 @@
   <link rel="stylesheet" href="viewer.css">
 </head>
 <body>
-  <header>
-    <span id="filename"></span>
-    <button id="openOriginal" title="翻訳せずに、いつものビューア（Chrome標準や Google Scholar など）で開きます" hidden>↩ 通常のビューアで開く</button>
-    <label>原文
-      <select id="src">
-        <option value="en">英語</option>
-        <option value="zh">中国語</option>
-        <option value="ko">韓国語</option>
-        <option value="fr">フランス語</option>
-        <option value="de">ドイツ語</option>
-        <option value="es">スペイン語</option>
-        <option value="ru">ロシア語</option>
-        <option value="ja">日本語</option>
-      </select>
-    </label>
-    <label>訳
-      <select id="dst">
-        <option value="ja">日本語</option>
-        <option value="en">英語</option>
-        <option value="zh">中国語</option>
-        <option value="ko">韓国語</option>
-      </select>
-    </label>
-    <button id="startLocal" class="translate-button" aria-busy="false" title="Chrome内蔵AIで翻訳します。文章は外部に送られません。">ローカルAIで翻訳</button>
-    <button id="startGemini" class="translate-button" aria-busy="false" title="PDF全文をGemini APIへ送って翻訳します。APIキーが必要です。">Geminiで翻訳</button>
-    <label>表示
-      <select id="view">
-        <option value="both">対訳（左右）</option>
-        <option value="ja">日本語訳のみ</option>
-        <option value="orig">原文のみ</option>
-      </select>
-    </label>
-    <span class="zoom-controls" role="group" aria-label="表示倍率">
-      <span class="zoom">
-        <button id="zoomOut" title="縮小">−</button>
-        <button id="zoomReset" title="100%に戻す"><span id="zoomLabel">100%</span></button>
-        <button id="zoomIn" title="拡大">＋</button>
-      </span>
-      <span class="zoom-fit">
-        <button id="fitWidth" title="タブの横幅に合わせる（対訳では左右2ページ）" aria-label="幅に合わせる" aria-pressed="false">↔ 幅</button>
-        <button id="fitHeight" title="現在のページをタブの高さに合わせる" aria-label="高さに合わせる" aria-pressed="false">↕ 高さ</button>
-      </span>
-    </span>
-    <button id="download" title="今の表示のままPDFに保存します">PDFで保存</button>
-    <button id="openSettings" title="GeminiのAPIキー・モデルの設定">⚙ 設定</button>
-    <span id="status" role="status" aria-live="polite"></span>
+  <header class="viewer-toolbar">
+    <div class="toolbar-row">
+      <div class="toolbar-file">
+        <svg class="toolbar-icon file-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5M8 13h8M8 17h6"/></svg>
+        <span id="filename"></span>
+        <button id="openOriginal" class="icon-button" title="通常のPDFビューアで開く" aria-label="通常のPDFビューアで開く" hidden>
+          <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M10 5H5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-5"/></svg>
+        </button>
+      </div>
+
+      <div class="toolbar-reading" role="group" aria-label="PDFの表示">
+        <select id="view" aria-label="表示方法" title="表示方法">
+          <option value="both">対訳（左右）</option>
+          <option value="ja">日本語訳のみ</option>
+          <option value="orig">原文のみ</option>
+        </select>
+        <span class="toolbar-separator" aria-hidden="true"></span>
+        <span class="zoom-controls" role="group" aria-label="表示倍率">
+          <span class="zoom">
+            <button id="zoomOut" class="icon-button" title="縮小" aria-label="縮小"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+            <button id="zoomReset" title="100%に戻す" aria-label="倍率を100%に戻す"><span id="zoomLabel">100%</span></button>
+            <button id="zoomIn" class="icon-button" title="拡大" aria-label="拡大"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button>
+          </span>
+          <span class="zoom-fit">
+            <button id="fitWidth" class="icon-button" title="幅に合わせる（対訳では左右2ページ）" aria-label="幅に合わせる" aria-pressed="false"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16M20 4v16M6 12h12M9 9l-3 3 3 3M15 9l3 3-3 3"/></svg></button>
+            <button id="fitHeight" class="icon-button" title="現在のページを高さに合わせる" aria-label="高さに合わせる" aria-pressed="false"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16M4 20h16M12 6v12M9 9l3-3 3 3M9 15l3 3 3-3"/></svg></button>
+          </span>
+        </span>
+        <span class="toolbar-separator" aria-hidden="true"></span>
+        <button id="download" class="icon-button" title="今の表示のままPDFで保存" aria-label="PDFで保存"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 16v4h16v-4"/></svg></button>
+      </div>
+
+      <div class="toolbar-translation" role="group" aria-label="翻訳">
+        <span class="language-pair">
+          <select id="src" aria-label="原文の言語" title="原文の言語">
+            <option value="en">英語</option>
+            <option value="zh">中国語</option>
+            <option value="ko">韓国語</option>
+            <option value="fr">フランス語</option>
+            <option value="de">ドイツ語</option>
+            <option value="es">スペイン語</option>
+            <option value="ru">ロシア語</option>
+            <option value="ja">日本語</option>
+          </select>
+          <svg class="toolbar-icon language-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg>
+          <select id="dst" aria-label="訳文の言語" title="訳文の言語">
+            <option value="ja">日本語</option>
+            <option value="en">英語</option>
+            <option value="zh">中国語</option>
+            <option value="ko">韓国語</option>
+          </select>
+        </span>
+        <button id="startLocal" class="translate-button" aria-label="ローカルAIで翻訳" aria-busy="false" title="ローカルAIで翻訳。Chrome内蔵AIを使い、文章は外部に送られません。">ローカルAI</button>
+        <button id="startGemini" class="translate-button" aria-label="Geminiで翻訳" aria-busy="false" title="Geminiで翻訳。PDF全文をGoogleへ送信します。APIキーが必要です。">Gemini</button>
+        <button id="openSettings" class="icon-button" title="GeminiのAPIキー・モデルの設定" aria-label="Geminiの設定"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.7 2-2 .9-2-.4-2 3.4 1.4 1.6v2.4L2.8 14l2 3.5 2-.4 2 .9.7 2h4l.7-2 2-.9 2 .4 2-3.5-1.4-1.1v-2.4l1.4-1.6-2-3.4-2 .4-2-.9-.7-2z"/><circle cx="11.5" cy="11.5" r="3"/></svg></button>
+      </div>
+    </div>
+    <div id="status" role="status" aria-live="polite" hidden></div>
   </header>
 
   <dialog id="settings">
