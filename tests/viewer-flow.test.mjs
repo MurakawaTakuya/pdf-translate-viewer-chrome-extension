@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { createGeminiTranslator } from '../gemini.js';
 import { createDocumentTranslator } from '../document-translator.js';
+import { disableNativeZoom } from '../native-zoom.js';
 
 const viewerSource = await readFile(new URL('../viewer.js', import.meta.url), 'utf8');
 const element = () => {
@@ -35,6 +36,12 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   const listeners = new Map(), resizeObservers = [];
   const pageFrames = [], scrollCalls = [];
   const savedFiles = [];
+  const nativeZoomCalls = [];
+  const tabs = {
+    getCurrent: async () => ({ id: 42 }),
+    setZoomSettings: async (id, settings) => { nativeZoomCalls.push({ id, ...settings }); },
+    setZoom: () => assert.fail('PDF zoom must not set Chrome zoom or open its popover'),
+  };
   let nextFrame = 0;
   const document = {
     body: { dataset: {} }, documentElement: { scrollHeight: 1000, clientHeight: 900, style: { setProperty() {} } },
@@ -49,7 +56,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   };
   const window = { addEventListener: (event, callback) => listeners.set(event, callback) }; window.top = window;
   const context = {
-    document, window, createdElements, savedFiles, self: {}, location: { search: '' },
+    document, window, createdElements, savedFiles, self: { chrome: { tabs } }, location: { search: '' },
     scrollCalls,
     dispatchResize: () => listeners.get('resize')?.(),
     dispatchScroll: () => listeners.get('scroll')?.(),
@@ -66,7 +73,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
     pdfjsLib: { GlobalWorkerOptions: {} },
     createGeminiTranslator, createDocumentTranslator,
-    createNativeZoom: async () => null,
+    disableNativeZoom,
     createCitationDialog: () => ({ open() {}, position() {} }),
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),
     openSettings: async () => nextSettings,
@@ -90,6 +97,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
+  api.nativeZoomCalls = nativeZoomCalls;
   api.state.pdf = {};
   api.state.rows = [1, 2, 3].map((index) => ({
     index, visible: index === 1, srcLayer: element(), dstLayer: element(),
@@ -628,4 +636,8 @@ test('keyboard shortcuts and pinch adjust PDF zoom while leaving the toolbar siz
   api.key(event('+', { target: { closest: () => true } }));
   assert.equal(api.state.zoom, 1);
   assert.equal(prevented, 5);
+  api.element('#zoomIn').onclick();
+  api.element('#zoomOut').onclick();
+  api.element('#zoomReset').onclick();
+  assert.deepEqual(api.nativeZoomCalls, [{ id: 42, mode: 'disabled', scope: 'per-tab' }]);
 });

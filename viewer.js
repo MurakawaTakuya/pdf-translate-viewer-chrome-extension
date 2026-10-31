@@ -3,7 +3,7 @@ import { loadSettings, openSettings } from './settings.js';
 import { createGeminiTranslator } from './gemini.js';
 import { createDocumentTranslator } from './document-translator.js';
 import { toRuns } from './math.js';
-import { createNativeZoom } from './native-zoom.js';
+import { disableNativeZoom } from './native-zoom.js';
 import { createCitationDialog } from './citation-ui.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./lib/pdf.worker.min.mjs', import.meta.url).href;
@@ -46,7 +46,6 @@ const state = {
   settings: await loadSettings(),
 };
 let pageNavigationFrame = null;
-let nativeZoom = null;
 let citationDialog = null;
 
 let statusTimer;
@@ -114,7 +113,6 @@ function applyZoom() {
   scrollTo(0, ratio * document.documentElement.scrollHeight); // だいたい同じ場所を表示し続ける
   rerenderVisible();
   schedulePageNavigation();
-  nativeZoom?.sync(state.zoom).catch(() => {});
 }
 
 function stepZoom(dir) {
@@ -1137,12 +1135,6 @@ window.addEventListener('keydown', (e) => {
 });
 srcSel.onchange = dstSel.onchange = () => { if (state.enabled) start(); };
 
-createNativeZoom(self.chrome?.tabs, {
-  getZoom: () => state.zoom,
-  onZoom: (zoom) => { state.zoom = zoom; state.fitMode = null; applyZoom(); },
-}).then((controller) => {
-  nativeZoom = controller;
-  return controller?.sync(state.zoom);
-}).catch(() => {});
+disableNativeZoom(self.chrome?.tabs).catch(() => {});
 
 load();
