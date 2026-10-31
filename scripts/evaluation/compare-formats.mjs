@@ -4,7 +4,8 @@ import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import { createGeminiTranslator, DEFAULT_MODEL } from '../../gemini.js';
+import { DEFAULT_MODEL } from '../../gemini.js';
+import { legacyRequest } from './legacy-format.mjs';
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 const sha = (value) => createHash('sha256').update(value).digest('hex');
@@ -15,16 +16,7 @@ const object = (properties) => ({ type: 'object', properties, required: Object.k
 export async function makeCases(pages) {
   const targets = pages.flatMap((p) => p.blocks.filter((b) => b.translate).map((b) => ({ ...b, page: p.page })));
   const inputPages = pages.map((p) => ({ page: p.page, blocks: p.blocks.map(({ id, text }) => ({ id, text })) }));
-  // Capture the production request without making a network request or modifying the extension.
-  let baseline;
-  const original = globalThis.fetch;
-  globalThis.fetch = async (_url, init) => {
-    baseline = JSON.parse(init.body);
-    return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: JSON.stringify({ translations: targets.map((_b, i) => ({ id: i + 1, text: 'fixture' })) }) }] }] });
-  };
-  try {
-    await createGeminiTranslator({ apiKey: 'offline-placeholder', model: DEFAULT_MODEL, sourceLanguage: 'en', targetLanguage: 'ja' }).translateDocument(inputPages, targets.map((b) => b.id));
-  } finally { globalThis.fetch = original; }
+  const baseline = legacyRequest(inputPages, targets.map((b) => b.id), DEFAULT_MODEL);
   const used = new Set();
   const keyed = targets.map((b) => {
     let length = 6, wire;
@@ -54,7 +46,7 @@ export function analyze(variant, text, status) {
   try { output = JSON.parse(text); } catch { return { valid: false, reason: 'invalid-json', status }; }
   const expected = new Map(variant.targets.map((b, i) => [b.wire, { ...b, position: i + 1 }]));
   let entries, invalid = 0, wrongPage = 0, duplicatePages = 0;
-  if (variant.name === 'sequential-flat') entries = output.translations;
+  if ((variant.protocol || variant.name) === 'sequential-flat') entries = output.translations;
   else {
     if (!Array.isArray(output.pages)) return { valid: false, reason: 'invalid-pages', status };
     const seenPages = new Set();
@@ -111,7 +103,7 @@ function objectCollector(onItem) {
   };
 }
 
-async function generate(variant, apiKey, label, directory) {
+export async function generate(variant, apiKey, label, directory) {
   const started = performance.now(), expected = new Set(variant.targets.map((b) => b.wire));
   let firstTextMs = null, firstItemMs = null, text = '', terminal = {}, http, error = null, chunks = 0;
   const steps = new Map();

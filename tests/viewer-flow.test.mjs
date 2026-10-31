@@ -130,7 +130,7 @@ async function idle(api) {
 }
 function success(input) {
   return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{
-    type: 'text', text: JSON.stringify({ translations: input.pages.flatMap((p) => p.blocks.filter((b) => b.translate_id !== undefined).map((b) => ({ id: b.translate_id, text: '訳文 ' + b.translate_id }))) }),
+    type: 'text', text: JSON.stringify({ translations: input.targets.map((b) => ({ id: b.id, text: '訳文 ' + b.id })) }),
   }] }] });
 }
 
@@ -332,9 +332,8 @@ test('missing-only retry button repairs one paragraph and reuses the full result
     const input = JSON.parse(JSON.parse(init.body).input);
     calls++;
     if (calls === 2) { started(); await gate; }
-    const translations = input.pages.flatMap((p) => p.blocks
-      .filter((b) => b.translate_id !== undefined && (calls > 1 || b.translate_id !== 2))
-      .map((b) => ({ id: b.translate_id, text: calls === 1 ? '初回訳 ' + b.translate_id : '補完した訳文' })));
+    const translations = input.targets.filter((b) => calls > 1 || b.id !== 2)
+      .map((b) => ({ id: b.id, text: calls === 1 ? '初回訳 ' + b.id : '補完した訳文' }));
     return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text', text: JSON.stringify({ translations }) }] }] });
   });
   const api = await viewer();

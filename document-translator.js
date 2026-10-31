@@ -24,7 +24,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
           idsByBlock.set(b, id);
           rowsById.set(id, r);
           if (b.translate) { ids.push(id); targets.push(b); }
-          return { id, text: b.text };
+          return { id, kind: b.kind || 'paragraph', text: b.text };
         }) });
         targetsByRow.set(r, targets);
       }

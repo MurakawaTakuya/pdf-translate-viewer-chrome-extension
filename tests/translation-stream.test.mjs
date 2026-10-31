@@ -145,8 +145,8 @@ test('manual repair of missing streamed translations sends full context once and
   const fixing = tr.repairMissing();
   assert.equal(tr.repairMissing(), fixing);
   await until(() => requests.length === 2);
-  assert.deepEqual(requests[0].pages[0].blocks.map((b) => b.text), requests[1].pages[0].blocks.map((b) => b.text));
-  assert.deepEqual(requests[1].pages[0].blocks.filter((b) => b.translate_id !== undefined), [{ translate_id: 1, text: 'B' }]);
+  assert.deepEqual(requests[0].pages, requests[1].pages);
+  assert.deepEqual(requests[1].targets, [{ id: 1, page: 1, kind: 'paragraph', text: 'B' }]);
   repair.start();
   repair.text('{"translations":[{"id":1,"text":"補完訳B"}]}');
   await until(() => tr.previewPage(row).length === 1);

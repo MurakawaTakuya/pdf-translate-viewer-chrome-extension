@@ -9,14 +9,14 @@ const LANG_NAMES = {
 };
 
 const systemPrompt = (src, dst) => String.raw`You are a professional translator of academic papers.
-The user sends a JSON object whose "pages" array contains text blocks extracted from every page of a PDF paper, in reading order. Every block has "text". A block with an integer "translate_id" is a target to translate from ${src} into ${dst}; blocks without "translate_id" are reference context only. "translate_count" is the total number of targets, numbered consecutively from 1 to "translate_count" across the entire document, not per page.
+The user sends a JSON object with two separate parts. "pages" contains the full extracted text of every PDF page, arranged in reading order, for reference context. "targets" is the authoritative list of translation tasks: each entry contains an integer "id", a "page", a "kind" (such as paragraph, heading, caption or footnote), and the exact source "text" to translate from ${src} into ${dst}. The target text also appears in the reference pages; this is intentional duplication, not an additional task. "translate_count" is the total number of targets, numbered consecutively from 1 to "translate_count" across the entire document, not per page.
 
 Rules:
 - Translate faithfully into natural, idiomatic language. Preserve all information in the source; do not add explanations, omit details, summarize, or freely paraphrase in ways that change the meaning.
 - Preserve negation and its scope, conditions, qualifications, uncertainty, comparisons, causal relationships, and the strength of every claim. Never turn a possibility into a certainty, an association into causation, or a limited claim into a general one.
 - If fluency conflicts with fidelity, prioritize fidelity while making the wording as natural as possible. Preserve ambiguity in the source rather than resolving it through guesses or outside knowledge.
 - Read the entire paper for context before translating. Use definitions, abbreviations, and surrounding passages from all pages to interpret each target block accurately.
-- Return a JSON object of the form {"translations": [{"id": 1, "text": "translated text"}, {"id": 2, "text": "translated text"}, ...]}. Copy each target's "translate_id" unchanged into "id", as an integer, and put its nonempty translation in "text". Return exactly "translate_count" items, covering every target once. Emit items in ascending "translate_id" order. Never restart numbering on a new page, renumber IDs, merge, split, or skip target blocks, and never include reference-only blocks. Before finishing, check that every target number has a translation. A sentence may continue across blocks or pages: use the neighboring text to understand it, but translate only the content belonging to each block, without duplicating or inventing text.
+- Return a JSON object of the form {"translations": [{"id": 1, "text": "translated text"}, {"id": 2, "text": "translated text"}, ...]}. Copy each target's "id" unchanged into "id", as an integer, and put its nonempty translation in "text". Return exactly "translate_count" items, covering every target once. Emit items in ascending "id" order. Never restart numbering on a new page, renumber IDs, merge, split, or skip target blocks, and never translate the reference pages as extra output. Only entries in "targets" are tasks. Before finishing, check that every target number has a translation. A sentence may continue across targets or pages: use the full reference pages to understand it, but translate only the exact source text of each target. Do not complete its sentence from neighboring targets or duplicate their content. The "kind" is a layout hint; the source text remains authoritative.
 - Write in the formal written style of academic papers in ${dst}.${dst === 'Japanese' ? ' Use the plain "である" style, not "です・ます".' : ''}
 - Write every mathematical expression, variable, and symbol as inline LaTeX enclosed in single dollar signs, such as $f_\omega(\cdot)$ or $x_{\text{img}}$, even if the source shows it as broken plain text (e.g. "f ω (·)" or "x img"). Do not use Markdown, and do not use LaTeX outside $...$.
 - Keep these unchanged: citation markers such as [12] or (Smith et al., 2020), numbers with units, URLs, code, and names of models, datasets, methods, and acronyms (e.g. BERT, ImageNet, LoRA).
@@ -49,13 +49,14 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
   async function translateDocument(pages, translateIds, onTranslation = () => {}) {
     signal?.throwIfAborted();
     if (!translateIds.length) return new Map();
-    // 元の疎なページ内IDはローカルだけに保持する。参照ブロックには翻訳番号を付けない。
+    // 全文は読解用、対象一覧は出力との対応用。座標と元のブロックIDはローカルに保持する。
     const numbers = new Map(translateIds.map((id, i) => [id, i + 1]));
+    const targets = pages.flatMap((p) => p.blocks.filter((b) => numbers.has(b.id)).map((b) => ({
+      id: numbers.get(b.id), page: p.page, kind: b.kind || 'paragraph', text: b.text,
+    }))).sort((a, b) => a.id - b.id);
     const input = {
-      pages: pages.map((p) => ({ page: p.page, blocks: p.blocks.map((b) => {
-        const id = numbers.get(b.id);
-        return id === undefined ? { text: b.text } : { translate_id: id, text: b.text };
-      }) })),
+      pages: pages.map((p) => ({ page: p.page, text: p.blocks.map((b) => b.text).join('\n\n') })),
+      targets,
       translate_count: translateIds.length,
     };
     for (let attempt = 0; ; attempt++) {

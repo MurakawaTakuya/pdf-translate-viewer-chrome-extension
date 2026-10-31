@@ -10,8 +10,8 @@ const response = (translations, extra = {}) => Response.json({
   steps: [{ type: 'model_output', content: [{ type: 'text', text: JSON.stringify({ translations }) }] }],
   ...extra,
 });
-const targets = (input) => input.pages.flatMap((p) => p.blocks.filter((b) => b.translate_id !== undefined));
-const contextText = (input) => input.pages.map((p) => ({ page: p.page, text: p.blocks.map((b) => b.text) }));
+const targets = (input) => [...input.targets];
+const contextText = (input) => input.pages;
 const deferred = () => {
   let resolve;
   const promise = new Promise((r) => { resolve = r; });
@@ -31,7 +31,7 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
     requests.push({ body, input });
     await gate.promise;
     // Response order is irrelevant: the numeric IDs must restore the original sparse IDs.
-    return response(targets(input).reverse().map((b) => ({ id: b.translate_id, text: `訳文 ${b.translate_id} (${requests.length})` })));
+    return response(targets(input).reverse().map((b) => ({ id: b.id, text: `訳文 ${b.id} (${requests.length})` })));
   });
   const tr = createDocumentTranslator({
     rows, translator: createGeminiTranslator(options),
@@ -44,13 +44,12 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
   assert.equal(requests.length, 1);
   assert.deepEqual(extractions, [1, 2, 3]);
   assert.equal(requests[0].input.pages.length, 3);
-  assert.equal(requests[0].input.pages[2].blocks.length, 13);
-  assert.equal(requests[0].input.pages[2].blocks[0].text, 'Figure label 2');
-  assert.deepEqual(contextText(requests[0].input), rows.map((r, i) => ({ page: r.index, text: blocks[i].map((b) => b.text) })));
-  assert.ok(blocks.flat().every((b) => b.translate_id === undefined));
+  assert.match(requests[0].input.pages[2].text, /^Figure label 2\n\nParagraph 2:0/);
+  assert.deepEqual(contextText(requests[0].input), rows.map((r, i) => ({ page: r.index, text: blocks[i].map((b) => b.text).join('\n\n') })));
+  assert.ok(blocks.flat().every((b) => b.id === undefined));
   assert.equal(requests[0].input.translate_count, 36);
-  assert.equal(requests[0].input.pages[2].blocks[0].translate_id, undefined);
-  assert.deepEqual(targets(requests[0].input).map((b) => b.translate_id), Array.from({ length: 36 }, (_, i) => i + 1));
+  assert.ok(targets(requests[0].input).every((b) => !b.text.startsWith('Figure label')));
+  assert.deepEqual(targets(requests[0].input).map((b) => b.id), Array.from({ length: 36 }, (_, i) => i + 1));
   assert.equal(shown[2][0], '訳文 25 (1)');
   assert.equal(shown[0][11], '訳文 12 (1)');
   assert.equal(requests[0].body.store, false);
@@ -70,7 +69,7 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
   assert.equal(requests.length, 2);
   assert.deepEqual(contextText(requests[1].input), contextText(requests[0].input));
   assert.equal(requests[1].input.translate_count, 1);
-  assert.deepEqual(targets(requests[1].input), [{ translate_id: 1, text: blocks[2][1].text }]);
+  assert.deepEqual(targets(requests[1].input), [{ id: 1, page: 3, kind: 'paragraph', text: blocks[2][1].text }]);
   assert.deepEqual(requests[1].body.response_format.schema, schema);
   await tr.translatePage(rows[2], (i, text) => { shown[2][i] = text; });
   assert.equal(shown[2][0], replacement);
@@ -82,7 +81,7 @@ test('schema stays identical for 1, 282 and 2000 paragraphs without IDs or lengt
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const request = JSON.parse(init.body), input = JSON.parse(request.input);
     schemas.push(request.response_format.schema);
-    return response(targets(input).map((b) => ({ id: b.translate_id, text: '訳文 ' + b.translate_id })));
+    return response(targets(input).map((b) => ({ id: b.id, text: '訳文 ' + b.id })));
   });
   const translator = createGeminiTranslator(options);
   for (const count of [1, 282, 2000]) {
@@ -163,7 +162,7 @@ test('281 valid translations are retained and only the missing target is repaire
     const input = JSON.parse(JSON.parse(init.body).input);
     requests.push(input);
     if (requests.length === 1) {
-      return response(targets(input).filter((b) => b.text !== missingText).map((b) => ({ id: b.translate_id, text: '初回訳 ' + b.text })));
+      return response(targets(input).filter((b) => b.text !== missingText).map((b) => ({ id: b.id, text: '初回訳 ' + b.text })));
     }
     assert.equal(requests.length, 2);
     repairStarted.resolve();
@@ -189,7 +188,7 @@ test('281 valid translations are retained and only the missing target is repaire
   assert.equal(requests.length, 2);
   assert.deepEqual(contextText(requests[1]), contextText(requests[0]));
   assert.equal(requests[1].translate_count, 1);
-  assert.deepEqual(targets(requests[1]), [{ translate_id: 1, text: missingText }]);
+  assert.deepEqual(targets(requests[1]), [{ id: 1, page: 2, kind: 'paragraph', text: missingText }]);
   gate.resolve();
   const result = await repair;
   assert.equal(result.size, 282);
