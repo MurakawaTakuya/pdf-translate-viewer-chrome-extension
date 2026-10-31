@@ -3,6 +3,7 @@ import { loadSettings, openSettings } from './settings.js';
 import { createGeminiTranslator } from './gemini.js';
 import { createDocumentTranslator } from './document-translator.js';
 import { toRuns } from './math.js';
+import { createNativeZoom } from './native-zoom.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./lib/pdf.worker.min.mjs', import.meta.url).href;
 
@@ -44,6 +45,7 @@ const state = {
   settings: await loadSettings(),
 };
 let pageNavigationFrame = null;
+let nativeZoom = null;
 
 let statusTimer;
 const setStatus = (t) => {
@@ -110,6 +112,7 @@ function applyZoom() {
   scrollTo(0, ratio * document.documentElement.scrollHeight); // だいたい同じ場所を表示し続ける
   rerenderVisible();
   schedulePageNavigation();
+  nativeZoom?.sync(state.zoom).catch(() => {});
 }
 
 function stepZoom(dir) {
@@ -161,6 +164,32 @@ $('#zoomOut').onclick = () => stepZoom(-1);
 $('#zoomReset').onclick = () => { state.fitMode = null; state.zoom = 1; applyZoom(); };
 $('#fitWidth').onclick = () => fitToViewport('width');
 $('#fitHeight').onclick = () => fitToViewport('height');
+
+function handleZoomKey(e) {
+  if (!state.pdf || e.defaultPrevented || e.altKey || (!e.ctrlKey && !e.metaKey)) return;
+  const key = e.key;
+  if (!['+', '=', '-', '0'].includes(key)) return;
+  e.preventDefault();
+  if (e.target?.closest?.('dialog[open]')) return;
+  if (key === '0') $('#zoomReset').onclick();
+  else stepZoom(key === '-' ? -1 : 1);
+}
+
+let wheelZoom = 0, wheelZoomFrame = null;
+window.addEventListener('wheel', (e) => {
+  if (!state.pdf || (!e.ctrlKey && !e.metaKey)) return;
+  e.preventDefault();
+  if (e.target?.closest?.('dialog[open]') || !e.deltaY) return;
+  wheelZoom += e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? document.documentElement.clientHeight : 1);
+  if (wheelZoomFrame !== null) return;
+  wheelZoomFrame = requestAnimationFrame(() => {
+    wheelZoomFrame = null;
+    state.zoom = Math.min(5, Math.max(0.1, state.zoom * Math.exp(-wheelZoom * 0.002)));
+    wheelZoom = 0;
+    state.fitMode = null;
+    applyZoom();
+  });
+}, { passive: false });
 
 const refit = () => {
   if (state.fitMode) fitToViewport(state.fitMode, currentFitRow(), false);
@@ -1094,7 +1123,18 @@ $('#downloadBoth').onclick = () => download('both');
 window.addEventListener('pointerdown', (e) => {
   if (!$('#downloadMenu').hidden && !e.target?.closest?.('.download-control')) closeDownloadMenu();
 });
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDownloadMenu(); });
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeDownloadMenu();
+  handleZoomKey(e);
+});
 srcSel.onchange = dstSel.onchange = () => { if (state.enabled) start(); };
+
+createNativeZoom(self.chrome?.tabs, {
+  getZoom: () => state.zoom,
+  onZoom: (zoom) => { state.zoom = zoom; state.fitMode = null; applyZoom(); },
+}).then((controller) => {
+  nativeZoom = controller;
+  return controller?.sync(state.zoom);
+}).catch(() => {});
 
 load();

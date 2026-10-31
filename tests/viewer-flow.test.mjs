@@ -53,6 +53,8 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     scrollCalls,
     dispatchResize: () => listeners.get('resize')?.(),
     dispatchScroll: () => listeners.get('scroll')?.(),
+    dispatchKey: (event) => listeners.get('keydown')?.(event),
+    dispatchWheel: (event) => listeners.get('wheel')?.(event),
     dispatchPageFrames: () => pageFrames.splice(0).forEach((callback) => callback()),
     requestAnimationFrame: (callback) => { pageFrames.push(callback); return ++nextFrame; },
     dispatchHeaderResize: () => resizeObservers.forEach((callback) => callback()),
@@ -64,6 +66,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
     pdfjsLib: { GlobalWorkerOptions: {} },
     createGeminiTranslator, createDocumentTranslator,
+    createNativeZoom: async () => null,
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),
     openSettings: async () => nextSettings,
     Translator: {
@@ -82,7 +85,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     placeBlock = () => elementStub();
     fillBlock = (_el, b, text) => { b.ja = text; };
     saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
-    return { state, start, enqueue, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
+    return { state, start, enqueue, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -601,4 +604,27 @@ test('missing Gemini output does not enable translated downloads or resend on sa
   await api.element('#downloadBoth').onclick();
   assert.equal(calls, 1);
   assert.equal(api.savedFiles.length, 0);
+});
+
+test('keyboard shortcuts and pinch adjust PDF zoom while leaving the toolbar size unchanged', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('zoom must not call translation API'));
+  const api = await viewer();
+  fitFixture(api);
+  let prevented = 0;
+  const event = (key, modifiers = {}) => ({ key, ctrlKey: true, preventDefault: () => { prevented++; }, ...modifiers });
+  api.key(event('+'));
+  near(api.state.zoom, 1.1);
+  assert.equal(api.element('#zoomLabel').textContent, '110%');
+  api.key(event('-', { ctrlKey: false, metaKey: true }));
+  near(api.state.zoom, 1);
+  api.wheel({ ctrlKey: true, deltaY: -100, deltaMode: 0, preventDefault: () => { prevented++; } });
+  api.flushPageFrames();
+  near(api.state.zoom, Math.exp(0.2));
+  assert.equal(api.element('#zoomLabel').textContent, '122%');
+  api.key(event('0'));
+  assert.equal(api.state.zoom, 1);
+  assert.equal(api.element('header').height, 60);
+  api.key(event('+', { target: { closest: () => true } }));
+  assert.equal(api.state.zoom, 1);
+  assert.equal(prevented, 5);
 });
