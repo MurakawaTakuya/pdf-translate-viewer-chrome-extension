@@ -86,7 +86,7 @@ async function idle(api) {
 }
 function success(input) {
   return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{
-    type: 'text', text: JSON.stringify({ translations: Object.fromEntries(input.translate_ids.map((id) => [id, '訳文 ' + id])) }),
+    type: 'text', text: JSON.stringify({ translations: input.translate_ids.map((id) => ({ [id]: '訳文 ' + id })) }),
   }] }] });
 }
 

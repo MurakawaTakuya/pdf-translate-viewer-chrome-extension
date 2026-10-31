@@ -27,8 +27,7 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
     const body = JSON.parse(init.body), input = JSON.parse(body.input);
     requests.push({ body, input });
     await gate.promise;
-    // The API may reorder keys: IDs must preserve the page/paragraph association.
-    return response(Object.fromEntries([...input.translate_ids].reverse().map((id) => [id, `訳文 ${id} (${requests.length})`])));
+    return response(input.translate_ids.map((id) => ({ [id]: `訳文 ${id} (${requests.length})` })));
   });
   const tr = createDocumentTranslator({
     rows, translator: createGeminiTranslator(options),
@@ -52,11 +51,13 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
   const schema = requests[0].body.response_format.schema;
   assert.equal(schema.additionalProperties, false);
   assert.deepEqual(schema.required, ['translations']);
-  assert.equal(schema.properties.translations.type, 'object');
-  assert.deepEqual(schema.properties.translations.additionalProperties, { type: 'string' });
-  assert.equal(schema.properties.translations.required, undefined);
-  assert.equal(schema.properties.translations.properties, undefined);
-  assert.match(requests[0].body.system_instruction, /every ID in "translate_ids" exactly once as a key/);
+  assert.equal(schema.properties.translations.type, 'array');
+  assert.equal(schema.properties.translations.minItems, 36);
+  assert.equal(schema.properties.translations.maxItems, 36);
+  assert.equal(schema.properties.translations.prefixItems.length, 36);
+  assert.deepEqual(schema.properties.translations.prefixItems[0].required, ['p1-b1']);
+  assert.equal(schema.properties.translations.prefixItems[0].additionalProperties, false);
+  assert.match(requests[0].body.system_instruction, /Follow the exact order of "translate_ids"/);
   await Promise.all(rows.map((r) => tr.translatePage(r, () => {})));
   assert.equal(requests.length, 1);
 
@@ -65,38 +66,50 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
   assert.equal(requests.length, 2);
   assert.deepEqual(requests[1].input.pages, requests[0].input.pages);
   assert.deepEqual(requests[1].input.translate_ids, ['p3-b1']);
-  assert.deepEqual(requests[1].body.response_format.schema, schema);
+  const redoSchema = requests[1].body.response_format.schema.properties.translations;
+  assert.equal(redoSchema.prefixItems.length, 1);
+  assert.deepEqual(redoSchema.prefixItems[0].required, ['p3-b1']);
   await tr.translatePage(rows[2], (i, text) => { shown[2][i] = text; });
   assert.equal(shown[2][0], replacement);
   assert.equal(requests.length, 2);
 });
 
-test('thousands of paragraphs keep the same small schema and use one request', async (t) => {
+test('282 paragraphs each have one fixed ID slot and use one request', async (t) => {
   const schemas = [];
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     const request = JSON.parse(init.body), input = JSON.parse(request.input);
     schemas.push(request.response_format.schema);
-    return response(Object.fromEntries(input.translate_ids.map((id) => [id, '訳文 ' + id])));
+    return response(input.translate_ids.map((id) => ({ [id]: '訳文 ' + id })));
   });
   const translator = createGeminiTranslator(options);
-  for (const count of [1, 2000]) {
+  for (const count of [1, 282]) {
     const blocks = Array.from({ length: count }, (_, i) => ({ id: `p1-b${i}`, text: `Source ${i}` }));
     const result = await translator.translateDocument([{ page: 1, blocks }], blocks.map((b) => b.id));
     assert.equal(result.size, count);
     assert.equal(result.get(`p1-b${count - 1}`), `訳文 p1-b${count - 1}`);
   }
   assert.equal(schemas.length, 2); // One request per document, without fallback/resending.
-  assert.deepEqual(schemas[1], schemas[0]);
-  assert.equal(JSON.stringify(schemas[1]).includes('p1-b'), false);
+  const slots = schemas[1].properties.translations;
+  assert.equal(slots.minItems, 282);
+  assert.equal(slots.maxItems, 282);
+  assert.equal(slots.prefixItems.length, 282);
+  for (const [i, slot] of slots.prefixItems.entries()) {
+    assert.deepEqual(slot.required, [`p1-b${i}`]);
+    assert.deepEqual(Object.keys(slot.properties), slot.required);
+    assert.equal(slot.additionalProperties, false);
+  }
 });
 
 test('malformed or incomplete output never causes splitting, resending, or partial display', async (t) => {
   const cases = {
-    missing: [{ 'p1-b0': '訳' }, /必要2件／受信1件、不足1件/],
-    unknown: [{ 'p1-b0': '訳', other: '訳' }, /不足1件、対象外1件/],
-    empty: [{ 'p1-b0': '訳', 'p1-b1': '  ' }, /空欄1件/],
-    wrongType: [{ 'p1-b0': '訳', 'p1-b1': 123 }, /形式不正1件/],
-    array: [[{ id: 'p1-b0', text: '訳' }, { id: 'p1-b0', text: '訳' }], /形式が不正/],
+    missing: [[{ 'p1-b0': '訳' }], /必要2件／受信1件、不足1件/],
+    unknown: [[{ 'p1-b0': '訳' }, { other: '訳' }], /不足1件、対象外1件/],
+    duplicate: [[{ 'p1-b0': '訳' }, { 'p1-b0': '訳' }], /重複1件/],
+    reordered: [[{ 'p1-b1': '訳' }, { 'p1-b0': '訳' }], /順序不正2件/],
+    empty: [[{ 'p1-b0': '訳' }, { 'p1-b1': '  ' }], /空欄1件/],
+    wrongType: [[{ 'p1-b0': '訳' }, { 'p1-b1': 123 }], /形式不正1件/],
+    multipleKeys: [[{ 'p1-b0': '訳', 'p1-b1': '訳' }], /形式不正1件/],
+    oldDictionary: [{ 'p1-b0': '訳', 'p1-b1': '訳' }, /形式が不正/],
     null: [null, /形式が不正/],
   };
   for (const [name, [entries, message]] of Object.entries(cases)) {
@@ -123,7 +136,7 @@ test('malformed or incomplete output never causes splitting, resending, or parti
   }
   await t.test('truncated output', async (s) => {
     let calls = 0;
-    s.mock.method(globalThis, 'fetch', async () => { calls++; return response({ a: '訳' }, { status: 'incomplete' }); });
+    s.mock.method(globalThis, 'fetch', async () => { calls++; return response([{ a: '訳' }], { status: 'incomplete' }); });
     await assert.rejects(createGeminiTranslator(options).translateDocument([], ['a']), /途中で切れ/);
     assert.equal(calls, 1);
   });
@@ -136,6 +149,18 @@ test('malformed or incomplete output never causes splitting, resending, or parti
     await assert.rejects(createGeminiTranslator(options).translateDocument([], ['a']), /応答を読み取れ/);
     assert.equal(calls, 1);
   });
+});
+
+test('reported 282/196 ID drift is rejected without guessing matches or resending', async (t) => {
+  const ids = Array.from({ length: 282 }, (_, i) => `p1-b${i}`);
+  const entries = [
+    ...ids.slice(0, 34).map((id) => ({ [id]: '訳文' })),
+    ...Array.from({ length: 162 }, (_, i) => ({ [`unknown-${i}`]: '訳文' })),
+  ];
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return response(entries); });
+  await assert.rejects(createGeminiTranslator(options).translateDocument([], ids), /必要282件／受信196件、不足248件、対象外162件/);
+  assert.equal(calls, 1);
 });
 
 test('API failure is shared between page consumers and does not silently fall back', async (t) => {
@@ -164,7 +189,7 @@ test('an empty/image-only document needs no API request', async (t) => {
 
 test('settings connection test still makes a single request', async (t) => {
   let calls = 0, result;
-  t.mock.method(globalThis, 'fetch', async () => { calls++; return response({ 0: 'こんにちは、世界。' }); });
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return response([{ 0: 'こんにちは、世界。' }]); });
   await createGeminiTranslator(options).translateBatch(['Hello, world.'], (_, text) => { result = text; });
   assert.equal(calls, 1);
   assert.equal(result, 'こんにちは、世界。');
@@ -217,7 +242,7 @@ test('temporary server failure retries the same full document', async (t) => {
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     requests.push(JSON.parse(init.body).input);
     if (requests.length === 1) return Response.json({ error: { details: [{ retryDelay: '0.001s' }] } }, { status: 503 });
-    return response({ a: '訳' });
+    return response([{ a: '訳' }]);
   });
   const result = await createGeminiTranslator(options).translateDocument([{ page: 1, blocks: [{ id: 'a', text: 'Source paragraph' }] }], ['a']);
   assert.equal(result.get('a'), '訳');
