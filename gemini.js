@@ -1,4 +1,5 @@
 // Gemini API（Interactions API）で、PDF全文を一括翻訳する
+import { readTranslationStream } from './translation-stream.js';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
@@ -15,7 +16,7 @@ Rules:
 - Preserve negation and its scope, conditions, qualifications, uncertainty, comparisons, causal relationships, and the strength of every claim. Never turn a possibility into a certainty, an association into causation, or a limited claim into a general one.
 - If fluency conflicts with fidelity, prioritize fidelity while making the wording as natural as possible. Preserve ambiguity in the source rather than resolving it through guesses or outside knowledge.
 - Read the entire paper for context before translating. Use definitions, abbreviations, and surrounding passages from all pages to interpret each target block accurately.
-- Return a JSON object of the form {"translations": [{"id": 1, "text": "translated text"}, {"id": 2, "text": "translated text"}, ...]}. Copy each target's "translate_id" unchanged into "id", as an integer, and put its nonempty translation in "text". Return exactly "translate_count" items, covering every target once. Never restart numbering on a new page, renumber IDs, merge, split, or skip target blocks, and never include reference-only blocks. Before finishing, check that every target number has a translation. A sentence may continue across blocks or pages: use the neighboring text to understand it, but translate only the content belonging to each block, without duplicating or inventing text.
+- Return a JSON object of the form {"translations": [{"id": 1, "text": "translated text"}, {"id": 2, "text": "translated text"}, ...]}. Copy each target's "translate_id" unchanged into "id", as an integer, and put its nonempty translation in "text". Return exactly "translate_count" items, covering every target once. Emit items in ascending "translate_id" order. Never restart numbering on a new page, renumber IDs, merge, split, or skip target blocks, and never include reference-only blocks. Before finishing, check that every target number has a translation. A sentence may continue across blocks or pages: use the neighboring text to understand it, but translate only the content belonging to each block, without duplicating or inventing text.
 - Write in the formal written style of academic papers in ${dst}.${dst === 'Japanese' ? ' Use the plain "である" style, not "です・ます".' : ''}
 - Write every mathematical expression, variable, and symbol as inline LaTeX enclosed in single dollar signs, such as $f_\omega(\cdot)$ or $x_{\text{img}}$, even if the source shows it as broken plain text (e.g. "f ω (·)" or "x img"). Do not use Markdown, and do not use LaTeX outside $...$.
 - Keep these unchanged: citation markers such as [12] or (Smith et al., 2020), numbers with units, URLs, code, and names of models, datasets, methods, and acronyms (e.g. BERT, ImageNet, LoRA).
@@ -45,7 +46,7 @@ const TRANSLATION_SCHEMA = {
 export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLanguage, onWait = () => {}, signal }) {
   const system = systemPrompt(LANG_NAMES[sourceLanguage] || sourceLanguage, LANG_NAMES[targetLanguage] || targetLanguage);
 
-  async function translateDocument(pages, translateIds) {
+  async function translateDocument(pages, translateIds, onTranslation = () => {}) {
     signal?.throwIfAborted();
     if (!translateIds.length) return new Map();
     // 元の疎なページ内IDはローカルだけに保持する。参照ブロックには翻訳番号を付けない。
@@ -68,9 +69,22 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
           input: JSON.stringify(input),
           response_format: { type: 'text', mime_type: 'application/json', schema: TRANSLATION_SCHEMA },
           generation_config: { max_output_tokens: 65536 },
+          stream: true,
           store: false, // Google側に会話を保存しない
         }),
       });
+      if (res.ok && /text\/event-stream/i.test(res.headers.get('content-type') || '')) {
+        const seen = new Set();
+        let unsafe = false;
+        const streamed = await readTranslationStream(res, { signal, onItem: (item) => {
+          if (unsafe) return;
+          if (!validTranslation(item, translateIds.length) || seen.has(item.id)) { unsafe = true; return; }
+          seen.add(item.id);
+          onTranslation(translateIds[item.id - 1], item.text);
+        } });
+        signal?.throwIfAborted();
+        return parse({ status: streamed.status, steps: [{ type: 'model_output', content: [{ type: 'text', text: streamed.text }] }] }, translateIds);
+      }
       const body = await res.json().catch(() => ({}));
       if (res.ok) return parse(body, translateIds);
       const err = (Array.isArray(body) ? body[0] : body)?.error || {}; // エラーは [{ error: … }] の形で返ってくる
@@ -100,6 +114,12 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
 }
 
 class BadOutput extends Error {}
+
+function validTranslation(item, count) {
+  return item && typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === 2
+    && Number.isInteger(item.id) && item.id >= 1 && item.id <= count
+    && typeof item.text === 'string' && !!item.text.trim();
+}
 
 // 訳抜けだけなら、検証済みの応答を画面内に保持して手動補完に使える。
 // 原文や訳文がconsole.errorやJSONに展開されないようprivateフィールドにする。

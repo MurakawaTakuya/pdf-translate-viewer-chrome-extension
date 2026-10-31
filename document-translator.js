@@ -1,12 +1,14 @@
 // 全文の翻訳は1回だけ行い、画面表示・スクロール・PDF保存で同じ結果を共有する。
 import { MissingTranslationsError } from './gemini.js';
 
-export function createDocumentTranslator({ rows, translator, getBlocks, onProgress = () => {}, signal }) {
+export function createDocumentTranslator({ rows, translator, getBlocks, onProgress = () => {}, onPreview = () => {}, onResetPreview = () => {}, signal }) {
   let documentPromise, translationPromise;
   let missingIds = [], repairing = false;
   const partial = new Map();
   const idsByBlock = new Map();
   const targetsByRow = new Map();
+  const rowsById = new Map(), preview = new Map();
+  let completed = false;
 
   function prepare() {
     return documentPromise ??= (async () => {
@@ -20,6 +22,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
         pages.push({ page: r.index, blocks: blocks.map((b, i) => {
           const id = `p${r.index}-b${i}`;
           idsByBlock.set(b, id);
+          rowsById.set(id, r);
           if (b.translate) { ids.push(id); targets.push(b); }
           return { id, text: b.text };
         }) });
@@ -34,11 +37,27 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
     return translationPromise ??= prepare().then(({ pages, ids }) => {
       signal?.throwIfAborted();
       onProgress(`全文をGeminiで翻訳中…（${ids.length}段落）`);
-      return translator.translateDocument(pages, ids);
+      return streamDocument(pages, ids);
     }).catch(rememberMissing);
   }
 
+  async function streamDocument(pages, ids) {
+    completed = false;
+    const result = await translator.translateDocument(pages, ids, (id, text) => {
+      signal?.throwIfAborted();
+      preview.set(id, text);
+      onProgress(`Geminiで翻訳中… ${preview.size}/${ids.length}段落`);
+      onPreview(rowsById.get(id));
+    });
+    signal?.throwIfAborted();
+    completed = true;
+    preview.clear();
+    return result;
+  }
+
   function rememberMissing(error) {
+    preview.clear();
+    onResetPreview();
     if (error instanceof MissingTranslationsError) {
       for (const [id, text] of error.partialTranslations) partial.set(id, text);
       missingIds = error.missingIds;
@@ -50,11 +69,12 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
     // 追加リクエストは明示的な操作だけ。連打でも同じPromiseを共有する。
     if (!missingIds.length || repairing) return ready();
     repairing = true;
+    completed = false;
     const repairIds = [...missingIds];
     translationPromise = prepare().then(async ({ pages }) => {
       signal?.throwIfAborted();
       onProgress(`不足${repairIds.length}段落だけ再翻訳中…`);
-      const result = await translator.translateDocument(pages, repairIds);
+      const result = await streamDocument(pages, repairIds);
       signal?.throwIfAborted();
       for (const [id, text] of result) partial.set(id, text);
       missingIds = [];
@@ -66,6 +86,13 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
   return {
     ready,
     repairMissing,
+    get completed() { return completed; },
+    previewPage(r) {
+      return (targetsByRow.get(r) || []).flatMap((block) => {
+        const id = idsByBlock.get(block);
+        return preview.has(id) ? [{ block, text: preview.get(id) }] : [];
+      });
+    },
     get missingCount() { return missingIds.length; },
     async translatePage(r, onEach) {
       const out = await ready();
