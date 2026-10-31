@@ -10,7 +10,7 @@ Preparation makes no remote calls:
 node scripts/evaluation/compare-formats.mjs --input /path/to/pages.json --output /path/to/new-results
 ```
 
-Explicit execution uses an existing project API key retrieved through the authenticated Google Cloud CLI. The key remains in process memory, never in arguments sent to the model endpoint, output files or logs. No key is created, API enabled, billing changed, model substituted or inference retried.
+Explicit execution uses an existing project API key retrieved through the authenticated Google Cloud CLI. The key remains in process memory, never in command-line arguments, output files or logs. No key is created, API enabled, billing changed, model substituted or inference retried.
 
 ```sh
 node scripts/evaluation/compare-formats.mjs --input /path/to/pages.json --output /path/to/new-results --run --project PROJECT_ID --key-resource projects/NUMBER/locations/global/keys/KEY_ID
