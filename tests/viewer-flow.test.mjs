@@ -86,7 +86,7 @@ async function idle(api) {
 }
 function success(input) {
   return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{
-    type: 'text', text: JSON.stringify({ translations: input.translate_ids.map((id) => ({ [id]: '訳文 ' + id })) }),
+    type: 'text', text: JSON.stringify({ translations: input.pages.flatMap((p) => p.blocks.filter((b) => b.translate_id !== undefined).map((b) => ({ id: b.translate_id, text: '訳文 ' + b.translate_id }))) }),
   }] }] });
 }
 
@@ -100,13 +100,13 @@ test('viewer translates all pages on start and renders unseen pages for export w
   await idle(api);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].pages.length, 3);
-  assert.equal(requests[0].translate_ids.length, 3);
-  assert.equal(api.state.rows[0].blocks[0].ja, '訳文 p1-b0');
+  assert.equal(requests[0].translate_count, 3);
+  assert.equal(api.state.rows[0].blocks[0].ja, '訳文 1');
   assert.ok(!api.state.rows[2].translated);
   await api.translateAll();
   assert.equal(requests.length, 1);
   assert.ok(api.state.rows.every((r) => r.translated));
-  assert.equal(api.state.rows[2].blocks[0].ja, '訳文 p3-b0');
+  assert.equal(api.state.rows[2].blocks[0].ja, '訳文 3');
 });
 
 test('viewer preserves Chrome local per-page translation', async (t) => {
@@ -156,7 +156,7 @@ test('restart aborts the old request and only displays the new result', async (t
   await api.start();
   await idle(api);
   assert.equal(calls, 2);
-  assert.equal(api.state.rows[0].blocks[0].ja, '訳文 p1-b0');
+  assert.equal(api.state.rows[0].blocks[0].ja, '訳文 1');
   assert.ok(!api.state.rows[0].failed);
   assert.equal(api.status(), '全文の翻訳が完了しました');
 });

@@ -8,41 +8,39 @@ const LANG_NAMES = {
 };
 
 const systemPrompt = (src, dst) => String.raw`You are a professional translator of academic papers.
-The user sends a JSON object whose "pages" array contains text blocks extracted from every page of a PDF paper, in reading order. Each block has a unique "id" and "text". The "translate_ids" array identifies the blocks to translate from ${src} into ${dst}; all other blocks are reference context only.
+The user sends a JSON object whose "pages" array contains text blocks extracted from every page of a PDF paper, in reading order. Every block has "text". A block with an integer "translate_id" is a target to translate from ${src} into ${dst}; blocks without "translate_id" are reference context only. "translate_count" is the total number of targets, numbered consecutively from 1 to "translate_count" across the entire document, not per page.
 
 Rules:
 - Translate faithfully into natural, idiomatic language. Preserve all information in the source; do not add explanations, omit details, summarize, or freely paraphrase in ways that change the meaning.
 - Preserve negation and its scope, conditions, qualifications, uncertainty, comparisons, causal relationships, and the strength of every claim. Never turn a possibility into a certainty, an association into causation, or a limited claim into a general one.
 - If fluency conflicts with fidelity, prioritize fidelity while making the wording as natural as possible. Preserve ambiguity in the source rather than resolving it through guesses or outside knowledge.
 - Read the entire paper for context before translating. Use definitions, abbreviations, and surrounding passages from all pages to interpret each target block accurately.
-- Return a JSON object of the form {"translations": [{"first-block-id": "translated text"}, {"second-block-id": "translated text"}, ...]}. Follow the exact order of "translate_ids". Each array item must have exactly one key: the corresponding unchanged block ID, with a nonempty translation as its value. Never renumber IDs, merge, split, or skip target blocks, and never include reference-only blocks. A sentence may continue across blocks or pages: use the neighboring text to understand it, but translate only the content belonging to each block, without duplicating or inventing text.
+- Return a JSON object of the form {"translations": [{"id": 1, "text": "translated text"}, {"id": 2, "text": "translated text"}, ...]}. Copy each target's "translate_id" unchanged into "id", as an integer, and put its nonempty translation in "text". Return exactly "translate_count" items, covering every target once. Never restart numbering on a new page, renumber IDs, merge, split, or skip target blocks, and never include reference-only blocks. Before finishing, check that every target number has a translation. A sentence may continue across blocks or pages: use the neighboring text to understand it, but translate only the content belonging to each block, without duplicating or inventing text.
 - Write in the formal written style of academic papers in ${dst}.${dst === 'Japanese' ? ' Use the plain "である" style, not "です・ます".' : ''}
 - Write every mathematical expression, variable, and symbol as inline LaTeX enclosed in single dollar signs, such as $f_\omega(\cdot)$ or $x_{\text{img}}$, even if the source shows it as broken plain text (e.g. "f ω (·)" or "x img"). Do not use Markdown, and do not use LaTeX outside $...$.
 - Keep these unchanged: citation markers such as [12] or (Smith et al., 2020), numbers with units, URLs, code, and names of models, datasets, methods, and acronyms (e.g. BERT, ImageNet, LoRA).
 - Use the established technical terms of the field. If a term has no standard translation, keep the original word. Translate the same term the same way throughout the entire paper.
 - For section headings and figure/table captions, keep the numbering (e.g. "3.1", "Figure 2:"${dst === 'Japanese' ? ' → "図2:", "Table 1:" → "表1:"' : ''}) and translate concisely.
 - The text was extracted from a PDF and may contain broken hyphenation, ligature errors, or stray characters. Fix them silently in the translation.
-- Every translation value must be written in ${dst}; leave all block-ID keys unchanged. Never return the ${src} source text unchanged, except for blocks that consist only of names, numbers, or formulas.
+- Every "text" value must be written in ${dst}; leave all target numbers unchanged. Never return the ${src} source text unchanged, except for blocks that consist only of names, numbers, or formulas.
 - Output only the translations, with no notes or explanations.`;
 
-// 全IDを同じobjectの必須キーにすると組合せが増え、自由な辞書ではIDが崩れる。
-// 順序付きの各スロットに1つだけIDを固定する。空欄などは受信後も検証する。
-const translationSchema = (ids) => ({
+// 段落IDの列挙・prefixItems・件数制約を含めず、文書サイズによらない固定スキーマにする。
+// 番号の範囲・網羅性・重複・空欄は受信後に検証する。
+const TRANSLATION_SCHEMA = {
   type: 'object',
   properties: { translations: {
     type: 'array',
-    prefixItems: ids.map((id) => ({
+    items: {
       type: 'object',
-      properties: { [id]: { type: 'string' } },
-      required: [id],
+      properties: { id: { type: 'integer' }, text: { type: 'string' } },
+      required: ['id', 'text'],
       additionalProperties: false,
-    })),
-    minItems: ids.length,
-    maxItems: ids.length,
+    },
   } },
   required: ['translations'],
   additionalProperties: false,
-});
+};
 
 export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLanguage, onWait = () => {}, signal }) {
   const system = systemPrompt(LANG_NAMES[sourceLanguage] || sourceLanguage, LANG_NAMES[targetLanguage] || targetLanguage);
@@ -50,8 +48,15 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
   async function translateDocument(pages, translateIds) {
     signal?.throwIfAborted();
     if (!translateIds.length) return new Map();
-    const input = { pages, translate_ids: translateIds };
-    const schema = translationSchema(translateIds);
+    // 元の疎なページ内IDはローカルだけに保持する。参照ブロックには翻訳番号を付けない。
+    const numbers = new Map(translateIds.map((id, i) => [id, i + 1]));
+    const input = {
+      pages: pages.map((p) => ({ page: p.page, blocks: p.blocks.map((b) => {
+        const id = numbers.get(b.id);
+        return id === undefined ? { text: b.text } : { translate_id: id, text: b.text };
+      }) })),
+      translate_count: translateIds.length,
+    };
     for (let attempt = 0; ; attempt++) {
       const res = await fetch(ENDPOINT, {
         method: 'POST',
@@ -61,7 +66,7 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
           model: model || DEFAULT_MODEL,
           system_instruction: system,
           input: JSON.stringify(input),
-          response_format: { type: 'text', mime_type: 'application/json', schema },
+          response_format: { type: 'text', mime_type: 'application/json', schema: TRANSLATION_SCHEMA },
           generation_config: { max_output_tokens: 65536 },
           store: false, // Google側に会話を保存しない
         }),
@@ -108,27 +113,28 @@ function parse(body, ids) {
   let translations;
   try { translations = JSON.parse(text)?.translations; } catch { throw new BadOutput('応答を読み取れませんでした'); }
   if (!Array.isArray(translations)) {
-    throw new BadOutput('翻訳応答の形式が不正です（段落ID付きの順序付き配列が必要です）。全文を再試行してください');
+    throw new BadOutput('翻訳応答の形式が不正です（番号と訳文の配列が必要です）。全文を再試行してください');
   }
-  const expected = new Set(ids), out = new Map();
-  let extra = 0, duplicate = 0, order = 0, empty = 0, invalid = 0;
-  for (const [i, item] of translations.entries()) {
-    if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).length !== 1) { invalid++; continue; }
-    const [[id, value]] = Object.entries(item);
-    if (!expected.has(id)) extra++;
-    else if (ids[i] !== id) order++;
+  const out = new Map();
+  let extra = 0, duplicate = 0, empty = 0, invalid = 0;
+  for (const item of translations) {
+    if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).length !== 2 || !Object.hasOwn(item, 'id') || !Object.hasOwn(item, 'text')) { invalid++; continue; }
+    const { id, text: value } = item;
+    if (!Number.isInteger(id)) { invalid++; continue; }
+    if (id < 1 || id > ids.length) extra++;
     if (out.has(id)) duplicate++;
     if (typeof value !== 'string') invalid++;
     else if (!value.trim()) empty++;
     out.set(id, value);
   }
-  const missing = ids.filter((id) => !out.has(id)).length;
-  if (missing || extra || duplicate || order || empty || invalid || translations.length !== ids.length) {
+  const missing = ids.filter((_, i) => !out.has(i + 1)).length;
+  if (missing || extra || duplicate || empty || invalid || translations.length !== ids.length) {
     // 原文・訳文・APIキーはエラーに含めず、再現時に原因を区別できる件数だけを表示する。
-    const details = [`必要${ids.length}件／受信${translations.length}件`, `不足${missing}件`, `対象外${extra}件`, `重複${duplicate}件`, `順序不正${order}件`, `空欄${empty}件`, `形式不正${invalid}件`];
+    const details = [`必要${ids.length}件／受信${translations.length}件`, `不足${missing}件`, `対象外${extra}件`, `重複${duplicate}件`, `空欄${empty}件`, `形式不正${invalid}件`];
     throw new BadOutput(`全文の翻訳を検証できませんでした（${details.join('、')}）。全文を再試行してください`);
   }
-  return out;
+  // 応答順は使わず、検証済みの番号から元のブロックIDに戻す。
+  return new Map(ids.map((id, i) => [id, out.get(i + 1)]));
 }
 
 function wait(ms, signal) {
