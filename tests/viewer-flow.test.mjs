@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { createGeminiTranslator } from '../gemini.js';
 import { createDocumentTranslator } from '../document-translator.js';
 import { disableNativeZoom } from '../native-zoom.js';
+import { streamFixture, until } from './helpers/stream.mjs';
 
 const viewerSource = await readFile(new URL('../viewer.js', import.meta.url), 'utf8');
 const element = () => {
@@ -36,6 +37,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   const listeners = new Map(), resizeObservers = [];
   const pageFrames = [], scrollCalls = [];
   const savedFiles = [];
+  const placedBlocks = [];
   const nativeZoomCalls = [];
   const tabs = {
     getCurrent: async () => ({ id: 42 }),
@@ -56,7 +58,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   };
   const window = { addEventListener: (event, callback) => listeners.set(event, callback) }; window.top = window;
   const context = {
-    document, window, createdElements, savedFiles, self: { chrome: { tabs } }, location: { search: '' },
+    document, window, createdElements, savedFiles, placedBlocks, self: { chrome: { tabs } }, location: { search: '' },
     scrollCalls,
     dispatchResize: () => listeners.get('resize')?.(),
     dispatchScroll: () => listeners.get('scroll')?.(),
@@ -90,13 +92,19 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     renderPage = async () => {};
     getPageBlocks = async (r) => r.blocks;
     releasePage = () => {};
-    placeBlock = () => elementStub();
+    placeBlock = (r, b) => {
+      const el = elementStub();
+      el.remove = () => { el.removed = true; };
+      placedBlocks.push({ row: r, block: b, el });
+      return el;
+    };
     fillBlock = (_el, b, text) => { b.ja = text; };
     saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
     return { state, start, enqueue, enqueueVisiblePages, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
+  api.placedBlocks = placedBlocks;
   api.nativeZoomCalls = nativeZoomCalls;
   api.state.pdf = {};
   api.state.rows = [1, 2, 3].map((index) => ({
@@ -696,4 +704,106 @@ test('keyboard shortcuts and pinch adjust PDF zoom while leaving the toolbar siz
   api.element('#zoomOut').onclick();
   api.element('#zoomReset').onclick();
   assert.deepEqual(api.nativeZoomCalls, [{ id: 42, mode: 'disabled', scope: 'per-tab' }]);
+});
+
+test('Gemini streams completed paragraphs while unfinished paragraphs stay English and export stays disabled', async (t) => {
+  const f = streamFixture();
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    calls++;
+    const request = JSON.parse(init.body);
+    assert.equal(request.stream, true);
+    assert.equal(JSON.parse(request.input).pages.length, 3);
+    return f.response;
+  });
+  const api = await viewer();
+  api.state.rows[0].blocks.push({ text: 'Another paragraph', translate: true, colors: {} });
+  await api.startButton.onclick();
+  await until(() => calls === 1);
+  f.start();
+  f.text('{"translations":[{"id":1,"text":"未完');
+  await new Promise(setImmediate);
+  assert.equal(api.placedBlocks.length, 0); // No overlay: the original PDF remains visible.
+  assert.equal(api.state.rows[0].blocks[0].ja, null);
+  f.text('成ではなく完成した訳"},');
+  await until(() => api.state.rows[0].blocks[0].ja);
+  assert.equal(api.placedBlocks.length, 1);
+  assert.equal(api.state.rows[0].blocks[1].ja, null);
+  assert.equal(api.state.rows[0].translated, false);
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'true');
+  api.element('#download').onclick();
+  assert.equal(api.element('#downloadOriginal').disabled, false);
+  assert.equal(api.element('#downloadTranslated').disabled, true);
+  assert.equal(api.element('#downloadBoth').disabled, true);
+  await api.element('#downloadTranslated').onclick();
+  assert.equal(api.savedFiles.length, 0);
+  assert.equal(calls, 1);
+  // Scroll to another page before the full request completes.
+  for (const row of api.state.rows) row.visible = row.index === 2;
+  api.enqueueVisiblePages();
+  f.text('{"id":3,"text":"移動先の訳"},');
+  await until(() => api.state.rows[1].blocks[0].ja === '移動先の訳');
+  assert.equal(api.state.rows[1].translated, false);
+  f.text('{"id":2,"text":"次の段落"},{"id":4,"text":"最終ページ"}]}');
+  await new Promise(setImmediate);
+  assert.equal(api.state.translator.completed, false);
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'true');
+  f.complete();
+  await idle(api);
+  await api.translateAll();
+  assert.equal(api.state.translator.completed, true);
+  assert.ok(api.state.rows.every((row) => row.translated));
+  assert.equal(api.state.rows[0].blocks[1].ja, '次の段落');
+  assert.equal(api.state.rows[2].blocks[0].ja, '最終ページ');
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'false');
+  api.element('#download').onclick();
+  assert.equal(api.element('#downloadTranslated').disabled, false);
+  assert.equal(calls, 1);
+});
+
+test('invalid final Gemini stream removes provisional overlays and cannot enable translated export or resend', async (t) => {
+  const f = streamFixture();
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return f.response; });
+  const api = await viewer();
+  await api.startButton.onclick();
+  f.start();
+  f.text('{"translations":[{"id":1,"text":"暫定訳"},');
+  await until(() => api.state.rows[0].blocks[0].ja === '暫定訳');
+  const provisional = api.placedBlocks[0].el;
+  f.text('{"id":1,"text":"重複した訳"}]}');
+  f.complete();
+  await idle(api);
+  assert.equal(api.state.translator.completed, false);
+  assert.equal(api.state.rows[0].blocks[0].ja, null);
+  assert.equal(provisional.removed, true);
+  assert.ok(api.state.rows.every((r) => !r.translated));
+  assert.match(api.status(), /重複/);
+  api.element('#download').onclick();
+  assert.equal(api.element('#downloadTranslated').disabled, true);
+  await api.element('#downloadTranslated').onclick();
+  assert.equal(api.savedFiles.length, 0);
+  assert.equal(calls, 1);
+});
+
+test('restarting streamed translation cancels its reader and clears old provisional translations', async (t) => {
+  const old = streamFixture(), next = streamFixture();
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => (++calls === 1 ? old.response : next.response));
+  const api = await viewer();
+  await api.start('gemini');
+  old.start();
+  old.text('{"translations":[{"id":1,"text":"古い暫定訳"},');
+  await until(() => api.state.rows[0].blocks[0].ja === '古い暫定訳');
+  await api.start('gemini');
+  await until(() => old.cancelled);
+  assert.equal(api.state.rows[0].blocks[0].ja, null);
+  next.start();
+  next.text('{"translations":[{"id":1,"text":"新しい訳"},{"id":2,"text":"新しい訳2"},{"id":3,"text":"新しい訳3"}]}');
+  next.complete();
+  await idle(api);
+  assert.equal(api.state.rows[0].blocks[0].ja, '新しい訳');
+  assert.equal(api.state.translator.completed, true);
+  assert.equal(calls, 2);
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'false');
 });

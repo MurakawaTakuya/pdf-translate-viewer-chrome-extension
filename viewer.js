@@ -319,6 +319,7 @@ async function buildRows() {
       r.visible = e.isIntersecting;
       if (e.isIntersecting) {
         renderPage(r);
+        if (state.translator?.previewPage) previewTranslatedPage(r, state.translator).catch(console.error);
       } else {
         releasePage(r); // 画面から遠いページの画像は捨てる（戻ってきたら描き直す）
       }
@@ -722,7 +723,7 @@ function showTools(el) {
   toolsFor = el;
   const b = el._b;
   // Chrome内蔵は何度訳しても同じ結果になるので、訳し直しは Gemini のときだけ
-  redoBtn.hidden = (b.hidden && !b.failed) || state.engine !== 'gemini';
+  redoBtn.hidden = (b.hidden && !b.failed) || state.engine !== 'gemini' || (state.translator?.ready && !state.translator.completed);
   toggleBtn.hidden = !!b.failed; // まだ訳がない段落は、表示の切り替えもできない
   toggleBtn.textContent = b.hidden ? '訳を表示' : '原文を表示';
   toggleBtn.title = b.hidden ? 'この段落の訳を元に戻します' : 'この段落の訳を消して、原文が見えるようにします';
@@ -803,6 +804,8 @@ async function start(engine = state.engine) {
         rows: state.rows,
         getBlocks: getPageBlocks,
         onProgress,
+        onPreview: (r) => { if (translator === state.translator) previewTranslatedPage(r, translator).catch(console.error); },
+        onResetPreview: () => { if (translator === state.translator) clearTranslationPreviews(); },
         signal: controller.signal,
         translator: createGeminiTranslator({
           apiKey: geminiKey, model: geminiModel, sourceLanguage, targetLanguage,
@@ -825,6 +828,8 @@ async function start(engine = state.engine) {
     for (const r of state.rows) {
       r.translated = false;
       r.queued = false;
+      r.previewEls = new Map();
+      for (const b of r.blocks || []) b.ja = null;
       r.srcLayer.replaceChildren();
       r.dstLayer.replaceChildren();
     }
@@ -996,6 +1001,37 @@ async function translatePage(r, translator) {
   }
 }
 
+// 未完成の段落には何も重ねず、原文を残す。完成済みの段落だけを暫定表示する。
+async function previewTranslatedPage(r, translator) {
+  if (!r?.visible || translator !== state.translator || translator.completed || !translator.previewPage(r).length) return;
+  await renderPage(r);
+  if (!r.visible || translator !== state.translator || translator.completed) return;
+  const entries = translator.previewPage(r);
+  let pix;
+  r.previewEls ??= new Map();
+  for (const { block: b, text } of entries) {
+    let el = r.previewEls.get(b);
+    if (el && b.ja === text) continue;
+    if (!b.colors) {
+      pix ??= r.srcCanvas.getContext('2d').getImageData(0, 0, r.srcCanvas.width, r.srcCanvas.height);
+      b.colors = pickColors(r, pix, b);
+    }
+    if (!el) { el = placeBlock(r, b); r.previewEls.set(b, el); }
+    fillBlock(el, b, text);
+  }
+}
+
+function clearTranslationPreviews() {
+  for (const r of state.rows) {
+    for (const [b, el] of r.previewEls || []) {
+      el._src?.remove();
+      el.remove();
+      b.ja = null;
+    }
+    r.previewEls?.clear();
+  }
+}
+
 async function translatePageInner(r, translator) {
   if (translator.ready) await translator.ready();
   if (translator !== state.translator) return;
@@ -1011,6 +1047,7 @@ async function translatePageInner(r, translator) {
   for (const b of r.blocks) { b.ja = null; b.failed = false; }
   r.srcLayer.replaceChildren();
   r.dstLayer.replaceChildren();
+  r.previewEls?.clear();
 
   const targets = r.blocks.filter((b) => b.translate);
   if (!targets.length) {
@@ -1037,6 +1074,7 @@ async function translatePageInner(r, translator) {
 // ---------- PDFとして保存 ----------
 function canExportTranslation() {
   return state.enabled && !state.translator?.missingCount
+    && (!state.translator?.ready || state.translator.completed)
     && state.rows.some((r) => r.translated && r.blocks?.some((b) => b.ja));
 }
 
