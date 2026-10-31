@@ -33,6 +33,8 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   const elements = new Map();
   const createdElements = [];
   const listeners = new Map(), resizeObservers = [];
+  const pageFrames = [], scrollCalls = [];
+  let nextFrame = 0;
   const document = {
     body: { dataset: {} }, documentElement: { scrollHeight: 1000, clientHeight: 900, style: { setProperty() {} } },
     querySelector: (name) => { if (!elements.has(name)) elements.set(name, element()); return elements.get(name); },
@@ -47,12 +49,17 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   const window = { addEventListener: (event, callback) => listeners.set(event, callback) }; window.top = window;
   const context = {
     document, window, createdElements, self: {}, location: { search: '' },
+    scrollCalls,
     dispatchResize: () => listeners.get('resize')?.(),
+    dispatchScroll: () => listeners.get('scroll')?.(),
+    dispatchPageFrames: () => pageFrames.splice(0).forEach((callback) => callback()),
+    requestAnimationFrame: (callback) => { pageFrames.push(callback); return ++nextFrame; },
     dispatchHeaderResize: () => resizeObservers.forEach((callback) => callback()),
     getComputedStyle: (el) => el.computedStyle,
     ResizeObserver: class { constructor(callback) { resizeObservers.push(callback); } observe() {} },
     localStorage: { getItem: () => null, setItem() {} },
-    matchMedia: () => ({ addEventListener() {} }), devicePixelRatio: 1, scrollY: 0, scrollTo() {},
+    matchMedia: () => ({ addEventListener() {} }), devicePixelRatio: 1, scrollY: 0,
+    scrollTo(x, y) { scrollCalls.push([x, y]); context.scrollY = y; },
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
     pdfjsLib: { GlobalWorkerOptions: {} },
     createGeminiTranslator, createDocumentTranslator,
@@ -73,7 +80,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     releasePage = () => {};
     placeBlock = () => elementStub();
     fillBlock = (_el, b, text) => { b.ja = text; };
-    return { state, start, enqueue, translateAll, createdElements, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
+    return { state, start, enqueue, translateAll, createdElements, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -82,6 +89,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     index, visible: index === 1, srcLayer: element(), dstLayer: element(),
     blocks: [{ text: `Paragraph on page ${index}`, translate: true, colors: {} }],
   }));
+  api.updatePageNavigation();
   return api;
 }
 async function idle(api) {
@@ -387,12 +395,17 @@ function fitFixture(api) {
   pages.computedStyle = { paddingLeft: '14px', paddingRight: '14px', paddingTop: '12px' };
   header.height = 60;
   header.getBoundingClientRect = () => ({ top: 0, bottom: header.height, height: header.height });
+  api.element('#pageNumber').select = () => {};
+  api.element('#pageNumber').blur = () => {
+    api.document.activeElement = null;
+    api.element('#pageNumber').onblur();
+  };
   for (const [i, row] of api.state.rows.entries()) {
     row.vp = { width: 500, height: 700 };
     for (const [side, visible] of [['left', 'orig'], ['right', 'ja']]) {
       row[side] = { getBoundingClientRect: () => api.document.body.dataset.view === (visible === 'orig' ? 'ja' : 'orig')
         ? { top: 0, bottom: 0, height: 0 }
-        : { top: 80 + i * 720, bottom: 780 + i * 720, height: 700 } };
+        : { top: 80 + i * 720 - api.scrollY(), bottom: 780 + i * 720 - api.scrollY(), height: 700 } };
     }
   }
 }
@@ -454,4 +467,85 @@ test('manual zoom exits fit mode and steps to the nearest preset from a fraction
   assert.equal(api.state.zoom, 1);
   assert.equal(api.state.fitMode, null);
   assert.equal(api.element('#zoomLabel').textContent, '100%');
+});
+
+test('page arrows and page input move through the original PDF page numbers without translation requests', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('navigation must not call translation API'));
+  const api = await viewer();
+  fitFixture(api);
+  const input = api.element('#pageNumber');
+  assert.equal(input.value, '1');
+  assert.equal(api.element('#pageTotal').textContent, '3');
+  assert.equal(api.element('#prevPage').disabled, true);
+  api.element('#nextPage').onclick();
+  assert.equal(api.state.currentPage, 2);
+  near(api.scrollCalls.at(-1)[1], 800 - 60 - 12);
+  assert.equal(input.value, '2');
+  api.element('#prevPage').onclick();
+  assert.equal(api.state.currentPage, 1);
+  api.document.activeElement = input;
+  input.value = '3';
+  input.onkeydown({ key: 'Enter', preventDefault() {} });
+  assert.equal(api.state.currentPage, 3);
+  assert.equal(api.element('#nextPage').disabled, true);
+  input.value = '999';
+  input.onkeydown({ key: 'Enter', preventDefault() {} });
+  assert.equal(input.value, '3');
+  const scrolls = api.scrollCalls.length;
+  for (const value of ['', 'abc', '1.5']) {
+    input.value = value;
+    input.onkeydown({ key: 'Enter', preventDefault() {} });
+    assert.equal(input.value, '3');
+  }
+  input.value = '1';
+  input.onkeydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(input.value, '3');
+  assert.equal(api.scrollCalls.length, scrolls);
+  api.viewSelect.value = 'ja';
+  api.viewSelect.onchange();
+  api.goToPage(2); // The hidden original page must not be used for scrolling.
+  near(api.scrollCalls.at(-1)[1], 800 - 60 - 12);
+});
+
+test('page counter follows the most visible page while preserving an input being edited', async () => {
+  const api = await viewer();
+  fitFixture(api);
+  // Move page 1 behind the toolbar and show most of page 2.
+  api.state.rows[0].left.getBoundingClientRect = () => ({ top: -660, bottom: 40 });
+  api.state.rows[1].left.getBoundingClientRect = () => ({ top: 60, bottom: 760 });
+  api.state.rows[2].left.getBoundingClientRect = () => ({ top: 780, bottom: 1480 });
+  api.scroll();
+  api.scroll();
+  api.flushPageFrames();
+  assert.equal(api.state.currentPage, 2);
+  assert.equal(api.element('#pageNumber').value, '2');
+  const input = api.element('#pageNumber');
+  api.document.activeElement = input;
+  input.value = '1';
+  api.state.rows[1].left.getBoundingClientRect = () => ({ top: -660, bottom: 40 });
+  api.state.rows[2].left.getBoundingClientRect = () => ({ top: 60, bottom: 760 });
+  api.scroll();
+  api.flushPageFrames();
+  assert.equal(api.state.currentPage, 3);
+  assert.equal(input.value, '1');
+  input.blur();
+  assert.equal(input.value, '3');
+});
+
+test('page navigation keeps height fit when the destination page has a different size', async () => {
+  const api = await viewer();
+  fitFixture(api);
+  api.state.rows[1].vp.height = 1000;
+  api.element('#fitHeight').onclick();
+  api.element('#nextPage').onclick();
+  assert.equal(api.state.currentPage, 2);
+  assert.equal(api.state.fitMode, 'height');
+  near(api.rendering.viewZoom() * 1000, 900 - 60 - 24);
+  api.state.pdf = null;
+  api.state.rows = [];
+  api.updatePageNavigation();
+  assert.equal(api.element('#pageNumber').disabled, true);
+  assert.equal(api.element('#prevPage').disabled, true);
+  assert.equal(api.element('#nextPage').disabled, true);
+  assert.equal(api.goToPage(1), false);
 });

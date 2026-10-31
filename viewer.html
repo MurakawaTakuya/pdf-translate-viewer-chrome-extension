@@ -19,6 +19,13 @@
       </div>
 
       <div class="toolbar-reading" role="group" aria-label="PDFの表示">
+        <span class="page-navigation" role="group" aria-label="ページ移動">
+          <button id="prevPage" class="icon-button" title="前のページ" aria-label="前のページ" disabled><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button>
+          <input id="pageNumber" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" spellcheck="false" aria-label="現在のページ" title="ページ番号を入力してEnterで移動" disabled>
+          <span class="page-count">/ <span id="pageTotal">0</span></span>
+          <button id="nextPage" class="icon-button" title="次のページ" aria-label="次のページ" disabled><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button>
+        </span>
+        <span class="toolbar-separator" aria-hidden="true"></span>
         <select id="view" aria-label="表示方法" title="表示方法">
           <option value="both">対訳（左右）</option>
           <option value="ja">日本語訳のみ</option>

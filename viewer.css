@@ -51,6 +51,15 @@ button:disabled { opacity: .5; cursor: progress; }
 #src { width: 96px; }
 #dst { width: 76px; }
 .language-pair { gap: 0; }
+.page-navigation { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+#pageNumber {
+  width: 40px; min-width: 40px; max-width: 64px; height: 32px; padding: 0 4px;
+  border: 1px solid #50545d; border-radius: 4px; background: #ffffff0c; color: inherit;
+  font: inherit; font-size: 12px; text-align: center; font-variant-numeric: tabular-nums;
+}
+#pageNumber:focus-visible { outline: 2px solid #9dbbff; outline-offset: 2px; }
+.page-count { color: #b8bdc7; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.viewer-toolbar .page-navigation button:disabled { cursor: default; opacity: .3; }
 .language-arrow { width: 14px; height: 14px; color: #a6aab3; }
 .toolbar-separator { width: 1px; height: 20px; background: #ffffff29; margin: 0 5px; flex: none; }
 .viewer-toolbar .translate-button { width: 96px; gap: 6px; background: #ffffff0f; border-color: #ffffff12; }
@@ -64,10 +73,10 @@ button:disabled { opacity: .5; cursor: progress; }
   box-shadow: 0 4px 18px #0003;
 }
 #status.error { border-color: #a95353; color: #ffb5ad; }
-@media (max-width: 1340px) {
+@media (max-width: 1460px) {
   .toolbar-row { grid-template-columns: minmax(80px, 1fr) auto auto; gap: 10px; }
 }
-@media (max-width: 1080px) {
+@media (max-width: 1120px) {
   .toolbar-row { grid-template-columns: minmax(60px, 1fr) auto; gap: 6px 12px; }
   .toolbar-file { grid-column: 1; grid-row: 1; }
   .toolbar-translation { grid-column: 2; grid-row: 1; }
@@ -81,6 +90,12 @@ button:disabled { opacity: .5; cursor: progress; }
   .viewer-toolbar .translate-button { width: 86px; }
   #src { width: 78px; }
   #dst { width: 66px; }
+  .toolbar-reading { display: grid; grid-template-columns: auto auto; gap: 6px 14px; }
+  .toolbar-reading > .toolbar-separator { display: none; }
+  .page-navigation { grid-column: 1; grid-row: 1; justify-self: center; }
+  #view { grid-column: 2; grid-row: 1; }
+  .zoom-controls { grid-column: 1; grid-row: 2; }
+  #download { grid-column: 2; grid-row: 2; justify-self: center; }
 }
 
 #pages { padding: 12px 14px 60px; display: flex; flex-direction: column; gap: 14px; }

@@ -28,6 +28,7 @@ const ZOOMS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 const state = {
   pdf: null,
   rows: [],
+  currentPage: 0,
   translator: null,
   engine: null, // 翻訳ボタンで明示的に選んだエンジン
   translationAbort: null,
@@ -42,6 +43,7 @@ const state = {
   fit: 2, // 片側だけ表示するときに画面幅に合わせる倍率（buildRows で計算）
   settings: await loadSettings(),
 };
+let pageNavigationFrame = null;
 
 let statusTimer;
 const setStatus = (t) => {
@@ -107,6 +109,7 @@ function applyZoom() {
   localStorage.setItem('zoom', state.zoom);
   scrollTo(0, ratio * document.documentElement.scrollHeight); // だいたい同じ場所を表示し続ける
   rerenderVisible();
+  schedulePageNavigation();
 }
 
 function stepZoom(dir) {
@@ -159,11 +162,75 @@ $('#zoomReset').onclick = () => { state.fitMode = null; state.zoom = 1; applyZoo
 $('#fitWidth').onclick = () => fitToViewport('width');
 $('#fitHeight').onclick = () => fitToViewport('height');
 
-const refit = () => { if (state.fitMode) fitToViewport(state.fitMode, currentFitRow(), false); };
+const refit = () => {
+  if (state.fitMode) fitToViewport(state.fitMode, currentFitRow(), false);
+  schedulePageNavigation();
+};
 window.addEventListener('resize', refit);
 // ツールバーが折り返した場合も、ページに使える高さを更新する。
 const headerResize = new ResizeObserver(refit);
 headerResize.observe($('header'));
+
+// ---------- ページ移動 ----------
+function updatePageNavigation(page = state.currentPage) {
+  const total = state.pdf?.numPages || state.rows.length;
+  const ready = total > 0 && state.rows.length === total;
+  state.currentPage = total ? Math.max(1, Math.min(total, page || 1)) : 0;
+  const input = $('#pageNumber');
+  if (document.activeElement !== input) input.value = state.currentPage ? String(state.currentPage) : '';
+  input.disabled = !ready;
+  input.style.width = `${Math.max(2, String(total).length) + 2}ch`;
+  $('#pageTotal').textContent = String(total);
+  $('#prevPage').disabled = !ready || state.currentPage <= 1;
+  $('#nextPage').disabled = !ready || state.currentPage >= total;
+}
+
+function schedulePageNavigation() {
+  if (!state.rows.length) { updatePageNavigation(); return; }
+  if (pageNavigationFrame !== null) return;
+  pageNavigationFrame = requestAnimationFrame(() => {
+    pageNavigationFrame = null;
+    const top = $('header').getBoundingClientRect().bottom;
+    const bottom = document.documentElement.clientHeight;
+    const shownView = document.body.dataset.view || viewSel.value;
+    let current = null, visibleHeight = 0;
+    for (const r of state.rows) {
+      const box = shownView === 'ja' ? r.right : r.left;
+      const rect = box.getBoundingClientRect();
+      const height = Math.max(0, Math.min(rect.bottom, bottom) - Math.max(rect.top, top));
+      if (height > visibleHeight) { current = r; visibleHeight = height; }
+    }
+    updatePageNavigation((current || currentFitRow())?.index);
+  });
+}
+
+function goToPage(page) {
+  if (!state.rows.length || !Number.isSafeInteger(page)) return false;
+  const index = Math.max(1, Math.min(state.rows.length, page));
+  const row = state.rows[index - 1];
+  if (state.fitMode) fitToViewport(state.fitMode, row);
+  else {
+    const box = viewSel.value === 'ja' ? row.right : row.left;
+    const padding = parseFloat(getComputedStyle(pagesEl).paddingTop) || 0;
+    scrollTo(0, Math.max(0, scrollY + box.getBoundingClientRect().top - $('header').getBoundingClientRect().bottom - padding));
+  }
+  updatePageNavigation(index);
+  return true;
+}
+
+$('#prevPage').onclick = () => goToPage(state.currentPage - 1);
+$('#nextPage').onclick = () => goToPage(state.currentPage + 1);
+$('#pageNumber').onfocus = () => $('#pageNumber').select();
+$('#pageNumber').onblur = () => updatePageNavigation();
+$('#pageNumber').onkeydown = (e) => {
+  if (e.key !== 'Enter' && e.key !== 'Escape') return;
+  e.preventDefault();
+  if (e.key === 'Enter' && /^\d+$/.test($('#pageNumber').value.trim())) goToPage(Number($('#pageNumber').value.trim()));
+  $('#pageNumber').blur();
+  updatePageNavigation();
+};
+window.addEventListener('scroll', schedulePageNavigation, { passive: true });
+updatePageNavigation();
 
 // ブラウザのズーム（Ctrl＋ホイール）や別の画面への移動で解像度が変わったら描き直す
 (function watchDpr() {
@@ -226,6 +293,7 @@ async function buildRows() {
         releasePage(r); // 画面から遠いページの画像は捨てる（戻ってきたら描き直す）
       }
     }
+    schedulePageNavigation();
   }, { rootMargin: '700px 0px' });
 
   for (let i = 1; i <= state.pdf.numPages; i++) {
@@ -249,6 +317,8 @@ async function buildRows() {
     state.rows.push(r);
     io.observe(row);
   }
+  updatePageNavigation(1);
+  schedulePageNavigation();
   if (state.fitMode) fitToViewport(state.fitMode);
 }
 
