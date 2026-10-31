@@ -67,6 +67,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     pdfjsLib: { GlobalWorkerOptions: {} },
     createGeminiTranslator, createDocumentTranslator,
     createNativeZoom: async () => null,
+    createCitationDialog: () => ({ open() {}, position() {} }),
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),
     openSettings: async () => nextSettings,
     Translator: {

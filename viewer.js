@@ -4,6 +4,7 @@ import { createGeminiTranslator } from './gemini.js';
 import { createDocumentTranslator } from './document-translator.js';
 import { toRuns } from './math.js';
 import { createNativeZoom } from './native-zoom.js';
+import { createCitationDialog } from './citation-ui.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./lib/pdf.worker.min.mjs', import.meta.url).href;
 
@@ -46,6 +47,7 @@ const state = {
 };
 let pageNavigationFrame = null;
 let nativeZoom = null;
+let citationDialog = null;
 
 let statusTimer;
 const setStatus = (t) => {
@@ -194,6 +196,7 @@ window.addEventListener('wheel', (e) => {
 const refit = () => {
   if (state.fitMode) fitToViewport(state.fitMode, currentFitRow(), false);
   schedulePageNavigation();
+  citationDialog?.position();
 };
 window.addEventListener('resize', refit);
 // ツールバーが折り返した場合も、ページに使える高さを更新する。
@@ -1088,8 +1091,8 @@ async function translateAll() {
   }
 }
 
-function saveFile(bytes, filename) {
-  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+function saveFile(bytes, filename, type = 'application/pdf') {
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -1120,6 +1123,11 @@ $('#download').onclick = toggleDownloadMenu;
 $('#downloadOriginal').onclick = () => download('orig');
 $('#downloadTranslated').onclick = () => download('ja');
 $('#downloadBoth').onclick = () => download('both');
+citationDialog = createCitationDialog({
+  document, fileUrl, getPdf: () => state.pdf,
+  download: (text, filename) => saveFile(new TextEncoder().encode(text), filename, 'text/plain;charset=utf-8'),
+});
+$('#cite').onclick = () => { closeDownloadMenu(); return citationDialog.open(); };
 window.addEventListener('pointerdown', (e) => {
   if (!$('#downloadMenu').hidden && !e.target?.closest?.('.download-control')) closeDownloadMenu();
 });

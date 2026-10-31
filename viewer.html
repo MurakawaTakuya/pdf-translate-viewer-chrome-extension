@@ -44,13 +44,16 @@
           </span>
         </span>
         <span class="toolbar-separator" aria-hidden="true"></span>
-        <span class="download-control">
-          <button id="download" class="icon-button" title="保存するPDFを選ぶ" aria-label="PDFで保存" aria-haspopup="menu" aria-expanded="false"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 16v4h16v-4"/></svg></button>
-          <span id="downloadMenu" class="download-menu" role="menu" aria-label="保存するPDF" hidden>
-            <button id="downloadOriginal" role="menuitem">翻訳前の原文</button>
-            <button id="downloadTranslated" role="menuitem" disabled>翻訳後</button>
-            <button id="downloadBoth" role="menuitem" disabled>原文・訳文を交互</button>
+        <span class="document-actions" role="group" aria-label="PDFの保存と引用">
+          <span class="download-control">
+            <button id="download" class="icon-button" title="保存するPDFを選ぶ" aria-label="PDFで保存" aria-haspopup="menu" aria-expanded="false"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 16v4h16v-4"/></svg></button>
+            <span id="downloadMenu" class="download-menu" role="menu" aria-label="保存するPDF" hidden>
+              <button id="downloadOriginal" role="menuitem">翻訳前の原文</button>
+              <button id="downloadTranslated" role="menuitem" disabled>翻訳後</button>
+              <button id="downloadBoth" role="menuitem" disabled>原文・訳文を交互</button>
+            </span>
           </span>
+          <button id="cite" class="icon-button" title="引用を表示" aria-label="引用を表示" aria-haspopup="dialog" aria-expanded="false"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h6v7l-3 5H4l3-5H4zM14 6h6v7l-3 5h-3l3-5h-3z"/></svg></button>
         </span>
       </div>
 
@@ -116,6 +119,33 @@
         <button value="cancel" formnovalidate>キャンセル</button>
         <button value="save" class="primary">保存</button>
       </menu>
+    </form>
+  </dialog>
+  <dialog id="citations" aria-labelledby="citationTitle">
+    <div class="citation-heading"><h2 id="citationTitle">引用</h2><button id="citationClose" aria-label="引用を閉じる" title="閉じる">×</button></div>
+    <p id="citationStatus" role="status" aria-live="polite"></p>
+    <div id="citationContent" hidden>
+      <p id="citationPaperTitle"></p>
+      <div class="citation-source"><a id="citationSource" target="_blank" rel="noopener noreferrer"></a><button id="citationChange">変更</button></div>
+      <div class="citation-row"><span class="citation-style">MLA</span><p id="citation-mla"></p><button id="copy-mla">コピー</button></div>
+      <div class="citation-row"><span class="citation-style">APA</span><p id="citation-apa"></p><button id="copy-apa">コピー</button></div>
+      <div class="citation-row"><span class="citation-style">ISO 690</span><p id="citation-iso"></p><button id="copy-iso">コピー</button></div>
+      <div class="citation-exports" role="group" aria-label="引用の出力形式">
+        <button id="export-bibtex">BibTeX</button>
+        <button id="export-endnote" title="EndNoteで取り込めるRIS形式">EndNote</button>
+        <button id="export-refman" title="RefManで取り込めるRIS形式">RefMan</button>
+        <button id="export-refworks" title="RefWorksで取り込めるRIS形式">RefWorks</button>
+      </div>
+      <div id="citationExport" hidden>
+        <label id="citationExportLabel" for="citationExportText"></label>
+        <textarea id="citationExportText" readonly spellcheck="false"></textarea>
+        <div class="citation-export-actions"><button id="citationExportCopy">コピー</button><button id="citationExportSave">ファイルに保存</button></div>
+      </div>
+    </div>
+    <form id="citationLookup" hidden>
+      <label for="citationIdentifier">DOI / arXiv ID</label>
+      <div><input id="citationIdentifier" placeholder="10.1109/… または 2301.08243" autocomplete="off" spellcheck="false"><button type="submit">取得</button></div>
+      <p>引用情報は公開書誌データから取得します。PDF本文やGemini APIは使用しません。</p>
     </form>
   </dialog>
   <main id="pages"></main>

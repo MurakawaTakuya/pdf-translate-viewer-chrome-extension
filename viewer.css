@@ -64,6 +64,7 @@ button:disabled { opacity: .5; cursor: progress; }
 .language-arrow { width: 14px; height: 14px; color: #a6aab3; }
 .toolbar-separator { width: 1px; height: 20px; background: #ffffff29; margin: 0 5px; flex: none; }
 .download-control { display: inline-flex; align-items: center; position: relative; flex: none; }
+.document-actions { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .download-menu {
   position: absolute; top: calc(100% + 8px); right: 0; width: 190px; padding: 5px;
   display: flex; flex-direction: column; background: #292b30; border: 1px solid #50545d;
@@ -80,10 +81,10 @@ button:disabled { opacity: .5; cursor: progress; }
   box-shadow: 0 4px 18px #0003;
 }
 #status.error { border-color: #a95353; color: #ffb5ad; }
-@media (max-width: 1460px) {
+@media (max-width: 1540px) {
   .toolbar-row { grid-template-columns: minmax(80px, 1fr) auto auto; gap: 10px; }
 }
-@media (max-width: 1120px) {
+@media (max-width: 1180px) {
   .toolbar-row { grid-template-columns: minmax(60px, 1fr) auto; gap: 6px 12px; }
   .toolbar-file { grid-column: 1; grid-row: 1; }
   .toolbar-translation { grid-column: 2; grid-row: 1; }
@@ -101,7 +102,7 @@ button:disabled { opacity: .5; cursor: progress; }
   .page-navigation { grid-column: 1; grid-row: 1; justify-self: center; }
   #view { grid-column: 2; grid-row: 1; }
   .zoom-controls { grid-column: 1; grid-row: 2; }
-  .download-control { grid-column: 2; grid-row: 2; justify-self: center; }
+  .document-actions { grid-column: 2; grid-row: 2; justify-self: center; }
 }
 
 #pages { padding: 12px 14px 60px; display: flex; flex-direction: column; gap: 14px; }
@@ -136,6 +137,47 @@ button:disabled { opacity: .5; cursor: progress; }
 #settings a { color: var(--accent); font-size: 12px; }
 #settings .note { font-size: 12px; line-height: 1.6; opacity: .85; margin: 8px 0 0; }
 #settings menu { display: flex; justify-content: flex-end; gap: 8px; margin: 18px 0 0; padding: 0; }
+
+/* 引用：書式ごとの引用文と書誌管理ソフト向けの出力 */
+#citations {
+  position: fixed; left: auto; right: 16px; bottom: auto; margin: 0; width: min(800px, calc(100vw - 32px));
+  overflow: auto; padding: 18px 22px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel); color: var(--fg); font-size: 13px;
+  box-shadow: 0 8px 32px #0004;
+}
+#citations::backdrop { background: #0002; }
+#citations [hidden] { display: none; }
+.citation-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.citation-heading h2 { margin: 0; font-size: 16px; }
+#citationClose { width: 30px; height: 30px; padding: 0; font-size: 22px; line-height: 1; }
+#citationStatus { margin: 10px 0; font-size: 12px; }
+#citationStatus:empty { display: none; }
+#citationStatus.error { color: #d84a3a; }
+#citationPaperTitle { font-weight: 600; margin: 12px 0 5px; }
+.citation-source { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; font-size: 11px; }
+.citation-source a { color: var(--accent); overflow-wrap: anywhere; }
+.citation-source button { padding: 2px 5px; font-size: 11px; }
+.citation-row { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 14px 0; border-top: 1px solid var(--border); }
+.citation-style { padding-top: 3px; opacity: .8; white-space: nowrap; }
+.citation-row p { margin: 0; line-height: 1.6; overflow-wrap: anywhere; user-select: text; }
+.citation-row button { font-size: 11px; }
+.citation-exports { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 16px 0 2px; }
+.citation-exports button { border-radius: 18px; padding: 7px 5px; color: var(--accent); }
+#citationExport { margin-top: 16px; }
+#citationExportLabel { display: block; margin-bottom: 6px; font-size: 12px; }
+#citationExportText { width: 100%; min-height: 160px; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--fg); font: 12px/1.5 ui-monospace, monospace; }
+.citation-export-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+#citationLookup { margin-top: 16px; }
+#citationLookup label { display: block; margin-bottom: 6px; }
+#citationLookup > div { display: flex; gap: 8px; }
+#citationIdentifier { flex: 1; min-width: 0; font: inherit; padding: 6px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--fg); }
+#citationLookup p { font-size: 11px; opacity: .7; line-height: 1.6; }
+@media (max-width: 620px) {
+  #citations { padding: 14px; right: 8px; width: calc(100vw - 16px); }
+  .citation-row { grid-template-columns: 48px minmax(0, 1fr); gap: 8px; }
+  .citation-row button { grid-column: 2; justify-self: end; }
+  .citation-exports { gap: 5px; }
+}
 
 /* 表示の切り替え：片側だけのときはもう片方を隠す */
 body[data-view="ja"] .page.orig, body[data-view="orig"] .page.trans { display: none; }

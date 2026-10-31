@@ -1,0 +1,112 @@
+import { CITATION_STYLES, CITATION_EXPORTS, createCitationService, citationIdentifier, detectCitationIdentifier } from './citations.js';
+
+export function createCitationDialog({ document, getPdf, fileUrl, download, clipboard = globalThis.navigator?.clipboard, service = createCitationService() }) {
+  const $ = (s) => document.querySelector(s);
+  const dialog = $('#citations');
+  let generation = 0, exportGeneration = 0, source = null, exportText = '', exportFormat = null, detected;
+  const text = (selector, value) => { $(selector).textContent = value; };
+
+  function status(message, error = false) {
+    text('#citationStatus', message);
+    $('#citationStatus').classList.toggle('error', error);
+  }
+  async function copy(value) {
+    try { await clipboard.writeText(value); status('コピーしました'); }
+    catch { status('コピーできませんでした。引用文を選択してコピーしてください', true); }
+  }
+  function position() {
+    const top = document.querySelector('header').getBoundingClientRect().bottom + 8;
+    dialog.style.top = `${top}px`;
+    dialog.style.maxHeight = `calc(100dvh - ${top + 16}px)`;
+  }
+  async function load(identifier) {
+    const version = ++generation;
+    source = null;
+    exportText = '';
+    exportFormat = null;
+    exportGeneration++;
+    $('#citationContent').hidden = true;
+    $('#citationExport').hidden = true;
+    status('引用情報を取得中…');
+    try {
+      const result = await service.resolve(identifier);
+      const formats = await Promise.allSettled(CITATION_STYLES.map((entry) => service.formatted(result.doi, entry.id)));
+      if (version !== generation || !dialog.open) return;
+      source = result;
+      text('#citationPaperTitle', result.title);
+      const link = $('#citationSource');
+      link.textContent = `${result.version} · DOI: ${result.doi}`;
+      link.href = 'https://doi.org/' + result.doi.split('/').map(encodeURIComponent).join('/');
+      let failed = 0;
+      for (const [i, entry] of CITATION_STYLES.entries()) {
+        const value = formats[i];
+        text(`#citation-${entry.id}`, value.status === 'fulfilled' ? value.value : 'この形式を取得できませんでした');
+        const button = $(`#copy-${entry.id}`);
+        button.disabled = value.status !== 'fulfilled';
+        button.onclick = () => copy(value.value);
+        if (value.status !== 'fulfilled') failed++;
+      }
+      $('#citationContent').hidden = false;
+      $('#citationLookup').hidden = true;
+      status(failed ? `${failed}形式を取得できませんでした。識別子を再指定すると再試行できます` : '');
+    } catch (error) {
+      if (version !== generation || !dialog.open) return;
+      $('#citationLookup').hidden = false;
+      status(error.message || '引用情報を取得できませんでした', true);
+    }
+  }
+
+  for (const format of CITATION_EXPORTS) {
+    $(`#export-${format.id}`).onclick = async () => {
+      if (!source) return;
+      const version = generation, request = ++exportGeneration, doi = source.doi;
+      status(`${format.label}形式を取得中…`);
+      try {
+        const value = await service.exported(doi, format.format);
+        if (version !== generation || request !== exportGeneration || !dialog.open) return;
+        exportText = value;
+        exportFormat = format;
+        $('#citationExportText').value = value;
+        text('#citationExportLabel', format.label + (format.format === 'ris' ? '（RIS形式）' : ''));
+        $('#citationExport').hidden = false;
+        status('');
+      } catch (error) { if (version === generation && request === exportGeneration && dialog.open) status(error.message, true); }
+    };
+  }
+  $('#citationExportCopy').onclick = () => copy(exportText);
+  $('#citationExportSave').onclick = () => {
+    if (source && exportFormat && exportText) download(exportText, `citation.${exportFormat.extension}`);
+  };
+  $('#citationChange').onclick = () => {
+    $('#citationLookup').hidden = false;
+    $('#citationIdentifier').value = source?.doi || '';
+    $('#citationIdentifier').focus();
+  };
+  $('#citationLookup').onsubmit = (event) => {
+    event.preventDefault();
+    const id = citationIdentifier($('#citationIdentifier').value);
+    if (!id) { status('DOIまたはarXiv IDを入力してください', true); return; }
+    return load(id);
+  };
+  $('#citationClose').onclick = () => dialog.close();
+  dialog.onclose = () => { generation++; $('#cite').setAttribute('aria-expanded', 'false'); };
+
+  return {
+    async open() {
+      if (!getPdf()) return;
+      if (!dialog.open) dialog.showModal();
+      $('#cite').setAttribute('aria-expanded', 'true');
+      position();
+      status('論文の識別情報を確認中…');
+      const opening = ++generation;
+      detected ??= detectCitationIdentifier(fileUrl, getPdf());
+      const id = await detected;
+      if (!dialog.open || opening !== generation) return;
+      if (id) return load(id);
+      $('#citationContent').hidden = true;
+      $('#citationLookup').hidden = false;
+      status('論文を特定できませんでした。DOIまたはarXiv IDを入力してください', true);
+    },
+    position() { if (dialog.open) position(); },
+  };
+}
