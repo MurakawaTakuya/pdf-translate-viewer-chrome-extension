@@ -53,10 +53,9 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
   assert.equal(schema.additionalProperties, false);
   assert.deepEqual(schema.required, ['translations']);
   assert.equal(schema.properties.translations.type, 'object');
-  assert.deepEqual(schema.properties.translations.required, requests[0].input.translate_ids);
-  assert.deepEqual(Object.keys(schema.properties.translations.properties), requests[0].input.translate_ids);
-  assert.ok(Object.values(schema.properties.translations.properties).every((value) => value.type === 'string'));
-  assert.equal(schema.properties.translations.additionalProperties, false);
+  assert.deepEqual(schema.properties.translations.additionalProperties, { type: 'string' });
+  assert.equal(schema.properties.translations.required, undefined);
+  assert.equal(schema.properties.translations.properties, undefined);
   assert.match(requests[0].body.system_instruction, /every ID in "translate_ids" exactly once as a key/);
   await Promise.all(rows.map((r) => tr.translatePage(r, () => {})));
   assert.equal(requests.length, 1);
@@ -66,10 +65,29 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
   assert.equal(requests.length, 2);
   assert.deepEqual(requests[1].input.pages, requests[0].input.pages);
   assert.deepEqual(requests[1].input.translate_ids, ['p3-b1']);
-  assert.deepEqual(requests[1].body.response_format.schema.properties.translations.required, ['p3-b1']);
+  assert.deepEqual(requests[1].body.response_format.schema, schema);
   await tr.translatePage(rows[2], (i, text) => { shown[2][i] = text; });
   assert.equal(shown[2][0], replacement);
   assert.equal(requests.length, 2);
+});
+
+test('thousands of paragraphs keep the same small schema and use one request', async (t) => {
+  const schemas = [];
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const request = JSON.parse(init.body), input = JSON.parse(request.input);
+    schemas.push(request.response_format.schema);
+    return response(Object.fromEntries(input.translate_ids.map((id) => [id, '訳文 ' + id])));
+  });
+  const translator = createGeminiTranslator(options);
+  for (const count of [1, 2000]) {
+    const blocks = Array.from({ length: count }, (_, i) => ({ id: `p1-b${i}`, text: `Source ${i}` }));
+    const result = await translator.translateDocument([{ page: 1, blocks }], blocks.map((b) => b.id));
+    assert.equal(result.size, count);
+    assert.equal(result.get(`p1-b${count - 1}`), `訳文 p1-b${count - 1}`);
+  }
+  assert.equal(schemas.length, 2); // One request per document, without fallback/resending.
+  assert.deepEqual(schemas[1], schemas[0]);
+  assert.equal(JSON.stringify(schemas[1]).includes('p1-b'), false);
 });
 
 test('malformed or incomplete output never causes splitting, resending, or partial display', async (t) => {

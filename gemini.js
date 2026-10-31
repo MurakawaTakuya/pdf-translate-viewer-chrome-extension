@@ -25,18 +25,17 @@ Rules:
 - Every translation value must be written in ${dst}; leave all block-ID keys unchanged. Never return the ${src} source text unchanged, except for blocks that consist only of names, numbers, or formulas.
 - Output only the translations, with no notes or explanations.`;
 
-// IDを自由生成する配列ではなく、全対象IDを必須キーにして訳抜け・ID改変を制約する。
-const translationSchema = (ids) => ({
+// ID列挙は段落数に応じて制約の状態数が増え、APIに拒否される。
+// APIでは小さい固定の辞書形式だけを指定し、IDの網羅性と空欄は受信後に検証する。
+const TRANSLATION_SCHEMA = {
   type: 'object',
   properties: { translations: {
     type: 'object',
-    properties: Object.fromEntries(ids.map((id) => [id, { type: 'string' }])),
-    required: ids,
-    additionalProperties: false,
+    additionalProperties: { type: 'string' },
   } },
   required: ['translations'],
   additionalProperties: false,
-});
+};
 
 export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLanguage, onWait = () => {}, signal }) {
   const system = systemPrompt(LANG_NAMES[sourceLanguage] || sourceLanguage, LANG_NAMES[targetLanguage] || targetLanguage);
@@ -45,7 +44,6 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
     signal?.throwIfAborted();
     if (!translateIds.length) return new Map();
     const input = { pages, translate_ids: translateIds };
-    const schema = translationSchema(translateIds);
     for (let attempt = 0; ; attempt++) {
       const res = await fetch(ENDPOINT, {
         method: 'POST',
@@ -55,7 +53,7 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
           model: model || DEFAULT_MODEL,
           system_instruction: system,
           input: JSON.stringify(input),
-          response_format: { type: 'text', mime_type: 'application/json', schema },
+          response_format: { type: 'text', mime_type: 'application/json', schema: TRANSLATION_SCHEMA },
           generation_config: { max_output_tokens: 65536 },
           store: false, // Google側に会話を保存しない
         }),
