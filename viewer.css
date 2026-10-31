@@ -64,9 +64,7 @@ button:disabled { opacity: .5; cursor: progress; }
 .language-arrow { width: 14px; height: 14px; color: #a6aab3; }
 .toolbar-separator { width: 1px; height: 20px; background: #ffffff29; margin: 0 5px; flex: none; }
 .viewer-toolbar .translate-button { width: 88px; gap: 6px; background: #ffffff0f; border-color: #ffffff12; }
-.viewer-toolbar #startGemini { background: #9dbbff1c; border-color: #9dbbff38; color: #b7cbff; }
 .viewer-toolbar .translate-button:hover:not(:disabled) { background: #ffffff20; }
-.viewer-toolbar #startGemini:hover:not(:disabled) { background: #9dbbff30; }
 #status {
   position: absolute; top: calc(100% + 8px); right: 16px; max-width: min(640px, calc(100vw - 32px));
   padding: 9px 13px; border: 1px solid #4c5058; border-radius: 7px; background: #292b30;
