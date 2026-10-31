@@ -27,8 +27,8 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
     const body = JSON.parse(init.body), input = JSON.parse(body.input);
     requests.push({ body, input });
     await gate.promise;
-    // The API may reorder objects: IDs must preserve the page/paragraph association.
-    return response([...input.translate_ids].reverse().map((id) => ({ id, text: `訳文 ${id} (${requests.length})` })));
+    // The API may reorder keys: IDs must preserve the page/paragraph association.
+    return response(Object.fromEntries([...input.translate_ids].reverse().map((id) => [id, `訳文 ${id} (${requests.length})`])));
   });
   const tr = createDocumentTranslator({
     rows, translator: createGeminiTranslator(options),
@@ -49,6 +49,15 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
   assert.equal(shown[0][11], '訳文 p1-b12 (1)');
   assert.equal(requests[0].body.store, false);
   assert.equal(requests[0].body.generation_config.max_output_tokens, 65536);
+  const schema = requests[0].body.response_format.schema;
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual(schema.required, ['translations']);
+  assert.equal(schema.properties.translations.type, 'object');
+  assert.deepEqual(schema.properties.translations.required, requests[0].input.translate_ids);
+  assert.deepEqual(Object.keys(schema.properties.translations.properties), requests[0].input.translate_ids);
+  assert.ok(Object.values(schema.properties.translations.properties).every((value) => value.type === 'string'));
+  assert.equal(schema.properties.translations.additionalProperties, false);
+  assert.match(requests[0].body.system_instruction, /every ID in "translate_ids" exactly once as a key/);
   await Promise.all(rows.map((r) => tr.translatePage(r, () => {})));
   assert.equal(requests.length, 1);
 
@@ -57,6 +66,7 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
   assert.equal(requests.length, 2);
   assert.deepEqual(requests[1].input.pages, requests[0].input.pages);
   assert.deepEqual(requests[1].input.translate_ids, ['p3-b1']);
+  assert.deepEqual(requests[1].body.response_format.schema.properties.translations.required, ['p3-b1']);
   await tr.translatePage(rows[2], (i, text) => { shown[2][i] = text; });
   assert.equal(shown[2][0], replacement);
   assert.equal(requests.length, 2);
@@ -64,13 +74,14 @@ test('all pages use one request; scrolling/export reuse it; manual redo retains 
 
 test('malformed or incomplete output never causes splitting, resending, or partial display', async (t) => {
   const cases = {
-    missing: [{ id: 'p1-b0', text: '訳' }],
-    duplicate: [{ id: 'p1-b0', text: '訳' }, { id: 'p1-b0', text: '訳' }],
-    unknown: [{ id: 'p1-b0', text: '訳' }, { id: 'other', text: '訳' }],
-    empty: [{ id: 'p1-b0', text: '訳' }, { id: 'p1-b1', text: '  ' }],
-    wrongType: [{ id: 'p1-b0', text: '訳' }, { id: 'p1-b1', text: 123 }],
+    missing: [{ 'p1-b0': '訳' }, /必要2件／受信1件、不足1件/],
+    unknown: [{ 'p1-b0': '訳', other: '訳' }, /不足1件、対象外1件/],
+    empty: [{ 'p1-b0': '訳', 'p1-b1': '  ' }, /空欄1件/],
+    wrongType: [{ 'p1-b0': '訳', 'p1-b1': 123 }, /形式不正1件/],
+    array: [[{ id: 'p1-b0', text: '訳' }, { id: 'p1-b0', text: '訳' }], /形式が不正/],
+    null: [null, /形式が不正/],
   };
-  for (const [name, entries] of Object.entries(cases)) {
+  for (const [name, [entries, message]] of Object.entries(cases)) {
     await t.test(name, async (s) => {
       let calls = 0, displays = 0;
       s.mock.method(globalThis, 'fetch', async () => { calls++; return response(entries); });
@@ -79,7 +90,13 @@ test('malformed or incomplete output never causes splitting, resending, or parti
         rows, translator: createGeminiTranslator(options),
         getBlocks: async () => [{ text: 'One paragraph', translate: true }, { text: 'Another paragraph', translate: true }],
       });
-      await assert.rejects(tr.translatePage(rows[0], () => { displays++; }));
+      await assert.rejects(tr.translatePage(rows[0], () => { displays++; }), (error) => {
+        assert.match(error.message, message);
+        assert.ok(!error.message.includes('mock-key'));
+        assert.ok(!error.message.includes('One paragraph'));
+        assert.ok(!error.message.includes('p1-b0'));
+        return true;
+      });
       await assert.rejects(tr.translatePage(rows[0], () => { displays++; }));
       await assert.rejects(tr.ready());
       assert.equal(calls, 1);
@@ -88,7 +105,7 @@ test('malformed or incomplete output never causes splitting, resending, or parti
   }
   await t.test('truncated output', async (s) => {
     let calls = 0;
-    s.mock.method(globalThis, 'fetch', async () => { calls++; return response([{ id: 'a', text: '訳' }], { status: 'incomplete' }); });
+    s.mock.method(globalThis, 'fetch', async () => { calls++; return response({ a: '訳' }, { status: 'incomplete' }); });
     await assert.rejects(createGeminiTranslator(options).translateDocument([], ['a']), /途中で切れ/);
     assert.equal(calls, 1);
   });
@@ -129,7 +146,7 @@ test('an empty/image-only document needs no API request', async (t) => {
 
 test('settings connection test still makes a single request', async (t) => {
   let calls = 0, result;
-  t.mock.method(globalThis, 'fetch', async () => { calls++; return response([{ id: '0', text: 'こんにちは、世界。' }]); });
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return response({ 0: 'こんにちは、世界。' }); });
   await createGeminiTranslator(options).translateBatch(['Hello, world.'], (_, text) => { result = text; });
   assert.equal(calls, 1);
   assert.equal(result, 'こんにちは、世界。');
@@ -182,7 +199,7 @@ test('temporary server failure retries the same full document', async (t) => {
   t.mock.method(globalThis, 'fetch', async (_url, init) => {
     requests.push(JSON.parse(init.body).input);
     if (requests.length === 1) return Response.json({ error: { details: [{ retryDelay: '0.001s' }] } }, { status: 503 });
-    return response([{ id: 'a', text: '訳' }]);
+    return response({ a: '訳' });
   });
   const result = await createGeminiTranslator(options).translateDocument([{ page: 1, blocks: [{ id: 'a', text: 'Source paragraph' }] }], ['a']);
   assert.equal(result.get('a'), '訳');
