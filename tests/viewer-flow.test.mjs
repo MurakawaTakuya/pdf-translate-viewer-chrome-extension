@@ -35,7 +35,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   const elements = new Map();
   const createdElements = [];
   const listeners = new Map(), resizeObservers = [];
-  const pageFrames = [], scrollCalls = [];
+  const pageFrames = new Map(), scrollCalls = [], zoomSaves = [];
   const savedFiles = [];
   const placedBlocks = [];
   const nativeZoomCalls = [];
@@ -47,7 +47,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   let nextFrame = 0;
   const rootStyles = new Map();
   const document = {
-    body: { dataset: {} }, documentElement: { scrollHeight: 1000, clientHeight: 900, style: {
+    body: { dataset: {} }, documentElement: { scrollHeight: 1000, clientHeight: 900, clientWidth: 1200, style: {
       setProperty: (name, value) => rootStyles.set(name, value), getPropertyValue: (name) => rootStyles.get(name),
     } },
     querySelector: (name) => { if (!elements.has(name)) elements.set(name, element()); return elements.get(name); },
@@ -67,14 +67,15 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     dispatchScroll: () => listeners.get('scroll')?.(),
     dispatchKey: (event) => listeners.get('keydown')?.(event),
     dispatchWheel: (event) => listeners.get('wheel')?.(event),
-    dispatchPageFrames: () => pageFrames.splice(0).forEach((callback) => callback()),
-    requestAnimationFrame: (callback) => { pageFrames.push(callback); return ++nextFrame; },
+    dispatchPageFrames: () => { const callbacks = [...pageFrames.values()]; pageFrames.clear(); callbacks.forEach((callback) => callback()); },
+    requestAnimationFrame: (callback) => { pageFrames.set(++nextFrame, callback); return nextFrame; },
+    cancelAnimationFrame: (id) => pageFrames.delete(id),
     dispatchHeaderResize: () => resizeObservers.forEach((callback) => callback()),
     getComputedStyle: (el) => el.computedStyle,
     ResizeObserver: class { constructor(callback) { resizeObservers.push(callback); } observe() {} },
-    localStorage: { getItem: () => null, setItem() {} },
+    localStorage: { getItem: () => null, setItem(name, value) { if (name === 'zoom') zoomSaves.push(value); } },
     matchMedia: () => ({ addEventListener() {} }), devicePixelRatio: 1, scrollY: 0,
-    scrollTo(x, y) { scrollCalls.push([x, y]); context.scrollY = y; },
+    scrollTo(x, y) { scrollCalls.push([x, y]); context.scrollY = y; window.scrollX = x; },
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
     pdfjsLib: { GlobalWorkerOptions: {} },
     createGeminiTranslator, createDocumentTranslator,
@@ -91,7 +92,8 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   context.self.Translator = context.Translator;
   // Run the actual viewer orchestration. Only PDF/canvas/DOM rendering is replaced.
   const source = viewerSource.replace(/^import .*;\n/gm, '').replaceAll('import.meta.url', JSON.stringify(new URL('../viewer.js', import.meta.url).href)).replace(/\nload\(\);\s*$/, `
-    const rendering = { pixelScale, makeCanvas, renderPage, releasePage, viewZoom };
+    const rendering = { pixelScale, makeCanvas, renderPage, releasePage, viewZoom,
+      enable() { renderPage = rendering.renderPage; releasePage = rendering.releasePage; } };
     renderPage = async () => {};
     getPageBlocks = async (r) => r.blocks;
     releasePage = () => {};
@@ -103,12 +105,13 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     };
     fillBlock = (_el, b, text) => { b.ja = text; };
     saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
-    return { state, start, enqueue, enqueueVisiblePages, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, rendering, window, viewSelect: viewSel };
+    return { state, start, enqueue, enqueueVisiblePages, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
   api.placedBlocks = placedBlocks;
   api.nativeZoomCalls = nativeZoomCalls;
+  api.zoomSaves = zoomSaves;
   api.state.pdf = {};
   api.state.rows = [1, 2, 3].map((index) => ({
     index, visible: index === 1, srcLayer: element(), dstLayer: element(),
@@ -474,6 +477,7 @@ test('high DPI and single-page display increase density while respecting the can
 function fitFixture(api) {
   const pages = api.element('#pages'), header = api.element('header');
   pages.clientWidth = 1200;
+  pages.getBoundingClientRect = () => ({ left: -(api.window.scrollX || 0), top: 60 - api.scrollY(), width: 1200, height: 2200 });
   pages.computedStyle = { paddingLeft: '14px', paddingRight: '14px', paddingTop: '12px' };
   header.height = 60;
   header.getBoundingClientRect = () => ({ top: 0, bottom: header.height, height: header.height });
@@ -708,6 +712,105 @@ test('keyboard shortcuts and pinch adjust PDF zoom while leaving the toolbar siz
   api.element('#zoomOut').onclick();
   api.element('#zoomReset').onclick();
   assert.deepEqual(api.nativeZoomCalls, [{ id: 42, mode: 'disabled', scope: 'per-tab' }]);
+});
+
+test('pinching only transforms the existing page until idle, then renders once and preserves the pointer anchor', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('pinch must not call translation API'));
+  const api = await viewer();
+  fitFixture(api);
+  api.rendering.enable();
+  let renders = 0, geometryReads = 0;
+  const left = element(), right = element();
+  left.getBoundingClientRect = () => {
+    geometryReads++;
+    const scale = Number(api.document.documentElement.style.getPropertyValue('--zoom'));
+    return { left: 14 - (api.window.scrollX || 0), top: 72 - api.scrollY(), width: 500 * scale, height: 700 * scale };
+  };
+  const row = { index: 1, visible: true, left, right, vp: { width: 500, height: 700 }, page: {
+    render: () => { renders++; return { promise: Promise.resolve() }; },
+  } };
+  api.state.rows = [row];
+  await api.rendering.renderPage(row);
+  api.flushPageFrames();
+  const saves = api.zoomSaves.length, scrolls = api.scrollCalls.length;
+  const before = left.getBoundingClientRect(), clientX = 250, clientY = 300;
+  const anchorX = (clientX - before.left) / before.width, anchorY = (clientY - before.top) / before.height;
+  const target = { closest: (selector) => selector === '.page' ? left : null };
+  api.wheel({ ctrlKey: true, deltaY: -10, deltaMode: 0, clientX, clientY, target, preventDefault() {} });
+  api.flushPageFrames();
+  const reads = geometryReads;
+  for (let i = 0; i < 20; i++) {
+    api.wheel({ ctrlKey: true, deltaY: -2, deltaMode: 0, clientX, clientY, target, preventDefault() {} });
+    api.flushPageFrames();
+  }
+  assert.equal(renders, 1); // No PDF rendering during the gesture.
+  assert.equal(geometryReads, reads); // No per-frame page geometry reads.
+  assert.equal(api.zoomSaves.length, saves);
+  assert.equal(api.scrollCalls.length, scrolls);
+  assert.match(api.element('#pages').style.transform, /^scale\(/);
+  assert.equal(api.element('#pages').classList.contains('zoom-preview'), true);
+  assert.equal(api.document.documentElement.style.getPropertyValue('--zoom'), 1);
+  near(api.state.zoom, Math.exp(0.1));
+  await new Promise((resolve) => setTimeout(resolve, 190)); // Verify automatic idle completion.
+  assert.equal(renders, 2);
+  assert.equal(api.element('#pages').style.transform, '');
+  assert.equal(api.element('#pages').classList.contains('zoom-preview'), false);
+  assert.equal(api.zoomSaves.length, saves + 1);
+  assert.equal(api.scrollCalls.length, scrolls + 1);
+  const after = left.getBoundingClientRect();
+  near(after.left + after.width * anchorX, clientX);
+  near(after.top + after.height * anchorY, clientY);
+  assert.ok(row.srcCanvas.width > 750);
+});
+
+test('superseded PDF renders are cancelled and old waiters receive the latest canvas', async () => {
+  const api = await viewer(), tasks = [];
+  const row = { visible: true, vp: { width: 500, height: 700 }, left: element(), right: element(), page: {
+    render: () => {
+      let resolve, reject;
+      const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+      const task = { promise, resolve, cancelled: false, cancel() {
+        this.cancelled = true;
+        const error = new Error('cancelled'); error.name = 'RenderingCancelledException'; reject(error);
+      } };
+      tasks.push(task);
+      return task;
+    },
+  } };
+  const first = api.rendering.renderPage(row);
+  api.state.zoom = 2;
+  const latest = api.rendering.renderPage(row);
+  assert.equal(tasks[0].cancelled, true);
+  tasks[1].resolve();
+  await Promise.all([first, latest]);
+  assert.equal(row.srcCanvas.width, 1500);
+  assert.equal(row.left.children.length, 1);
+  assert.equal(api.createdElements.filter((el) => el.tagName === 'canvas')[0].width, 0);
+});
+
+test('a render interrupted by pinching waits for gesture completion instead of failing translation', async () => {
+  const api = await viewer(), tasks = [];
+  fitFixture(api);
+  api.rendering.enable();
+  const row = { index: 1, visible: true, busy: true, vp: { width: 500, height: 700 }, left: element(), right: element(), page: {
+    render: () => {
+      let resolve, reject;
+      const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+      const task = { promise, resolve, cancel() { const e = new Error('cancelled'); e.name = 'RenderingCancelledException'; reject(e); } };
+      tasks.push(task); return task;
+    },
+  } };
+  api.state.rows = [row];
+  const pending = api.rendering.renderPage(row);
+  api.wheel({ ctrlKey: true, deltaY: -50, deltaMode: 0, preventDefault() {} });
+  api.flushPageFrames();
+  await new Promise(setImmediate);
+  assert.equal(tasks.length, 1);
+  api.finishZoomGesture();
+  await until(() => tasks.length === 2);
+  tasks[1].resolve();
+  await pending;
+  assert.ok(row.srcCanvas.width > 750);
 });
 
 test('Gemini streams completed paragraphs while unfinished paragraphs stay English and export stays disabled', async (t) => {

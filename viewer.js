@@ -103,15 +103,34 @@ function applyView() {
 // ---------- 拡大・縮小 ----------
 // 表示上の倍率。片側表示のときは、空いた幅いっぱいまで大きくする
 const viewZoom = () => state.zoom * (viewSel.value === 'both' ? 1 : state.fit);
+const ZOOM_SETTLE_MS = 140;
+let wheelZoom = 0, wheelZoomFrame = null, zoomSettleTimer = null, zoomGesture = null;
 
-function applyZoom() {
-  const ratio = scrollY / Math.max(1, document.documentElement.scrollHeight);
+function applyZoom(anchor = null) {
+  if (zoomGesture) {
+    const gesture = zoomGesture;
+    anchor ??= gesture.anchor;
+    zoomGesture = null;
+    clearTimeout(zoomSettleTimer);
+    if (wheelZoomFrame !== null) cancelAnimationFrame(wheelZoomFrame);
+    wheelZoomFrame = null;
+    wheelZoom = 0;
+    pagesEl.style.transform = '';
+    pagesEl.style.transformOrigin = '';
+    pagesEl.classList.remove('zoom-preview');
+    gesture.resolve();
+  }
+  const ratio = anchor ? null : scrollY / Math.max(1, document.documentElement.scrollHeight);
   document.documentElement.style.setProperty('--zoom', viewZoom());
   $('#zoomLabel').textContent = Math.round(state.zoom * 100) + '%';
   $('#fitWidth').setAttribute('aria-pressed', String(state.fitMode === 'width'));
   $('#fitHeight').setAttribute('aria-pressed', String(state.fitMode === 'height'));
   localStorage.setItem('zoom', state.zoom);
-  scrollTo(0, ratio * document.documentElement.scrollHeight); // だいたい同じ場所を表示し続ける
+  if (anchor) {
+    const rect = anchor.element.getBoundingClientRect();
+    scrollTo((window.scrollX || 0) + rect.left + rect.width * anchor.x - anchor.clientX,
+      scrollY + rect.top + rect.height * anchor.y - anchor.clientY);
+  } else scrollTo(0, ratio * document.documentElement.scrollHeight);
   rerenderVisible();
   schedulePageNavigation();
 }
@@ -176,20 +195,56 @@ function handleZoomKey(e) {
   else stepZoom(key === '-' ? -1 : 1);
 }
 
-let wheelZoom = 0, wheelZoomFrame = null;
+function startZoomGesture(e) {
+  if (zoomGesture) return;
+  const rect = pagesEl.getBoundingClientRect();
+  const clientX = Number.isFinite(e.clientX) ? e.clientX : document.documentElement.clientWidth / 2;
+  const clientY = Number.isFinite(e.clientY) ? e.clientY : document.documentElement.clientHeight / 2;
+  const element = e.target?.closest?.('.page') || e.target?.closest?.('.row') || pagesEl;
+  const box = element.getBoundingClientRect();
+  let resolve;
+  const finished = new Promise((done) => { resolve = done; });
+  zoomGesture = { base: viewZoom(), finished, resolve, anchor: {
+    element, clientX, clientY,
+    x: box.width ? (clientX - box.left) / box.width : 0,
+    y: box.height ? (clientY - box.top) / box.height : 0,
+  } };
+  pagesEl.style.transformOrigin = `${clientX - rect.left}px ${clientY - rect.top}px`;
+  pagesEl.classList.add('zoom-preview');
+  for (const r of state.rows) r.renderTask?.cancel();
+}
+
+function previewWheelZoom() {
+  wheelZoomFrame = null;
+  if (!zoomGesture) return;
+  state.zoom = Math.min(5, Math.max(0.1, state.zoom * Math.exp(-wheelZoom * 0.002)));
+  wheelZoom = 0;
+  state.fitMode = null;
+  pagesEl.style.transform = `scale(${viewZoom() / zoomGesture.base})`;
+  $('#zoomLabel').textContent = Math.round(state.zoom * 100) + '%';
+  $('#fitWidth').setAttribute('aria-pressed', 'false');
+  $('#fitHeight').setAttribute('aria-pressed', 'false');
+}
+
+function finishZoomGesture() {
+  if (!zoomGesture) return;
+  if (wheelZoomFrame !== null) {
+    cancelAnimationFrame(wheelZoomFrame);
+    previewWheelZoom();
+  }
+  applyZoom();
+}
+
 window.addEventListener('wheel', (e) => {
   if (!state.pdf || (!e.ctrlKey && !e.metaKey)) return;
   e.preventDefault();
   if (e.target?.closest?.('dialog[open]') || !e.deltaY) return;
+  startZoomGesture(e);
   wheelZoom += e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? document.documentElement.clientHeight : 1);
+  clearTimeout(zoomSettleTimer);
+  zoomSettleTimer = setTimeout(finishZoomGesture, ZOOM_SETTLE_MS);
   if (wheelZoomFrame !== null) return;
-  wheelZoomFrame = requestAnimationFrame(() => {
-    wheelZoomFrame = null;
-    state.zoom = Math.min(5, Math.max(0.1, state.zoom * Math.exp(-wheelZoom * 0.002)));
-    wheelZoom = 0;
-    state.fitMode = null;
-    applyZoom();
-  });
+  wheelZoomFrame = requestAnimationFrame(previewWheelZoom);
 }, { passive: false });
 
 const refit = () => {
@@ -392,17 +447,31 @@ function swapCanvas(box, canvas) {
 
 // 左に原文を描画し、右にはその複製を置く（翻訳したブロックだけ上から差し替える）
 function renderPage(r) {
+  if (zoomGesture) return zoomGesture.finished.then(() => (r.visible || r.busy) ? renderPage(r) : undefined);
   const scale = pixelScale(r);
   if (r.renderP && Math.abs(r.renderScale - scale) < 0.01) return r.renderP;
+  const version = r.renderVersion = (r.renderVersion || 0) + 1;
+  r.renderTask?.cancel();
   r.renderScale = scale;
   r.renderP = (async () => {
     const canvas = makeCanvas(r.vp, scale);
-    await r.page.render({
+    const task = r.page.render({
       canvasContext: canvas.getContext('2d'),
       viewport: r.vp,
       transform: [scale, 0, 0, scale, 0, 0],
-    }).promise;
-    if (r.renderScale !== scale) { canvas.width = 0; return r.renderP; } // 描いている間に倍率が変わった
+    });
+    r.renderTask = task;
+    try { await task.promise; }
+    catch (error) {
+      canvas.width = canvas.height = 0;
+      if (error.name !== 'RenderingCancelledException') throw error;
+      if (r.renderVersion === version) { r.renderP = null; r.renderScale = 0; }
+      if (!r.visible && !r.busy) return;
+      if (zoomGesture) await zoomGesture.finished;
+      if (!r.visible && !r.busy) return;
+      return r.renderP || renderPage(r);
+    } finally { if (r.renderTask === task) r.renderTask = null; }
+    if (r.renderVersion !== version) { canvas.width = canvas.height = 0; return r.renderP; }
     const copy = makeCanvas(r.vp, scale);
     copy.getContext('2d').drawImage(canvas, 0, 0);
     swapCanvas(r.left, canvas);
@@ -414,7 +483,9 @@ function renderPage(r) {
 }
 
 function releasePage(r) {
-  if (r.busy || !r.srcCanvas) return; // 翻訳中のページは画像を使うので残す
+  if (r.busy) return; // 翻訳中のページは画像を使うので残す
+  r.renderVersion = (r.renderVersion || 0) + 1;
+  r.renderTask?.cancel();
   for (const box of [r.left, r.right]) {
     const c = box.querySelector(':scope > canvas');
     if (c) { c.width = c.height = 0; c.remove(); }

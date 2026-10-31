@@ -106,6 +106,7 @@ button:disabled { opacity: .5; cursor: progress; }
 }
 
 #pages { padding: 12px 14px 60px; display: flex; flex-direction: column; gap: 14px; }
+#pages.zoom-preview { will-change: transform; }
 .row { display: grid; grid-template-columns: auto auto; gap: 12px; justify-content: center; zoom: var(--zoom, 1); }
 
 /* 拡大・縮小ボタン */
