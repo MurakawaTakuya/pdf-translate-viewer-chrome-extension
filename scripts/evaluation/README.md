@@ -37,11 +37,11 @@ node scripts/evaluation/compare-inputs.mjs --baseline-input /path/to/original-pa
 
 Only `--run --project PROJECT_ID --key-resource RESOURCE` enables up to four generation calls, in fixed A1/C1/C2/A2 order, without retries. The fixed panel from the first comparison is mapped to revised targets before inference, allowing a former fragment to belong to a larger logical paragraph. Inspect the whole revised target's source scope, not just its old fragment. Extraction, order and input protocol change together, so this experiment does not isolate the contribution of each. No output format or prompt tuning is done after observing the results.
 
-The separated-target protocol is explicitly selected only by the evaluator (`inputFormat: 'separate-targets'`). The viewer uses the legacy wire format by default because the live comparison still exhibited severe content/ID mismatches. Layout reconstruction remains enabled. This default combination has local regression coverage; the fixed four-call comparison did not include a separate layout-only generation arm.
+The separated-target protocol is explicitly selected only by the evaluator (`inputFormat: 'separate-targets'`). This historical experiment still exhibited severe content/ID mismatches. The current viewer instead uses the keyed task-bound codec described below. Layout reconstruction remains enabled; the fixed four-call comparison did not include a separate layout-only generation arm.
 
 ## Reproduce the current viewer unchanged
 
-`reproduce-current.mjs` captures the request directly from the current production translator, without an input-format override. It exercises the current extraction with the current default wire protocol; it does not reuse a frozen historical baseline. The fixed diagnostic panel is specific to arXiv:2301.08243 and must be present in the extraction before inference.
+`reproduce-current.mjs` captures the request directly from the current production translator. Its default is the viewer's keyed task-bound codec. Add `--legacy` only to reproduce the previous sequential-ID protocol explicitly. It exercises the current extraction and does not reuse a frozen historical baseline. The fixed diagnostic panel is specific to arXiv:2301.08243 and must be present in the extraction before inference.
 
 ```sh
 node scripts/evaluation/reproduce-current.mjs --input /path/to/revised-pages.json --output /path/to/new-plan
@@ -50,3 +50,21 @@ node scripts/evaluation/reproduce-current.mjs --input /path/to/revised-pages.jso
 Add `--run --project PROJECT_ID --key-resource RESOURCE` only for explicitly authorized live execution. This writes a plan before making at most three identical generation requests, in R1/R2/R3 order, with no retries, prompt changes, repair requests or judge calls. HTTP/transport errors or absent API completion stop the run. A new output directory is required, including for offline preparation.
 
 Raw responses are also replayed offline through the actual production parser. This verifies coverage handling without another model call. Numeric citation differences on pages 1–8 are diagnostic flags, not proof of wrong scope or a translation-quality score. Compare source and raw response content for the fixed source IDs before attributing a visual problem to rendering. Keep full source, request and response files outside Git; publish only sanitized measurements, hashes and observed mappings.
+
+## Required keyed properties with exact-source tasks
+
+`keyed-format.mjs` prepares one frozen candidate: opaque required properties (K), exact-source property descriptions (S, `--source-bound`), or explicit translation tasks beside each property's source (T, `--task-bound`). The current viewer uses T plus local citation/unchanged-heading guards. A property key or citation match does not establish semantic accuracy.
+
+```sh
+node scripts/evaluation/keyed-format.mjs --prepare --input /path/to/pages.json --baseline-plan /path/to/legacy-plan.json --directory /path/to/new-task-plan --task-bound
+```
+
+Preparation makes no API call. It fixes the source/request hashes and diagnostic panel before inference. Only explicit authorized execution makes a request:
+
+```sh
+node scripts/evaluation/keyed-format.mjs --run --directory /path/to/new-task-plan --label T1 --project PROJECT_ID --key-resource RESOURCE
+```
+
+Each label is executed once with an exclusive `.started` file and no retry. There are at most three labels per candidate. The next label requires the previous response to pass both structural checks and an independent manual review bound to its response hash. Failure stops that candidate. K1, S1 and T1 all failed the full quality gate; no second or third runs were made. The guarded T1 replay held two citation failures, and one explicit repair still left one failure. See [the sanitized evaluation report](../../reports/keyed-translation-evaluation.md). No successful full-paper completion is claimed.
+
+The historical first-complete-item latency scanner does not measure keyed properties; its missing `firstItemMs` must not be read as zero or used to claim a speed improvement. Keep raw source, full requests, generated responses and credentials outside Git. The checked-in report contains only measurements, hashes and bounded failure examples.
