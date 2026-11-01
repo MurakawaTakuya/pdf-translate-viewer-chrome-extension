@@ -1,5 +1,6 @@
 const VIEWER = chrome.runtime.getURL('viewer.html');
 const toViewer = (url) => `${VIEWER}?file=${encodeURIComponent(url)}`;
+const mimeHandler = chrome.mimeHandler?.getStreamInfo ? chrome.mimeHandler : null;
 
 // Web上のPDF（http/https）は、読み込みの段階で行き先をビューアに差し替える。
 // ページを開いてから移動し直す方式だと、PDFのページが履歴に残って「戻る」でループしてしまうため。
@@ -22,7 +23,7 @@ function applyAutoOpen() {
 
 async function applyAutoOpenNow() {
   const auto = await isAutoOpen();
-  const rules = !auto ? [] : PDF_URL_PATTERNS.map((regexFilter, i) => ({
+  const rules = !auto || mimeHandler ? [] : PDF_URL_PATTERNS.map((regexFilter, i) => ({
     id: i + 1,
     priority: 1,
     // \0 = 一致したURL全体。ビューアは file= 以降をそのままPDFのURLとして読む
@@ -40,6 +41,8 @@ async function applyAutoOpenNow() {
     await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: ids }).catch(() => {});
     await chrome.declarativeNetRequest.updateSessionRules({ addRules: rules });
   }
+  // Remove persisted redirects before enabling Chrome's original-URL handler.
+  if (mimeHandler) await mimeHandler.setMimeHandlerOptions('application/pdf', { enabled: auto });
   // OFF のときはアイコンに「OFF」と出す
   await chrome.action.setBadgeText({ text: auto ? '' : 'OFF' });
   await chrome.action.setBadgeBackgroundColor({ color: '#6b7280' });
@@ -57,6 +60,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // PC内のPDF（file://）は上の仕組みが使えないので、開こうとした時点でビューアに切り替える
 chrome.webNavigation.onBeforeNavigate.addListener(
   async (details) => {
+    if (mimeHandler) return; // Chrome supplies file:// streams as well.
     if (details.frameId !== 0 || !(await isAutoOpen())) return;
     const { bypass } = await chrome.storage.session.get({ bypass: '' });
     if (bypass === details.url) { await chrome.storage.session.remove('bypass'); return; }
@@ -68,7 +72,11 @@ chrome.webNavigation.onBeforeNavigate.addListener(
 // ---------- ポップアップ・ビューアからの依頼 ----------
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg.type === 'openInViewer') {
-    chrome.tabs.update(msg.tabId, { url: toViewer(msg.url) }).then(() => reply({ ok: true }));
+    // When handling is enabled, let Chrome route the original PDF URL itself.
+    // An explicit open while auto-open is OFF keeps the legacy one-tab route.
+    isAutoOpen().then((auto) => chrome.tabs.update(msg.tabId, {
+      url: mimeHandler && auto ? msg.url : toViewer(msg.url),
+    })).then(() => reply({ ok: true }), (e) => reply({ ok: false, error: e.message }));
     return true;
   }
   if (msg.type === 'openOriginal') {
@@ -79,6 +87,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 
 // 翻訳ビューアを通さずに、このPDFだけ通常のビューアで開く（自動切り替えが ON のままでも）
 async function openOriginal(tabId, url) {
+  if (mimeHandler) {
+    // Old viewer.html tabs can also hand just this navigation to the native viewer.
+    if (await isAutoOpen()) await chrome.storage.session.set({ [`nativePdf:${tabId}`]: url });
+    await chrome.tabs.update(tabId, { url });
+    return;
+  }
   const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   await chrome.declarativeNetRequest.updateSessionRules({
     removeRuleIds: [BYPASS_RULE_ID],

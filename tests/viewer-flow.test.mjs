@@ -7,6 +7,7 @@ import { createDocumentTranslator } from '../document-translator.js';
 import { disableNativeZoom } from '../native-zoom.js';
 import { createPdfLoadProgress } from '../pdf-load-progress.js';
 import { horizontalZoomShift, verticalZoomShift } from '../zoom-anchor.js';
+import { resolvePdfSource } from '../pdf-source.js';
 import { streamFixture, until } from './helpers/stream.mjs';
 
 const viewerSource = await readFile(new URL('../viewer.js', import.meta.url), 'utf8');
@@ -89,6 +90,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
         release: () => { sourceTextCalls.push(['release', row]); } };
     },
     createGeminiTranslator, createDocumentTranslator,
+    resolvePdfSource,
     disableNativeZoom, createPdfLoadProgress, horizontalZoomShift, verticalZoomShift,
     createCitationDialog: () => ({ open() {}, position() {} }),
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),

@@ -9,6 +9,7 @@ import { toRuns } from './math.js';
 import { disableNativeZoom } from './native-zoom.js';
 import { createCitationDialog } from './citation-ui.js';
 import { createSourceTextLayer } from './source-text.js';
+import { resolvePdfSource } from './pdf-source.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./lib/pdf.worker.min.mjs', import.meta.url).href;
 
@@ -18,15 +19,13 @@ const pdfLoadProgress = createPdfLoadProgress($('#pdfLoadProgress'), $('#pdfLoad
 const srcSel = $('#src');
 const dstSel = $('#dst');
 const viewSel = $('#view');
-// file= 以降をPDFのURLとして読む。自動の切り替えでは元のURLがそのまま（エンコードなしで）付いてくるので、
-// URLSearchParams だとPDFのURLに含まれる & や + が壊れる
-const fileUrl = (() => {
-  const m = /[?&]file=(.*)$/s.exec(location.search);
-  if (!m) return null;
-  return /^[a-z]+%3A/i.test(m[1]) ? decodeURIComponent(m[1]) : m[1]; // アイコンから開いたときはエンコード済み
-})();
+const pdfSource = await resolvePdfSource({
+  search: location.search, mimeHandler: self.chrome?.mimeHandler, storage: self.chrome?.storage?.session,
+});
+const fileUrl = pdfSource.originalUrl;
 // 他のサイトに埋め込まれて使われないようにする（ビューアはWebから開ける資源として登録しているため）
-if (window.top !== window) throw new Error('埋め込みでは表示できません');
+// Chrome自身がトップレベルPDFのために作る内部フレームだけは認証済みストリームで許可する。
+if (window.top !== window && !pdfSource.fallback) throw new Error('埋め込みでは表示できません');
 const GAP = 12; // 左右ページの間隔（CSSの .row gap と合わせる）
 const MAX_CANVAS_PIXELS = 2 ** 24; // 1枚のcanvasの上限（約1600万画素）。拡大しすぎてメモリを食わないように
 const RENDER_QUALITY = 1.5; // 表示に必要な密度より細かく描いて、細字や斜線の粗さを抑える
@@ -403,6 +402,7 @@ viewSel.onchange = () => {
 
 // ---------- PDF読み込み ----------
 async function load() {
+  if (pdfSource.nativeFallback) { await openNativeViewer(); return; }
   if (!fileUrl) { setStatus('PDFのURLが指定されていません'); return; }
   let name = fileUrl;
   try { name = decodeURIComponent(fileUrl.split('?')[0].split('/').pop()) || fileUrl; } catch {}
@@ -414,7 +414,8 @@ async function load() {
   setStatus('PDFを読み込み中…');
   pdfLoadProgress.start();
   try {
-    const task = pdfjsLib.getDocument({ url: fileUrl });
+    const parameters = await pdfSource.parameters((progress) => pdfLoadProgress.update(progress));
+    const task = pdfjsLib.getDocument(parameters);
     task.onProgress = (progress) => pdfLoadProgress.update(progress);
     state.pdf = await task.promise;
     pdfLoadProgress.prepare();
@@ -426,6 +427,9 @@ async function load() {
   } catch (e) {
     pdfLoadProgress.fail();
     console.error(e);
+    if (pdfSource.fallback) {
+      try { await openNativeViewer(); return; } catch (error) { console.error(error); }
+    }
     const hint = fileUrl.startsWith('file:')
       ? '（ローカルファイルは、拡張機能の詳細で「ファイルのURLへのアクセスを許可する」をオンにしてください）'
       : '';
@@ -1207,13 +1211,27 @@ async function showSettings() {
 }
 
 // 翻訳はいらないとき：このPDFだけ、いつものビューアで開き直す
+async function openNativeViewer() {
+  if (pdfSource.fallback) {
+    // Falling back can unload just the handler frame, so restore tab zoom explicitly.
+    await self.chrome?.tabs?.setZoomSettings?.(pdfSource.tabId, { mode: 'automatic', scope: 'per-origin' }).catch(() => {});
+    await pdfSource.fallback();
+    return;
+  }
+  const tab = await chrome.tabs.getCurrent();
+  await chrome.runtime.sendMessage({ type: 'openOriginal', tabId: tab.id, url: fileUrl });
+}
 if (fileUrl && self.chrome?.tabs) {
   $('#openOriginal').hidden = false;
-  $('#openOriginal').onclick = async () => {
-    const tab = await chrome.tabs.getCurrent();
-    await chrome.runtime.sendMessage({ type: 'openOriginal', tabId: tab.id, url: fileUrl });
-  };
+  $('#openOriginal').onclick = openNativeViewer;
 }
+self.chrome?.runtime?.onMessage?.addListener((message, _sender, reply) => {
+  if (message.type === 'getViewerState') reply({ fileUrl, mime: !!pdfSource.fallback });
+  if (message.type === 'openNativeViewer') {
+    openNativeViewer().then(() => reply({ ok: true }), (error) => reply({ ok: false, error: error.message }));
+    return true;
+  }
+});
 
 $('#startLocal').onclick = () => { autoTranslatePending = false; return start('chrome'); };
 $('#startGemini').onclick = () => { autoTranslatePending = false; return start('gemini'); };
@@ -1236,6 +1254,6 @@ window.addEventListener('keydown', (e) => {
 });
 srcSel.onchange = dstSel.onchange = () => { if (state.enabled) start(); };
 
-disableNativeZoom(self.chrome?.tabs).catch(() => {});
+if (!pdfSource.nativeFallback) disableNativeZoom(self.chrome?.tabs, pdfSource.tabId).catch(() => {});
 
 load();
