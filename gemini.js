@@ -48,7 +48,7 @@ export function createKeyedGeminiTranslator(options) {
   return createGeminiTranslator({ ...options, outputFormat: 'keyed' });
 }
 
-export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLanguage, onWait = () => {}, signal, inputFormat = 'legacy', outputFormat = 'legacy' }) {
+export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLanguage, onWait = () => {}, signal, inputFormat = 'legacy', outputFormat = 'legacy', taskBuilder = buildKeyedTask, promptBuilder = keyedPrompt }) {
   // 分離入力は実生成で対応ずれが残ったため、評価用の明示指定だけで使う。
   const separated = inputFormat === 'separate-targets';
   const system = systemPrompt(LANG_NAMES[sourceLanguage] || sourceLanguage, LANG_NAMES[targetLanguage] || targetLanguage, separated);
@@ -57,7 +57,7 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
   async function translateDocument(pages, translateIds, onTranslation = () => {}) {
     signal?.throwIfAborted();
     if (!translateIds.length) return new Map();
-    const task = outputFormat === 'keyed' ? await buildKeyedTask(pages, translateIds, src, dst, signal) : null;
+    const task = outputFormat === 'keyed' ? await taskBuilder(pages, translateIds, src, dst, signal) : null;
     // 全文は読解用、対象一覧は出力との対応用。座標と元のブロックIDはローカルに保持する。
     const numbers = new Map(translateIds.map((id, i) => [id, i + 1]));
     const targets = pages.flatMap((p) => p.blocks.filter((b) => numbers.has(b.id)).map((b) => ({
@@ -81,7 +81,7 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, // キーはURLに載せない
         body: JSON.stringify({
           model: model || DEFAULT_MODEL,
-          system_instruction: task ? keyedPrompt(system, src, dst) : system,
+          system_instruction: task ? promptBuilder(system, src, dst) : system,
           input: JSON.stringify(task ? task.input : input),
           response_format: { type: 'text', mime_type: 'application/json', schema: task ? task.schema : TRANSLATION_SCHEMA },
           generation_config: { max_output_tokens: 65536 },
@@ -100,7 +100,7 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
           seen.add(item.id);
           keyedValues.set(item.id, item.text);
           if (!taskIssue(task, item.id, keyedValues, src, dst)) {
-            for (const key of task.groups.get(item.id)) onTranslation(task.byKey.get(key).id, keyedValues.get(key));
+            for (const key of task.groups.get(item.id)) onTranslation(task.byKey.get(key).id, task.displayText ? task.displayText(key, keyedValues.get(key)) : keyedValues.get(key));
           }
         });
         const streamed = await readTranslationStream(res, { signal, ...(collector ? { onText: (text) => collector.append(text) } : {}), onItem: (item) => {
@@ -131,7 +131,7 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
   return {
     translateDocument,
     ...(outputFormat === 'keyed' ? { async relatedTargets(pages, ids, id) {
-      const task = await buildKeyedTask(pages, ids, src, dst, signal);
+      const task = await taskBuilder(pages, ids, src, dst, signal);
       const key = [...task.byKey].find(([, b]) => b.id === id)?.[0];
       if (!key) throw new Error('翻訳対象の段落が見つかりません');
       return task.groups.get(key).map((member) => task.byKey.get(member).id);
@@ -182,7 +182,7 @@ function parseKeyed(body, task, src, dst) {
   try { const collector = keyedMembers(); collector.append(text); entries = collector.finish(); }
   catch { throw new BadOutput('翻訳応答の形式が不正です。全文を再試行してください'); }
   const seen = new Set(), out = new Map(), values = new Map(entries.map((b) => [b.id, b.text]));
-  let extra = 0, duplicate = 0, empty = 0, citation = 0, unchanged = 0;
+  let extra = 0, duplicate = 0, empty = 0, citation = 0, unchanged = 0, protectedIssues = 0;
   for (const { id, text: value } of entries) {
     const source = task.byKey.get(id);
     if (!source) extra++;
@@ -193,8 +193,9 @@ function parseKeyed(body, task, src, dst) {
     const issue = taskIssue(task, id, values, src, dst);
     if (issue === 'citation') citation++;
     else if (issue === 'unchanged') unchanged++;
+    else if (issue === 'protected' || issue === 'math') protectedIssues++;
     else if (issue === 'pending') continue;
-    else out.set(source.id, value);
+    else out.set(source.id, task.displayText ? task.displayText(id, value) : value);
   }
   const missing = [...task.byKey.values()].filter((source) => !out.has(source.id)).map((b) => b.id);
   if (extra || duplicate || empty) throw new BadOutput(`全文の翻訳を検証できませんでした（対象外${extra}件、重複${duplicate}件、空欄${empty}件）。全文を再試行してください`);
@@ -203,7 +204,7 @@ function parseKeyed(body, task, src, dst) {
       id: source.id, reason: values.has(key) ? taskIssue(task, key, values, src, dst) || 'missing' : 'missing',
       source: source.text, translated: values.get(key) || '',
     }));
-    throw new MissingTranslationsError(`全文の翻訳を検証できませんでした（必要${task.byKey.size}件／受信${entries.length}件、補完対象${missing.length}件、参照番号不一致${citation}件、未翻訳${unchanged}件）。有効な訳文を保持しています。対象だけ再翻訳できます`, out, missing, issues);
+    throw new MissingTranslationsError(`全文の翻訳を検証できませんでした（必要${task.byKey.size}件／受信${entries.length}件、補完対象${missing.length}件、参照番号不一致${citation}件、未翻訳${unchanged}件${protectedIssues ? `、保護データ不一致${protectedIssues}件` : ''}）。有効な訳文を保持しています。対象だけ再翻訳できます`, out, missing, issues);
   }
   return out;
 }

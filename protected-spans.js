@@ -67,3 +67,21 @@ export function mathImage(row, span, document) {
   canvas.width = canvas.height = 0;
   return span.imageUrl;
 }
+
+// Saving must not reuse a tiny crop produced while viewing at 10% zoom.
+// Render each needed source page once at a fixed density, independent of the UI.
+export async function ensureMathImages(row, spans, document) {
+  if (!spans.length) return;
+  const scale = 3 / row.vp.scale; // Three pixels per original PDF point (216 dpi).
+  const pending = spans.filter((span) => !span.imageUrl || span.imageScale < scale);
+  if (!pending.length) return;
+  if (!row.page?.render) throw new Error('保存用の数式画像を描画できません');
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(row.vp.width * scale);
+  canvas.height = Math.ceil(row.vp.height * scale);
+  try {
+    await row.page.render({ canvasContext: canvas.getContext('2d'), viewport: row.vp,
+      transform: [scale, 0, 0, scale, 0, 0] }).promise;
+    for (const span of pending) mathImage({ srcCanvas: canvas, scale }, span, document);
+  } finally { canvas.width = canvas.height = 0; }
+}

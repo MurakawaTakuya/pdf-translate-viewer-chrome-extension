@@ -11,6 +11,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
   const targetsByRow = new Map();
   const rowsById = new Map(), preview = new Map();
   let completed = false;
+  let originalCount = 0;
 
   function prepare() {
     return documentPromise ??= (async () => {
@@ -27,7 +28,10 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
           blocksById.set(id, b);
           rowsById.set(id, r);
           if (b.translate) { ids.push(id); targets.push(b); }
-          return { id, kind: b.kind || 'paragraph', text: b.text };
+          return { id, kind: b.kind || 'paragraph', text: b.text,
+            ...(b.mathSpans?.length ? { mathSpans: b.mathSpans } : {}),
+            ...(b.mathUncertain ? { mathUncertain: true } : {}),
+          };
         }) });
         targetsByRow.set(r, targets);
       }
@@ -54,6 +58,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
     });
     signal?.throwIfAborted();
     completed = true;
+    originalCount = [...result.values()].filter((value) => value === null).length;
     preview.clear();
     return result;
   }
@@ -64,6 +69,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
     if (error instanceof MissingTranslationsError) {
       for (const [id, text] of error.partialTranslations) partial.set(id, text);
       missingIds = error.missingIds;
+      originalCount = [...partial.values()].filter((value) => value === null).length;
       const details = new Map(error.issues.map((issue) => [issue.id, issue]));
       issues = missingIds.map((id) => ({
         id, reason: 'missing', source: blocksById.get(id)?.text || '', ...details.get(id),
@@ -86,6 +92,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
       const result = await streamDocument(pages, repairIds);
       signal?.throwIfAborted();
       for (const [id, text] of result) partial.set(id, text);
+      originalCount = [...partial.values()].filter((value) => value === null).length;
       missingIds = [];
       issues = [];
       return partial;
@@ -113,6 +120,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
     repairMissing,
     retranslateBlocks,
     get completed() { return completed; },
+    get originalCount() { return originalCount; },
     previewPage(r) {
       return (targetsByRow.get(r) || []).flatMap((block) => {
         const id = idsByBlock.get(block);
@@ -126,7 +134,8 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
       signal?.throwIfAborted();
       const targets = targetsByRow.get(r);
       for (let i = 0; i < targets.length; i++) {
-        if (onEach(i, out.get(idsByBlock.get(targets[i]))) === false) return;
+        const text = out.get(idsByBlock.get(targets[i]));
+        if ((text === null ? onEach(i, null, { original: true }) : onEach(i, text)) === false) return;
       }
     },
     async retranslateBlock(b) {

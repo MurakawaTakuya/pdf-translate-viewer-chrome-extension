@@ -9,6 +9,9 @@ import { createPdfLoadProgress } from '../pdf-load-progress.js';
 import { horizontalZoomShift, verticalZoomShift } from '../zoom-anchor.js';
 import { resolvePdfSource, viewerDestinationUrl } from '../pdf-source.js';
 import { streamFixture, until } from './helpers/stream.mjs';
+import { protectedRuns, mathImage } from '../protected-spans.js';
+import { toRuns } from '../math.js';
+import { createProtectedGeminiTranslator } from '../protected-translator.js';
 
 const viewerSource = await readFile(new URL('../viewer.js', import.meta.url), 'utf8');
 const element = () => {
@@ -32,7 +35,7 @@ const element = () => {
       next.parent = this.parent;
     },
     querySelector() { return this.children.find((child) => child.tagName === 'canvas') || null; },
-    append() {}, appendChild() {}, replaceChildren() {}, remove() {}, querySelectorAll: () => [],
+    append() {}, appendChild() {}, replaceChildren(...children) { this.children = children; }, remove() {}, querySelectorAll: () => [],
   };
 };
 async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = null, savedZoom = 1, sourceOverride = null, geminiFactory = createGeminiTranslator) {
@@ -63,6 +66,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
       if (tagName === 'canvas') el.getContext = () => ({ drawImage() {} });
       return el;
     },
+    createTextNode: (textContent) => ({ textContent }),
   };
   const window = { addEventListener: (event, callback) => listeners.set(event, callback) }; window.top = window;
   const context = {
@@ -96,6 +100,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     createGeminiTranslator: geminiFactory, createDocumentTranslator,
     resolvePdfSource: sourceOverride ? async () => sourceOverride : resolvePdfSource, viewerDestinationUrl,
     disableNativeZoom, createPdfLoadProgress, horizontalZoomShift, verticalZoomShift,
+    protectedRuns, mathImage, toRuns,
     createCitationDialog: () => ({ open() {}, position() {} }),
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),
     openSettings: async () => nextSettings,
@@ -109,7 +114,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   context.chrome = context.self.chrome;
   // Run the actual viewer orchestration. Only PDF/canvas/DOM rendering is replaced.
   const source = viewerSource.replace(/^import .*;\n/gm, '').replaceAll('import.meta.url', JSON.stringify(new URL('../viewer.js', import.meta.url).href)).replace(/\nload\(\);\s*$/, `
-    const rendering = { pixelScale, makeCanvas, renderPage, releasePage, viewZoom, trackSourceHover,
+    const rendering = { pixelScale, makeCanvas, renderPage, releasePage, viewZoom, trackSourceHover, renderRuns,
       enable() { renderPage = rendering.renderPage; releasePage = rendering.releasePage; } };
     renderPage = async () => {};
     getPageBlocks = async (r) => r.blocks;
@@ -152,6 +157,38 @@ async function idle(api) {
   }
   assert.fail('viewer queue did not become idle');
 }
+
+test('protected math keeps original glyph pixels and baseline proportions in translated text', async () => {
+  const api = await viewer();
+  const span = { id: 'm_abcd', text: 'sx', x0: 10, x1: 22, top: 10, bottom: 23, base: 20, h: 10,
+    imageUrl: 'data:image/png;base64,fixture', imageScale: 2 };
+  const el = element(); el._row = { scale: 1 };
+  api.rendering.renderRuns(el, 'ベクトル<m_abcd/>を使う', { mathSpans: [span] });
+  assert.equal(el.children.length, 3);
+  assert.equal(el.children[0].textContent, 'ベクトル');
+  const image = el.children[1];
+  assert.equal(image.tagName, 'img');
+  assert.equal(image.src, span.imageUrl);
+  assert.equal(image.style.width, '1.2em');
+  assert.equal(image.style.height, '1.3em');
+  assert.equal(image.style.verticalAlign, '-0.3em');
+  assert.equal(image.alt, 'sx');
+});
+
+test('protected original fallback replaces an existing local overlay and is counted in completion status', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const request = JSON.parse(init.body);
+    return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{ type: 'text',
+      text: JSON.stringify(Object.fromEntries(request.response_format.schema.required.map((key) => [key, '段落の訳文']))) }] }] });
+  });
+  const api = await viewer('gemini', {}, null, 1, null, createProtectedGeminiTranslator);
+  const block = api.state.rows[0].blocks[0]; block.mathUncertain = true; block.ja = '以前のローカル訳';
+  await api.start('gemini'); await idle(api);
+  assert.equal(block.ja, null);
+  const overlay = api.placedBlocks.find((p) => p.block === block).el;
+  assert.ok(overlay.classList.contains('off'));
+  assert.match(api.status(), /1ブロックは原文/);
+});
 function success(input) {
   return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{
     type: 'text', text: JSON.stringify({ translations: input.pages.flatMap((p) => p.blocks.filter((b) => b.translate_id !== undefined).map((b) => ({ id: b.translate_id, text: '訳文 ' + b.translate_id }))) }),

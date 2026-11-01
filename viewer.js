@@ -10,6 +10,7 @@ import { disableNativeZoom } from './native-zoom.js';
 import { createCitationDialog } from './citation-ui.js';
 import { createSourceTextLayer } from './source-text.js';
 import { resolvePdfSource, viewerDestinationUrl } from './pdf-source.js';
+import { protectedRuns, mathImage } from './protected-spans.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./lib/pdf.worker.min.mjs', import.meta.url).href;
 
@@ -570,6 +571,7 @@ function renderPage(r) {
     swapCanvas(r.right, copy);
     r.srcCanvas = canvas;
     r.scale = scale;
+    for (const [block, el] of r.blockEls || []) if (block.ja?.includes('<m_')) renderRuns(el, block.ja, block);
     r.sourceText ??= createSourceTextLayer(r, pdfjsLib.TextLayer, document);
     // Text extraction failure must not hide an otherwise readable PDF.
     try { await r.sourceText.render(); } catch (error) { console.error('原文の選択用テキストを読み込めませんでした', error); }
@@ -706,18 +708,20 @@ function blockElement(r, b) {
   r.blockEls ??= new Map();
   let el = r.blockEls.get(b);
   if (!el) { el = placeBlock(r, b); r.blockEls.set(b, el); }
+  el._row = r;
   return el;
 }
 
 function fillBlock(el, b, text) {
   b.ja = text; // PDF保存用に覚えておく
+  el.title = '';
   el.classList.remove('pending');
   el.classList.add(b.bold ? 'bold' : b.sans ? 'sans' : 'serif');
   el.style.textAlign = b.align;
   el.style.background = `rgb(${b.colors.bg})`;
   el.style.color = `rgb(${b.colors.fg})`;
   el.classList.toggle('off', !!b.hidden);
-  renderRuns(el, text);
+  renderRuns(el, text, b);
   fitText(el, b);
 }
 
@@ -729,13 +733,27 @@ function markFailed(el, b) {
 }
 
 // 訳文を描く。$…$ の数式は記号に直し、下付き・上付きは小さい文字にする
-function renderRuns(el, text) {
-  el.replaceChildren(...toRuns(text).map((run) => {
-    if (!run.s) return document.createTextNode(run.t);
-    const e = document.createElement(run.s); // <sub> / <sup>
-    e.textContent = run.t;
-    return e;
-  }));
+function renderRuns(el, text, block) {
+  const nodes = [];
+  for (const part of protectedRuns(text, block?.mathSpans)) {
+    if (part.math) {
+      const span = part.math, img = document.createElement('img');
+      img.className = 'protected-math';
+      img.src = mathImage(el._row, span, document);
+      img.alt = span.text; img.title = '原文の数式: ' + span.text;
+      img.style.width = (span.x1 - span.x0) / span.h + 'em';
+      img.style.height = (span.bottom - span.top) / span.h + 'em';
+      img.style.verticalAlign = -(span.bottom - span.base) / span.h + 'em';
+      nodes.push(img); continue;
+    }
+    nodes.push(...toRuns(part.text).map((run) => {
+      if (!run.s) return document.createTextNode(run.t);
+      const e = document.createElement(run.s); // <sub> / <sup>
+      e.textContent = run.t;
+      return e;
+    }));
+  }
+  el.replaceChildren(...nodes);
 }
 
 // ---------- 段落ごとの操作（訳し直す・原文を見る） ----------
@@ -851,6 +869,12 @@ function chooseTranslation(engine) {
   return start(engine);
 }
 
+function completionMessage(translator) {
+  return translator.originalCount
+    ? `翻訳が完了しました（数式の読み取りが不確かな${translator.originalCount}ブロックは原文で保持）`
+    : '全文の翻訳が完了しました';
+}
+
 async function start(engine = state.engine) {
   if (state.exporting) { setStatus('PDFの保存が終わってから翻訳を切り替えてください'); return; }
   const sourceLanguage = srcSel.value;
@@ -932,7 +956,7 @@ async function start(engine = state.engine) {
     if (translator.ready) {
       const finishDocument = beginTranslation();
       translator.ready().then(() => {
-        if (translator === state.translator) setStatus('全文の翻訳が完了しました');
+        if (translator === state.translator) setStatus(completionMessage(translator));
       }).catch((e) => {
         if (translator === state.translator) setStatus('全文の翻訳に失敗しました: ' + e.message);
       }).finally(finishDocument);
@@ -1045,7 +1069,7 @@ async function pump() {
   state.working = false;
   if (error && errorTranslator === state.translator && state.rows.some((r) => r.failed)) setStatus('翻訳エラー: ' + error.message);
   else if (!state.exporting) setStatus(state.translator.ready
-    ? '全文の翻訳が完了しました' : '先読み範囲の翻訳が完了しました');
+    ? completionMessage(state.translator) : '先読み範囲の翻訳が完了しました');
 }
 
 // 訳せなかった段落は原文の表示に戻し、ページの上にエラーと「再試行」ボタンを出す
@@ -1111,7 +1135,7 @@ async function repairMissingTranslations() {
       r.failed = false;
       for (const el of r.dstLayer.querySelectorAll('.page-msg')) el.remove();
     }
-    setStatus('全文の翻訳が完了しました');
+    setStatus(completionMessage(translator));
     for (const r of state.rows) if (r.visible) enqueue(r);
   } catch (e) {
     if (translator !== state.translator) return;
@@ -1199,8 +1223,14 @@ async function translatePageInner(r, translator) {
   }
 
   const els = targets.map((b) => blockElement(r, b));
-  const onEach = (i, text) => {
+  const onEach = (i, text, detail) => {
     if (translator !== state.translator) return false; // 言語や設定を切り替えられた
+    if (detail?.original) {
+      targets[i].ja = null;
+      markFailed(els[i], targets[i]);
+      els[i].title = '数式の読み取りが不確かなため原文で保持しています';
+      return;
+    }
     if (text == null) {
       if (typeof targets[i].ja !== 'string') markFailed(els[i], targets[i]);
       return; // 以前の訳があれば残し、なければ原文を見せる。

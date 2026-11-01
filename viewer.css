@@ -280,6 +280,7 @@ body[data-view="ja"] .row, body[data-view="orig"] .row { grid-template-columns: 
 
 /* 訳を消した段落：透明にして原文を見せる。マウスを乗せると点線で場所がわかる */
 .blk.off { background: transparent !important; color: transparent !important; user-select: none; }
+.blk.off .protected-math { visibility: hidden; }
 .blk.off.hot { outline: 1.5px dashed rgba(255, 170, 0, .9); outline-offset: 1px; background: rgba(255, 200, 0, .08) !important; }
 
 /* 段落の右上に出る操作ボタン */
@@ -304,4 +305,5 @@ body[data-view="ja"] .row, body[data-view="orig"] .row { grid-template-columns: 
   font-size: 12px; background: rgba(255, 255, 255, .92); color: #555; border: 1px solid #ddd;
 }
 .page-msg.err { color: #d93025; border-color: #f2b8b5; }
+.protected-math { display: inline-block; max-width: none; object-fit: contain; }
 .page-msg button { margin-left: 6px; padding: 2px 8px; font-size: 12px; background: #fff; color: #d93025; border-color: #f2b8b5; }

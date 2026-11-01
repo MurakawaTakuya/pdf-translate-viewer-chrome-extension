@@ -127,6 +127,7 @@ export function blockIssue(source, translated, sourceLanguage, targetLanguage) {
 }
 
 export function taskIssue(task, key, values, src, dst) {
+  if (task.issue) return task.issue(key, values);
   const group = task.groups.get(key);
   if (group.some((member) => !values.has(member))) return 'pending';
   if (group.length === 1) return blockIssue(task.byKey.get(key), values.get(key), src, dst);
