@@ -4,6 +4,7 @@ import { MissingTranslationsError } from './gemini.js';
 export function createDocumentTranslator({ rows, translator, getBlocks, onProgress = () => {}, onPreview = () => {}, onResetPreview = () => {}, signal }) {
   let documentPromise, translationPromise;
   let missingIds = [], repairing = false;
+  let issues = [];
   const partial = new Map();
   const idsByBlock = new Map();
   const blocksById = new Map();
@@ -63,6 +64,12 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
     if (error instanceof MissingTranslationsError) {
       for (const [id, text] of error.partialTranslations) partial.set(id, text);
       missingIds = error.missingIds;
+      const details = new Map(error.issues.map((issue) => [issue.id, issue]));
+      issues = missingIds.map((id) => ({
+        id, reason: 'missing', source: blocksById.get(id)?.text || '', ...details.get(id),
+        page: rowsById.get(id)?.index,
+        block: (targetsByRow.get(rowsById.get(id)) || []).indexOf(blocksById.get(id)) + 1,
+      }));
     }
     throw error;
   }
@@ -80,6 +87,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
       signal?.throwIfAborted();
       for (const [id, text] of result) partial.set(id, text);
       missingIds = [];
+      issues = [];
       return partial;
     }).catch(rememberMissing).finally(() => { repairing = false; });
     return translationPromise;
@@ -112,6 +120,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
       });
     },
     get missingCount() { return missingIds.length; },
+    get issues() { return issues.map((issue) => ({ ...issue })); },
     async translatePage(r, onEach) {
       const out = await ready();
       signal?.throwIfAborted();

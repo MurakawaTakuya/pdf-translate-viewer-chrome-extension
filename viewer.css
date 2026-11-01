@@ -96,6 +96,10 @@ button:disabled { opacity: .5; cursor: progress; }
 .viewer-toolbar .download-menu button { width: 100%; height: 36px; justify-content: flex-start; padding: 0 10px; }
 .viewer-toolbar .download-menu button:disabled { cursor: not-allowed; opacity: .35; }
 .viewer-menu { left: 0; right: auto; width: 250px; }
+.page-msg details { text-align: left; max-height: 50vh; overflow: auto; margin-top: 8px; }
+.page-msg summary { cursor: pointer; }
+.page-msg details p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0; }
+.page-msg details div { border-top: 1px solid currentColor; margin-top: 8px; padding-top: 8px; }
 .viewer-toolbar .translate-button { width: 88px; gap: 6px; background: #ffffff0f; border-color: #ffffff12; }
 .viewer-toolbar .translate-button:hover:not(:disabled) { background: #ffffff20; }
 #status {

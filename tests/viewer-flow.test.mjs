@@ -1297,3 +1297,28 @@ test('viewer menu selects Scholar-compatible or native intent without changing t
   await api.element('#openChromeViewer').onclick();
   assert.match(api.status(), /tab closed/);
 });
+
+test('Gemini validation details expose problem pages, original text and withheld output locally', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    const request = JSON.parse(init.body), keys = Object.keys(request.response_format.schema.properties);
+    return Response.json({ status: 'completed', steps: [{ type: 'model_output', content: [{
+      type: 'text', text: JSON.stringify(Object.fromEntries(keys.map((key, i) => [key, ['引用が欠落', 'Abstract', '問題のない訳'][i]]))),
+    }] }] });
+  });
+  const api = await viewer('gemini', {}, null, 1, null, createKeyedGeminiTranslator);
+  api.state.rows[0].blocks[0].text = 'Prior work [4,5,18].';
+  api.state.rows[1].blocks[0].text = 'Abstract';
+  api.state.rows[1].blocks[0].kind = 'heading';
+  await api.start('gemini'); await idle(api);
+  const issues = api.state.translator.issues;
+  assert.equal(issues.length, 2);
+  assert.deepEqual(issues.map(({ page, block, reason }) => [page, block, reason]), [[1, 1, 'citation'], [2, 1, 'unchanged']]);
+  const text = api.createdElements.map((el) => el.textContent || '').join('\n');
+  assert.match(text, /1ページ・対象ブロック1へ移動/);
+  assert.match(text, /2ページ・対象ブロック1へ移動/);
+  assert.match(text, /原文: Prior work \[4,5,18\]/);
+  assert.match(text, /検証で保留した訳文: 引用が欠落/);
+  issues[0].reason = 'tampered';
+  assert.equal(api.state.translator.issues[0].reason, 'citation');
+  assert.equal(api.state.translator.completed, false);
+});

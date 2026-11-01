@@ -1010,6 +1010,28 @@ function showPageError(r, e) {
     return translator.ready ? start() : enqueue(r);
   };
   msg.append(retry);
+  if (translator.issues?.length) {
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = `問題の${translator.issues.length}ブロックを確認`;
+    details.append(summary);
+    const reasons = { citation: '参照番号が原文と不一致', unchanged: '原文のまま未翻訳', missing: '訳文が未受信', pending: '関連ブロックが未受信' };
+    for (const issue of translator.issues) {
+      const item = document.createElement('div');
+      const jump = document.createElement('button');
+      jump.textContent = `${issue.page}ページ・対象ブロック${issue.block}へ移動`;
+      jump.onclick = () => goToPage(issue.page);
+      const reason = document.createElement('p');
+      reason.textContent = reasons[issue.reason] || '検証に失敗';
+      const source = document.createElement('p');
+      source.textContent = '原文: ' + issue.source;
+      const translated = document.createElement('p');
+      translated.textContent = '検証で保留した訳文: ' + (issue.translated || '（未受信）');
+      item.append(jump, reason, source, translated);
+      details.append(item);
+    }
+    msg.append(details);
+  }
   r.dstLayer.appendChild(msg);
 }
 

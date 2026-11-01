@@ -218,3 +218,37 @@ test('a failed shared-sentence redo leaves both previous cached values intact', 
   assert.deepEqual(shown,['設定 [13] を使い学習する。','可視化する。']);
   assert.equal(tr.completed,true);
 });
+
+test('diagnostics shrink after partial repair, survive invalid repair and clear only after success', async (t) => {
+  const rows = [{ index: 1 }, { index: 2 }];
+  const blocks = [
+    [{ text: 'Reference only', translate: false }, { text: 'Original <img onerror="attack()"> cites [4].', kind: 'paragraph', translate: true }],
+    [{ text: 'Abstract', kind: 'heading', translate: true }],
+  ];
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    calls++;
+    const request = JSON.parse(init.body), keys = Object.keys(request.response_format.schema.properties);
+    const values = calls === 1 ? ['保留 <svg onload="attack()">', 'Abstract'] : calls === 2 ? ['別の保留', '要旨'] : ['引用 [4]'];
+    return Response.json(body(calls === 3 ? '{ broken' : JSON.stringify(Object.fromEntries(keys.map((key, i) => [key, values[i]])))));
+  });
+  const tr = createDocumentTranslator({ rows, getBlocks: async (row) => blocks[row.index - 1], translator: createKeyedGeminiTranslator(options) });
+  const error = await tr.ready().catch((error) => error);
+  assert.ok(error instanceof MissingTranslationsError);
+  assert.deepEqual(tr.issues.map(({ page, block, reason }) => [page, block, reason]), [[1, 1, 'citation'], [2, 1, 'unchanged']]);
+  assert.equal(tr.issues[0].source, blocks[0][1].text);
+  assert.ok(!JSON.stringify(error).includes('attack'));
+  const copy = error.issues; copy[0].source = 'tampered'; assert.notEqual(error.issues[0].source, 'tampered');
+  await assert.rejects(tr.repairMissing(), MissingTranslationsError);
+  assert.equal(tr.issues.length, 1);
+  assert.equal(tr.issues[0].translated, '別の保留');
+  const last = tr.issues;
+  await assert.rejects(tr.repairMissing());
+  assert.deepEqual(tr.issues, last);
+  assert.equal(tr.completed, false);
+  await tr.repairMissing();
+  assert.deepEqual(tr.issues, []);
+  assert.equal(tr.missingCount, 0);
+  assert.equal(tr.completed, true);
+  assert.equal(calls, 4);
+});

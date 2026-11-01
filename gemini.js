@@ -160,14 +160,17 @@ function validTranslation(item, count) {
 export class MissingTranslationsError extends BadOutput {
   #partial;
   #missing;
-  constructor(message, partial, missing) {
+  #issues;
+  constructor(message, partial, missing, issues = []) {
     super(message);
     this.name = 'MissingTranslationsError';
     this.#partial = partial;
     this.#missing = missing;
+    this.#issues = issues.map((issue) => ({ ...issue }));
   }
   get partialTranslations() { return new Map(this.#partial); }
   get missingIds() { return [...this.#missing]; }
+  get issues() { return this.#issues.map((issue) => ({ ...issue })); }
 }
 
 function parseKeyed(body, task, src, dst) {
@@ -196,7 +199,11 @@ function parseKeyed(body, task, src, dst) {
   const missing = [...task.byKey.values()].filter((source) => !out.has(source.id)).map((b) => b.id);
   if (extra || duplicate || empty) throw new BadOutput(`全文の翻訳を検証できませんでした（対象外${extra}件、重複${duplicate}件、空欄${empty}件）。全文を再試行してください`);
   if (missing.length) {
-    throw new MissingTranslationsError(`全文の翻訳を検証できませんでした（必要${task.byKey.size}件／受信${entries.length}件、補完対象${missing.length}件、参照番号不一致${citation}件、未翻訳${unchanged}件）。有効な訳文を保持しています。対象だけ再翻訳できます`, out, missing);
+    const issues = [...task.byKey].filter(([, source]) => !out.has(source.id)).map(([key, source]) => ({
+      id: source.id, reason: values.has(key) ? taskIssue(task, key, values, src, dst) || 'missing' : 'missing',
+      source: source.text, translated: values.get(key) || '',
+    }));
+    throw new MissingTranslationsError(`全文の翻訳を検証できませんでした（必要${task.byKey.size}件／受信${entries.length}件、補完対象${missing.length}件、参照番号不一致${citation}件、未翻訳${unchanged}件）。有効な訳文を保持しています。対象だけ再翻訳できます`, out, missing, issues);
   }
   return out;
 }
