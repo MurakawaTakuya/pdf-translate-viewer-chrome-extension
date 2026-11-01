@@ -105,6 +105,7 @@ function applyView() {
 // 表示上の倍率。片側表示のときは、空いた幅いっぱいまで大きくする
 const viewZoom = () => state.zoom * (viewSel.value === 'both' ? 1 : state.fit);
 const ZOOM_SETTLE_MS = 140;
+const ZOOM_GESTURE_SENSITIVITY = 0.0025; // ピンチ・ホイールの移動量に対する倍率変化
 let wheelZoom = 0, wheelZoomFrame = null, zoomSettleTimer = null, zoomGesture = null;
 
 function applyZoom(anchor = null) {
@@ -218,7 +219,7 @@ function startZoomGesture(e) {
 function previewWheelZoom() {
   wheelZoomFrame = null;
   if (!zoomGesture) return;
-  state.zoom = Math.min(5, Math.max(0.1, state.zoom * Math.exp(-wheelZoom * 0.002)));
+  state.zoom = Math.min(5, Math.max(0.1, state.zoom * Math.exp(-wheelZoom * ZOOM_GESTURE_SENSITIVITY)));
   wheelZoom = 0;
   state.fitMode = null;
   pagesEl.style.transform = `scale(${viewZoom() / zoomGesture.base})`;
