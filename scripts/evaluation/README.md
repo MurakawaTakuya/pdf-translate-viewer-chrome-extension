@@ -102,3 +102,9 @@ node scripts/evaluation/node-format.mjs --prepare --input revised-node-pages.jso
 The recorded N1 returned HTTP 400 without model output; N2/N3 were not run. Its exact service reason was lost by the former JSON-only error reader. The subsequent JSON/array/SSE error reader and details/key redaction were validated offline, without retrying N1. New preparations hash that diagnostic dependency too. See [the experiment and its limits](../../reports/node-translation.md); the committed plan remains the pre-call snapshot, not an updated plan for the later diagnostic code.
 
 `roundtrip-nodes.mjs --input pages.json --translations accepted-map.json --output report.json` checks expressiveness using existing strings without any model calls. It does not turn historical failed/missing translations into passes.
+
+## Whole-block original atom tags
+
+`atom-tags.mjs --prepare --input pages.json --panel-plan reports/compact-node-experiment-plan.json --directory /tmp/new-tag-run` freezes the actual tag factory request and the same 73-block panel. It is offline. `--run --project PROJECT --key-resource RESOURCE --directory DIRECTORY` permits one exploratory live request, guarded by source/request/implementation hashes and an exclusive start marker. A 150-second deadline applies. No retries or repairs occur. Its `gate` is mechanical only; independent semantic review remains mandatory before any promotion. Failed/incomplete outputs must not be patched into passes.
+
+Evaluation transport now records content type, byte count/hash and event counts without thought payloads or signatures, accepts SSE `event:` names, and explicitly reports a missing terminal completion. This does not recover the lost historical C1 transport.

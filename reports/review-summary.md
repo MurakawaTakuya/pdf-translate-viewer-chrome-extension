@@ -75,3 +75,16 @@ TeXの重なったアクセントと次の文字を分断する抽出を限定�
 最新の全体テスト261件成功、失敗0件。protocolとsourceのassistantレビューは実施済み、N1の翻訳内容レビューは出力がないため未実施。過去の208訳の表現力確認では198exact roundtrip、10は新検査不合格であり新たな翻訳成功数ではない。
 
 [構造化方式の詳細](node-translation.md)、[固定条件](node-experiment-plan.json)、[結果](node-translation-evaluation.json)。Gemini品質は未解決、候補未採用・PR draft。Chrome操作・merge・Release・lint/formatter導入はしていない。
+
+
+## 対応ずれの追加検証と現在の判定
+
+追記日時: 2026-11-02 03:07:16 JST
+
+同一N1リクエストのD1診断で、HTTP400の原因がserving schemaの状態数過多であることを確認した。入れ子を廃した651文字列fieldでもF1は同じ理由で拒否。210文字列へ戻すcompact方式は、C1ではcompletion未取得、別のD2診断では完了したが、131生成を保留し、通過訳にも原文captionとtuple重複があった。3担当で固定73対象を独立照合し不採用とした。詳細は[compact方式](compact-node-translation.md)。
+
+次の本文内opaque tag方式T1は、同じモデル・LangTalk・全文1回で88.880秒、210/210 root応答を受信。189生成受理、21保留、事前指定2原文。構造網羅性は通るがdecoder gateは失敗。3担当の固定73対象（64受理・7保留・2原文）レビューで、列を跨ぐ述語の重複は今回は見つからなかった一方、p12-b5/p17-b0の文欠落、p3-b3のzの係り先、p16-b0の数値二重表示、p2-b25の専門語誤訳が残った。ブロック対応・内容とも全面解消とは判定しない。候補未採用、追加生成・自動補完なし。詳細は[tag方式](atom-tag-translation.md)。
+
+検査の見逃しとして、未翻訳caption、想定外のrank付きtail、原文mathの小数スカラーを自由文でも繰り返すケースを修正。p8-b7/p17-b0とT1のp16-b0の実出力をオフライン再生し、表示前に保留されることを確認した。年と原文の番号付きtailを誤拒否する条件も独立レビューで見つけ修正。ガード追加は意味の正確性を保証せず、失敗試行を事後に成功へ変更しない。
+
+全288テスト成功、失敗0件。送信候補は実factoryとのhash一致を別担当が確認した。通常viewerは既存keyed factoryのまま、PRはdraft。全文1回という従来条件を変えるかはユーザー確認中。Chrome操作・merge・Release・lint/formatter導入は行っていない。
