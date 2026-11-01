@@ -349,16 +349,16 @@ test('missing Gemini key does not prevent local translation or choose an engine 
   assert.equal(api.state.rows[0].blocks[0].ja, 'ローカル訳: Paragraph on page 1');
 });
 
-test('local preparation shows its own spinner and disables both buttons', async () => {
+test('local preparation shows a stop action and keeps both engine buttons usable', async () => {
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
   const api = await viewer('gemini', { availability: async () => { await gate; return 'available'; } });
   const pending = api.localButton.onclick();
-  assert.equal(api.localButton.textContent, '翻訳中…');
+  assert.equal(api.localButton.textContent, '中断');
   assert.equal(api.localButton.getAttribute('aria-busy'), 'true');
   assert.ok(api.localButton.classList.contains('loading'));
-  assert.equal(api.localButton.disabled, true);
-  assert.equal(api.startButton.disabled, true);
+  assert.equal(api.localButton.disabled, false);
+  assert.equal(api.startButton.disabled, false);
   assert.equal(api.startButton.getAttribute('aria-busy'), 'false');
   assert.ok(!api.startButton.classList.contains('loading'));
   release();
@@ -487,11 +487,11 @@ test('start button stays busy during the full request and returns to normal on c
   const api = await viewer();
   await api.start('gemini');
   await requestStarted;
-  assert.equal(api.startButton.disabled, true);
-  assert.equal(api.startButton.textContent, '翻訳中…');
+  assert.equal(api.startButton.disabled, false);
+  assert.equal(api.startButton.textContent, '中断');
   assert.ok(api.startButton.classList.contains('loading'));
   assert.equal(api.startButton.getAttribute('aria-busy'), 'true');
-  assert.equal(api.localButton.disabled, true);
+  assert.equal(api.localButton.disabled, false);
   assert.equal(api.localButton.getAttribute('aria-busy'), 'false');
   assert.ok(!api.localButton.classList.contains('loading'));
   release();
@@ -517,7 +517,7 @@ test('completion of an older task cannot clear the current loading indicator', a
   api.state.translationVersion++;
   const finishNew = api.beginTranslation();
   finishOld();
-  assert.equal(api.startButton.disabled, true);
+  assert.equal(api.startButton.disabled, false);
   finishNew();
   assert.equal(api.startButton.disabled, false);
 });
@@ -1321,4 +1321,172 @@ test('Gemini validation details expose problem pages, original text and withheld
   issues[0].reason = 'tampered';
   assert.equal(api.state.translator.issues[0].reason, 'citation');
   assert.equal(api.state.translator.completed, false);
+});
+
+test('automatic local work can switch to Gemini without waiting for an old local promise', async (t) => {
+  let releaseLocal, releaseGemini, localSignal, requestSignal, destroyed = 0;
+  const localGate = new Promise((resolve) => { releaseLocal = resolve; });
+  const geminiGate = new Promise((resolve) => { releaseGemini = resolve; });
+  const localCalls = [];
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    requestSignal = init.signal;
+    assert.equal(localSignal.aborted, true);
+    await geminiGate;
+    return success(JSON.parse(JSON.parse(init.body).input));
+  });
+  const api = await viewer('chrome', { create: async ({ signal }) => {
+    localSignal = signal;
+    return { destroy: () => destroyed++, translate: async (text, options) => {
+      assert.equal(options.signal, signal);
+      localCalls.push(text);
+      if (text.endsWith('2')) await localGate; // Deliberately ignore abort to test stale work isolation.
+      return 'ローカル完了 ' + text;
+    } };
+  } });
+  await api.autoTranslateOnOpen();
+  await until(() => localCalls.length === 2);
+  const old = api.state.rows[0].blocks[0].ja;
+  assert.equal(api.startButton.disabled, false);
+  await api.startButton.onclick();
+  await until(() => !!requestSignal);
+  assert.equal(destroyed, 1);
+  assert.equal(api.state.rows[0].blocks[0].ja, old);
+  assert.equal(api.startButton.textContent, '中断');
+  releaseLocal();
+  await new Promise(setImmediate);
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'true');
+  assert.equal(localCalls.length, 2);
+  releaseGemini();
+  await idle(api);
+  assert.equal(api.state.rows[0].blocks[0].ja, '訳文 1');
+  assert.equal(api.state.engine, 'gemini');
+  assert.equal(api.status(), '全文の翻訳が完了しました');
+});
+
+test('pressing the active local button stops lookahead, preserves completed text and prevents scroll restart', async () => {
+  let release, signal, destroyed = 0;
+  const gate = new Promise((resolve) => { release = resolve; }), calls = [];
+  const api = await viewer('chrome', { create: async (options) => {
+    signal = options.signal;
+    return { destroy: () => destroyed++, translate: async (text) => {
+      calls.push(text); if (text.endsWith('2')) await gate;
+      return '保持する訳 ' + text;
+    } };
+  } });
+  await api.localButton.onclick(); await until(() => calls.length === 2);
+  const old = api.state.rows[0].blocks[0].ja;
+  let cancelledRender = 0;
+  for (const row of api.state.rows) { row.left = element(); row.right = element(); }
+  const ahead = api.state.rows[1];
+  const canvas = { tagName: 'canvas', width: 1200, height: 1600, remove() {} };
+  ahead.left.children.push(canvas); ahead.srcCanvas = canvas;
+  ahead.renderTask = { cancel: () => cancelledRender++ };
+  api.rendering.enable();
+  await api.localButton.onclick();
+  assert.equal(signal.aborted, true); assert.equal(destroyed, 1);
+  assert.equal(api.state.enabled, false); assert.equal(api.state.working, false);
+  assert.equal(ahead.srcCanvas, null); assert.equal(canvas.width, 0); assert.equal(canvas.height, 0);
+  assert.equal(cancelledRender, 1);
+  assert.equal(api.localButton.textContent, 'ローカルAI');
+  assert.match(api.status(), /中断しました/);
+  api.enqueueVisiblePages();
+  release(); await new Promise(setImmediate);
+  assert.equal(calls.length, 2);
+  assert.equal(api.state.rows[0].blocks[0].ja, old);
+  assert.equal(api.state.rows[1].blocks[0].ja, null);
+  assert.match(api.status(), /中断しました/);
+  await assert.rejects(api.translateAll(), /中断/);
+});
+
+test('stopping local initialization aborts creation and destroys a late-created model', async () => {
+  let release, options, destroyed = 0, calls = 0;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const api = await viewer('chrome', { create: async (next) => {
+    options = next; await gate;
+    return { destroy: () => destroyed++, translate: async () => { calls++; return '遅い訳'; } };
+  } });
+  const pending = api.localButton.onclick();
+  await until(() => !!options);
+  await api.localButton.onclick();
+  assert.equal(options.signal.aborted, true);
+  release(); await pending;
+  assert.equal(destroyed, 1); assert.equal(calls, 0);
+  assert.equal(api.state.translator, null); assert.equal(api.state.enabled, false);
+  assert.equal(api.localButton.getAttribute('aria-busy'), 'false');
+  assert.match(api.status(), /中断しました/);
+});
+
+test('switching an active Gemini request to local aborts it and rejects its late response', async (t) => {
+  let release, signal;
+  const gate = new Promise((resolve) => { release = resolve; });
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    signal = init.signal; await gate;
+    return success(JSON.parse(JSON.parse(init.body).input));
+  });
+  const api = await viewer();
+  await api.startButton.onclick(); await until(() => !!signal);
+  await api.localButton.onclick(); await idle(api);
+  const local = api.state.rows.map((row) => row.blocks[0].ja);
+  assert.equal(signal.aborted, true);
+  assert.equal(api.state.engine, 'chrome');
+  release(); await new Promise(setImmediate);
+  assert.deepEqual(api.state.rows.map((row) => row.blocks[0].ja), local);
+  assert.equal(api.status(), '先読み範囲の翻訳が完了しました');
+});
+
+test('pressing the active Gemini button cancels streaming without starting another request', async (t) => {
+  const f = streamFixture(); let calls = 0, signal;
+  t.mock.method(globalThis, 'fetch', async (_url, init) => { calls++; signal = init.signal; return f.response; });
+  const api = await viewer();
+  await api.startButton.onclick(); await until(() => !!signal);
+  f.start(); f.text('{"translations":[{"id":1,"text":"暫定の訳"},');
+  await until(() => api.state.rows[0].blocks[0].ja === '暫定の訳');
+  await api.startButton.onclick();
+  await until(() => f.cancelled);
+  assert.equal(signal.aborted, true);
+  assert.equal(calls, 1);
+  assert.equal(api.state.rows[0].blocks[0].ja, null);
+  assert.equal(api.startButton.textContent, 'Gemini');
+  assert.equal(api.startButton.getAttribute('aria-busy'), 'false');
+  assert.match(api.status(), /中断しました/);
+});
+
+test('PDF serialization keeps engine buttons disabled until saving has finished', async (t) => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('saving must not start Gemini'));
+  const api = await viewer();
+  await api.localButton.onclick(); await idle(api);
+  api.state.pdf = { getData: async () => { await gate; return new Uint8Array([1, 2, 3]); } };
+  const saving = api.element('#downloadOriginal').onclick();
+  assert.equal(api.localButton.disabled, true); assert.equal(api.startButton.disabled, true);
+  await api.startButton.onclick();
+  assert.equal(api.state.engine, 'chrome');
+  release(); await saving;
+  assert.equal(api.localButton.disabled, false); assert.equal(api.startButton.disabled, false);
+  assert.equal(api.savedFiles.length, 1);
+});
+
+test('a canceled block redo cannot clear the pending flag of a new redo on the reused overlay', async () => {
+  let releaseOld, releaseNew;
+  const oldGate = new Promise((resolve) => { releaseOld = resolve; });
+  const newGate = new Promise((resolve) => { releaseNew = resolve; });
+  const api = await viewer();
+  const block = api.state.rows[0].blocks[0], el = element();
+  el._b = block; block.ja = '以前の確定訳';
+  api.state.rows[0].blockEls = new Map([[block, el]]);
+  api.state.engine = 'gemini';
+  api.state.translator = { retranslateBlock: async () => { await oldGate; return '破棄する旧訳'; } };
+  const oldRedo = api.redoBlock(el);
+  assert.ok(el.classList.contains('pending'));
+  await api.startButton.onclick(); // Active engine button cancels the old redo.
+  api.state.translator = { retranslateBlock: async () => { await newGate; return '新しい確定訳'; } };
+  const newRedo = api.redoBlock(el);
+  assert.ok(el.classList.contains('pending'));
+  releaseOld(); await oldRedo;
+  assert.ok(el.classList.contains('pending'));
+  assert.equal(block.ja, '以前の確定訳');
+  releaseNew(); await newRedo;
+  assert.ok(!el.classList.contains('pending'));
+  assert.equal(block.ja, '新しい確定訳');
 });

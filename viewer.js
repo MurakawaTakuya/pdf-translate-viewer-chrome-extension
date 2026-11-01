@@ -41,6 +41,7 @@ const state = {
   translator: null,
   engine: null, // 翻訳ボタンで明示的に選んだエンジン
   translationAbort: null,
+  preparingAbort: null,
   translationVersion: 0,
   translationPair: null,
   enabled: false,
@@ -86,11 +87,14 @@ function updateStartButton() {
     ['chrome', '#startLocal', 'ローカルAI'], ['gemini', '#startGemini', 'Gemini'],
   ]) {
     const button = $(selector), active = busy && state.engine === engine;
-    button.disabled = busy;
+    button.disabled = state.exporting;
     button.classList.toggle('loading', active);
     button.setAttribute('aria-busy', String(active));
-    button.textContent = active ? '翻訳中…' : label;
-    button.setAttribute('aria-label', `${label}で${active ? '翻訳中' : '翻訳'}`);
+    button.textContent = active ? '中断' : label;
+    button.setAttribute('aria-label', active ? `${label}の翻訳を中断` : `${label}で翻訳`);
+    button.title = active ? `${label}の翻訳を中断` : engine === 'chrome'
+      ? 'ローカルAIで翻訳。Chrome内蔵AIを使い、文章は外部に送られません。'
+      : 'Geminiで翻訳。PDF全文をGoogleへ送信します。APIキーが必要です。';
   }
 }
 
@@ -800,13 +804,55 @@ async function redoBlock(el) {
     console.error(e);
     setStatus('訳し直しに失敗しました: ' + e.message);
   } finally {
-    el.classList.remove('pending');
+    if (tr === state.translator) el.classList.remove('pending');
     finish();
   }
 }
 
 // ---------- 翻訳 ----------
+function translationBusy() {
+  return [...translationActivities].some((activity) => activity.version === state.translationVersion);
+}
+
+function stopTranslation(announce = true) {
+  ++state.translationVersion;
+  state.enabled = false;
+  state.queue = [];
+  state.working = false;
+  translationActivities.clear();
+  if (state.translator?.ready && !state.translator.completed) clearTranslationPreviews();
+  state.translator = null;
+  state.preparingAbort?.abort();
+  state.translationAbort?.abort();
+  state.preparingAbort = state.translationAbort = null;
+  for (const row of state.rows) {
+    row.queued = false;
+    row.busy = false;
+    for (const [block, el] of row.blockEls || []) if (el.classList.contains('pending')) {
+      if (typeof block.ja === 'string') fillBlock(el, block, block.ja);
+      else { el._src?.remove(); el.remove(); row.blockEls.delete(block); }
+    }
+    for (const el of row.dstLayer.querySelectorAll('.page-msg')) el.remove();
+    if (!row.visible) releasePage(row);
+  }
+  tools.remove(); toolsFor = null;
+  updateStartButton();
+  if (announce) setStatus('翻訳を中断しました。完了した訳文は保持しています');
+}
+
+function chooseTranslation(engine) {
+  autoTranslatePending = false;
+  if (state.exporting) return;
+  if (translationBusy()) {
+    const stopOnly = state.engine === engine;
+    stopTranslation(stopOnly);
+    if (stopOnly) return;
+  }
+  return start(engine);
+}
+
 async function start(engine = state.engine) {
+  if (state.exporting) { setStatus('PDFの保存が終わってから翻訳を切り替えてください'); return; }
   const sourceLanguage = srcSel.value;
   const targetLanguage = dstSel.value;
   localStorage.setItem('src', sourceLanguage);
@@ -824,6 +870,8 @@ async function start(engine = state.engine) {
   const previousEngine = state.engine;
   const version = ++state.translationVersion;
   const controller = new AbortController();
+  state.preparingAbort?.abort();
+  state.preparingAbort = controller;
   state.engine = engine;
 
   const finish = beginTranslation();
@@ -845,7 +893,7 @@ async function start(engine = state.engine) {
         }),
       });
     } else {
-      translator = await createChromeTranslator(sourceLanguage, targetLanguage);
+      translator = await createChromeTranslator(sourceLanguage, targetLanguage, controller.signal);
       if (!translator) return; // 理由はステータスに表示済み
     }
     if (version !== state.translationVersion) return;
@@ -893,6 +941,7 @@ async function start(engine = state.engine) {
   } catch (e) {
     if (version === state.translationVersion) setStatus('翻訳の準備に失敗しました: ' + e.message);
   } finally {
+    if (state.preparingAbort === controller) state.preparingAbort = null;
     if (!prepared) {
       controller.abort();
       if (version === state.translationVersion) state.engine = previousEngine;
@@ -902,32 +951,41 @@ async function start(engine = state.engine) {
 }
 
 // Chrome内蔵の Translator API（1段落ずつ順に訳す）
-async function createChromeTranslator(sourceLanguage, targetLanguage) {
+async function createChromeTranslator(sourceLanguage, targetLanguage, signal) {
   if (!('Translator' in self)) {
     setStatus('このChromeはTranslator API未対応です（Chrome 138以降が必要）');
     return null;
   }
   try {
     const avail = await Translator.availability({ sourceLanguage, targetLanguage });
+    signal?.throwIfAborted();
     if (avail === 'unavailable') { setStatus(`${sourceLanguage}→${targetLanguage} は未対応の組み合わせです`); return null; }
     setStatus(avail === 'available' ? '準備中…' : '翻訳モデルをダウンロード中…');
     const tr = await Translator.create({
       sourceLanguage,
       targetLanguage,
+      signal,
       monitor(m) {
         m.addEventListener('downloadprogress', (e) => {
-          setStatus(`翻訳モデルをダウンロード中… ${Math.round(e.loaded * 100)}%`);
+          if (!signal?.aborted) setStatus(`翻訳モデルをダウンロード中… ${Math.round(e.loaded * 100)}%`);
         });
       },
     });
+    const destroy = () => tr.destroy?.();
+    if (signal?.aborted) { destroy(); return null; }
+    signal?.addEventListener('abort', destroy, { once: true });
     return {
       async translateBatch(texts, onEach) {
         for (let i = 0; i < texts.length; i++) {
-          if (onEach(i, await tr.translate(texts[i])) === false) return;
+          signal?.throwIfAborted();
+          const text = await tr.translate(texts[i], { signal });
+          signal?.throwIfAborted();
+          if (onEach(i, text) === false) return;
         }
       },
     };
   } catch (e) {
+    if (signal?.aborted) return null;
     console.error(e);
     setStatus('翻訳の準備に失敗しました: ' + e.message);
     return null;
@@ -949,6 +1007,7 @@ function enqueueVisiblePages() {
 }
 
 function enqueue(r) {
+  if (!state.enabled || !state.translator) return;
   if (r.queued || r.translated) return;
   r.queued = true;
   r.failed = false;
@@ -957,11 +1016,12 @@ function enqueue(r) {
 }
 
 async function pump() {
-  if (state.working) return;
-  state.working = true;
+  if (state.working?.version === state.translationVersion) return;
+  const job = { version: state.translationVersion };
+  state.working = job;
   let error = null;
   let errorTranslator = null;
-  while (state.queue.length) {
+  while (state.queue.length && state.working === job && state.enabled) {
     const r = state.queue.shift();
     const translator = state.translator;
     const finish = beginTranslation();
@@ -981,6 +1041,7 @@ async function pump() {
       finish();
     }
   }
+  if (state.working !== job) return;
   state.working = false;
   if (error && errorTranslator === state.translator && state.rows.some((r) => r.failed)) setStatus('翻訳エラー: ' + error.message);
   else if (!state.exporting) setStatus(state.translator.ready
@@ -1063,12 +1124,15 @@ async function repairMissingTranslations() {
 }
 
 async function translatePage(r, translator) {
-  r.busy = true;
+  const job = {};
+  r.busy = job;
   try {
     await translatePageInner(r, translator);
   } finally {
-    r.busy = false;
-    if (!r.visible) releasePage(r);
+    if (r.busy === job) {
+      r.busy = false;
+      if (!r.visible) releasePage(r);
+    }
   }
 }
 
@@ -1181,6 +1245,7 @@ async function download(mode) {
   const btn = $('#download');
   btn.disabled = true;
   state.exporting = true;
+  updateStartButton();
   try {
     if (mode !== 'orig') {
       await translateAll();
@@ -1200,6 +1265,7 @@ async function download(mode) {
     setStatus('保存に失敗しました: ' + e.message);
   } finally {
     state.exporting = false;
+    updateStartButton();
     btn.disabled = false;
   }
 }
@@ -1207,6 +1273,7 @@ async function download(mode) {
 // まだ訳していないページもすべて訳し終わるまで待つ
 async function translateAll() {
   const translator = state.translator;
+  if (!translator || !state.enabled) throw new Error('翻訳が中断されています。翻訳を開始してください');
   if (translator.ready) await translator.ready();
   if (translator !== state.translator) throw new Error('翻訳がやり直されました');
   for (const r of state.rows) enqueue(r);
@@ -1291,8 +1358,8 @@ self.chrome?.runtime?.onMessage?.addListener((message, _sender, reply) => {
   }
 });
 
-$('#startLocal').onclick = () => { autoTranslatePending = false; return start('chrome'); };
-$('#startGemini').onclick = () => { autoTranslatePending = false; return start('gemini'); };
+$('#startLocal').onclick = () => chooseTranslation('chrome');
+$('#startGemini').onclick = () => chooseTranslation('gemini');
 $('#openSettings').onclick = showSettings;
 $('#download').onclick = toggleDownloadMenu;
 $('#downloadOriginal').onclick = () => download('orig');
