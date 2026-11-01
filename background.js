@@ -72,11 +72,11 @@ chrome.webNavigation.onBeforeNavigate.addListener(
 // ---------- ポップアップ・ビューアからの依頼 ----------
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg.type === 'openInViewer') {
-    // When handling is enabled, let Chrome route the original PDF URL itself.
-    // An explicit open while auto-open is OFF keeps the legacy one-tab route.
-    isAutoOpen().then((auto) => chrome.tabs.update(msg.tabId, {
-      url: mimeHandler && auto ? msg.url : toViewer(msg.url),
-    })).then(() => reply({ ok: true }), (e) => reply({ ok: false, error: e.message }));
+    // Explicitly select this viewer. Reloading the original URL could instead
+    // reopen another extension that has higher MIME-handler priority.
+    // Normal PDF navigation still uses the original-URL MIME route.
+    chrome.tabs.update(msg.tabId, { url: toViewer(msg.url) })
+      .then(() => reply({ ok: true }), (e) => reply({ ok: false, error: e.message }));
     return true;
   }
   if (msg.type === 'openOriginal') {

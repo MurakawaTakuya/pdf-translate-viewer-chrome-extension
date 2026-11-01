@@ -35,7 +35,7 @@ const element = () => {
     append() {}, appendChild() {}, replaceChildren() {}, remove() {}, querySelectorAll: () => [],
   };
 };
-async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = null, savedZoom = 1) {
+async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = null, savedZoom = 1, sourceOverride = null) {
   const elements = new Map();
   const createdElements = [];
   const listeners = new Map(), resizeObservers = [];
@@ -66,12 +66,15 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   };
   const window = { addEventListener: (event, callback) => listeners.set(event, callback) }; window.top = window;
   const context = {
-    document, window, createdElements, savedFiles, placedBlocks, self: { chrome: { tabs } }, location: { search: '' },
+    document, window, createdElements, savedFiles, placedBlocks, self: { chrome: { tabs,
+      runtime: { onMessage: { addListener: (callback) => listeners.set('runtimeMessage', callback) } },
+    } }, location: { search: '' },
     scrollCalls,
     dispatchResize: () => listeners.get('resize')?.(),
     dispatchScroll: () => listeners.get('scroll')?.(),
     dispatchKey: (event) => listeners.get('keydown')?.(event),
     dispatchWheel: (event) => listeners.get('wheel')?.(event),
+    dispatchRuntimeMessage: (...args) => listeners.get('runtimeMessage')?.(...args),
     dispatchPageFrames: () => { const callbacks = [...pageFrames.values()]; pageFrames.clear(); callbacks.forEach((callback) => callback()); },
     requestAnimationFrame: (callback) => { pageFrames.set(++nextFrame, callback); return nextFrame; },
     cancelAnimationFrame: (id) => pageFrames.delete(id),
@@ -90,7 +93,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
         release: () => { sourceTextCalls.push(['release', row]); } };
     },
     createGeminiTranslator, createDocumentTranslator,
-    resolvePdfSource,
+    resolvePdfSource: sourceOverride ? async () => sourceOverride : resolvePdfSource,
     disableNativeZoom, createPdfLoadProgress, horizontalZoomShift, verticalZoomShift,
     createCitationDialog: () => ({ open() {}, position() {} }),
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),
@@ -127,6 +130,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   api.nativeZoomCalls = nativeZoomCalls;
   api.sourceTextCalls = sourceTextCalls;
   api.zoomSaves = zoomSaves;
+  api.runtimeMessage = context.dispatchRuntimeMessage;
   api.state.pdf = {};
   api.state.rows = [1, 2, 3].map((index) => ({
     index, visible: index === 1, srcLayer: element(), dstLayer: element(),
@@ -491,6 +495,37 @@ test('source text can receive pointer events while block hover follows zoomed pa
   move(30, 40); move(30, 45); move(30, 140);
   row.left.onpointerleave();
   assert.deepEqual(changes, [['a', true], ['a', false], ['b', true], ['b', false]]);
+});
+
+test('native viewer handoff replies before the receiving MIME frame can be destroyed', async () => {
+  const order = [];
+  let complete;
+  const gate = new Promise((resolve) => { complete = resolve; });
+  const api = await viewer('gemini', {}, null, 1, {
+    originalUrl: 'https://arxiv.org/pdf/2301.08243', tabId: 42,
+    fallback: async () => { order.push('frame handoff'); await gate; },
+  });
+  const result = api.runtimeMessage({ type: 'openNativeViewer' }, {}, (reply) => {
+    assert.equal(reply.ok, true); order.push('accepted');
+  });
+  assert.equal(result, undefined); // No asynchronous message port to outlive the frame.
+  assert.deepEqual(order, ['accepted']);
+  await until(() => order.length === 2);
+  assert.deepEqual(order, ['accepted', 'frame handoff']);
+  assert.deepEqual(api.nativeZoomCalls.at(-1), { id: 42, mode: 'automatic', scope: 'per-origin' });
+  complete();
+});
+
+test('a rejected native handoff reports its error in the surviving viewer after acknowledgement', async () => {
+  const api = await viewer('gemini', {}, null, 1, {
+    originalUrl: 'https://arxiv.org/pdf/2301.08243', tabId: 42,
+    fallback: async () => { throw new Error('handoff failed'); },
+  });
+  let acknowledged = false;
+  api.runtimeMessage({ type: 'openNativeViewer' }, {}, () => { acknowledged = true; });
+  assert.equal(acknowledged, true);
+  await until(() => (api.status() || '').includes('handoff failed'));
+  assert.match(api.status(), /通常のビューアへの切り替えに失敗/);
 });
 
 test('high DPI and single-page display increase density while respecting the canvas budget', async () => {

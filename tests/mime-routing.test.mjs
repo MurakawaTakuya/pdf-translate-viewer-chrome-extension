@@ -72,15 +72,16 @@ test('an old viewer tab can bypass the MIME handler for exactly one tab and sour
   assert.equal(f.session['nativePdf:42'], undefined);
 });
 
-test('manual open keeps the URL when MIME auto-open is on, without changing the global OFF preference', async () => {
+test('manual open explicitly selects this viewer even when another MIME handler has priority', async () => {
   const f = fixture(), url = 'https://arxiv.org/pdf/2301.08243';
   const send = () => new Promise((resolve) => f.events.message({ type: 'openInViewer', tabId: 42, url }, {}, resolve));
   assert.equal((await send()).ok, true);
-  assert.equal(f.calls.at(-1)[2].url, url);
+  assert.equal(f.calls.at(-1)[2].url, VIEWER + '?file=' + encodeURIComponent(url));
   f.local.autoOpen = false;
   await send();
   assert.equal(f.calls.at(-1)[2].url, VIEWER + '?file=' + encodeURIComponent(url));
   assert.equal(f.local.autoOpen, false);
+  assert.equal(f.calls.some(([kind]) => kind === 'mimeOptions'), false);
 });
 
 async function popupFixture(viewerState) {

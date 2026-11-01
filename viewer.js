@@ -1228,8 +1228,13 @@ if (fileUrl && self.chrome?.tabs) {
 self.chrome?.runtime?.onMessage?.addListener((message, _sender, reply) => {
   if (message.type === 'getViewerState') reply({ fileUrl, mime: !!pdfSource.fallback });
   if (message.type === 'openNativeViewer') {
-    openNativeViewer().then(() => reply({ ok: true }), (error) => reply({ ok: false, error: error.message }));
-    return true;
+    // A successful handoff destroys this frame. Acknowledge acceptance first,
+    // otherwise the popup waits on a message port that can no longer reply.
+    reply({ ok: true });
+    openNativeViewer().catch((error) => {
+      console.error(error);
+      setStatus('通常のビューアへの切り替えに失敗しました: ' + error.message);
+    });
   }
 });
 
