@@ -1,0 +1,308 @@
+{
+  "recordedAt": "2026-11-01T23:50:55+0900",
+  "source": "https://arxiv.org/pdf/2301.08243",
+  "sourcePdfSha256": "eddbdc093eb4d48662bcf4fbd1c6735ccd606205cc9070977ce317d68aff3941",
+  "project": "gen-lang-client-0097090168",
+  "model": "gemini-3.5-flash-lite",
+  "inputSha256": "1d8b1a25bd8ef3a8157feab3b1ee1c457d7b68aacd0849a22ca907defaf952a1",
+  "requestSha256": "ba26243ef7112068a4afb7dff21e2f67a2689b7a3b756e7dc89ab793cad5a0b8",
+  "implementationSha256": "91341572ff0af24395132ff6f9674bdb317f387ef2e5b3b1cf7e38efa2d2b619",
+  "maximumGenerationRequests": 3,
+  "order": [
+    "G1",
+    "G2",
+    "G3"
+  ],
+  "retries": 0,
+  "automaticRepairs": 0,
+  "maximumTotalMs": 131400,
+  "latencyReference": "Previous unchanged B1: 105.12 seconds; retain 1.25x ceiling (131.4 s). One baseline measurement is not statistical evidence of speed improvement.",
+  "targets": 213,
+  "generatedTargets": 211,
+  "originalIds": [
+    "p3-b21",
+    "p4-b6"
+  ],
+  "originalChars": 1079,
+  "totalTargetChars": 70788,
+  "mathSpans": 127,
+  "panelMapping": [
+    {
+      "old": "p1-b0",
+      "current": "p1-b0",
+      "method": "exact-source"
+    },
+    {
+      "old": "p1-b3",
+      "current": "p1-b3",
+      "method": "exact-source"
+    },
+    {
+      "old": "p1-b4",
+      "current": "p1-b4",
+      "method": "exact-source"
+    },
+    {
+      "old": "p1-b5",
+      "current": "p1-b5",
+      "method": "exact-source"
+    },
+    {
+      "old": "p1-b6",
+      "current": "p1-b6",
+      "method": "exact-source"
+    },
+    {
+      "old": "p1-b7",
+      "current": "p1-b7",
+      "method": "exact-source"
+    },
+    {
+      "old": "p1-b9",
+      "current": "p1-b9",
+      "method": "exact-source"
+    },
+    {
+      "old": "p1-b32",
+      "current": "p1-b32",
+      "method": "exact-source"
+    },
+    {
+      "old": "p1-b33",
+      "current": "p1-b33",
+      "method": "exact-source"
+    },
+    {
+      "old": "p1-b34",
+      "current": "p1-b34",
+      "method": "exact-source"
+    },
+    {
+      "old": "p1-b35",
+      "current": "p1-b35",
+      "method": "exact-source"
+    },
+    {
+      "old": "p2-b17",
+      "current": "p2-b17",
+      "method": "exact-source"
+    },
+    {
+      "old": "p2-b20",
+      "current": "p2-b20",
+      "method": "exact-source"
+    },
+    {
+      "old": "p2-b23",
+      "current": "p2-b23",
+      "method": "exact-source"
+    },
+    {
+      "old": "p2-b24",
+      "current": "p2-b24",
+      "method": "exact-source"
+    },
+    {
+      "old": "p2-b25",
+      "current": "p2-b25",
+      "method": "exact-source"
+    },
+    {
+      "old": "p2-b26",
+      "current": "p2-b26",
+      "method": "exact-source"
+    },
+    {
+      "old": "p2-b33",
+      "current": "p2-b33",
+      "method": "exact-source"
+    },
+    {
+      "old": "p2-b34",
+      "current": "p2-b34",
+      "method": "exact-source"
+    },
+    {
+      "old": "p6-b27",
+      "current": "p6-b27",
+      "method": "exact-source"
+    },
+    {
+      "old": "p6-b29",
+      "current": "p6-b29",
+      "method": "exact-source"
+    },
+    {
+      "old": "p6-b31",
+      "current": "p6-b31",
+      "method": "exact-source"
+    },
+    {
+      "old": "p6-b55",
+      "current": "p6-b55",
+      "method": "exact-source"
+    },
+    {
+      "old": "p6-b60",
+      "current": "p6-b60",
+      "method": "exact-source"
+    },
+    {
+      "old": "p7-b49",
+      "current": "p7-b49",
+      "method": "exact-source"
+    },
+    {
+      "old": "p16-b20",
+      "current": "p16-b16",
+      "method": "exact-source"
+    },
+    {
+      "old": "p17-b0",
+      "current": "p17-b0",
+      "method": "exact-source"
+    },
+    {
+      "old": "p17-b1",
+      "current": "p17-b1",
+      "method": "exact-source"
+    },
+    {
+      "old": "p5-b3",
+      "current": "p5-b3",
+      "method": "source-bbox-containment"
+    },
+    {
+      "old": "p5-b25",
+      "current": "p5-b25",
+      "method": "exact-source"
+    },
+    {
+      "old": "p5-b41",
+      "current": "p5-b41",
+      "method": "source-bbox-containment"
+    },
+    {
+      "old": "p5-b57",
+      "current": "p5-b57",
+      "method": "exact-source"
+    },
+    {
+      "old": "p6-b3",
+      "current": "p6-b3",
+      "method": "source-bbox-containment"
+    },
+    {
+      "old": "p6-b17",
+      "current": "p6-b17",
+      "method": "exact-source"
+    },
+    {
+      "old": "p6-b36",
+      "current": "p6-b36",
+      "method": "source-bbox-containment"
+    },
+    {
+      "old": "p6-b47",
+      "current": "p6-b47",
+      "method": "exact-source"
+    },
+    {
+      "old": "p3-b0",
+      "current": "p3-b0",
+      "method": "exact-source"
+    },
+    {
+      "old": "p13-b5",
+      "current": "p13-b5",
+      "method": "exact-source"
+    },
+    {
+      "old": "p16-b15",
+      "current": "p16-b12",
+      "method": "source-bbox-containment"
+    },
+    {
+      "old": "p16-b16",
+      "current": "p16-b12",
+      "method": "source-bbox-containment"
+    }
+  ],
+  "semanticPanel": [
+    "p1-b0",
+    "p1-b3",
+    "p1-b4",
+    "p1-b5",
+    "p1-b6",
+    "p1-b7",
+    "p1-b9",
+    "p1-b32",
+    "p1-b33",
+    "p1-b34",
+    "p1-b35",
+    "p2-b17",
+    "p2-b20",
+    "p2-b23",
+    "p2-b24",
+    "p2-b25",
+    "p2-b26",
+    "p2-b33",
+    "p2-b34",
+    "p6-b27",
+    "p6-b29",
+    "p6-b31",
+    "p6-b55",
+    "p6-b60",
+    "p7-b49",
+    "p16-b16",
+    "p17-b0",
+    "p17-b1",
+    "p5-b3",
+    "p5-b25",
+    "p5-b41",
+    "p5-b57",
+    "p6-b3",
+    "p6-b17",
+    "p6-b36",
+    "p6-b47",
+    "p3-b0",
+    "p13-b5",
+    "p16-b12",
+    "p1-b1",
+    "p2-b32",
+    "p2-b35",
+    "p3-b1",
+    "p3-b2",
+    "p3-b3",
+    "p4-b3",
+    "p4-b4",
+    "p4-b5",
+    "p4-b7",
+    "p4-b8",
+    "p4-b20",
+    "p4-b21",
+    "p5-b35",
+    "p5-b77",
+    "p5-b79",
+    "p5-b80",
+    "p6-b59",
+    "p8-b6",
+    "p8-b7",
+    "p8-b30",
+    "p12-b2",
+    "p12-b3",
+    "p12-b5",
+    "p12-b7",
+    "p13-b0",
+    "p15-b18",
+    "p15-b31",
+    "p16-b0",
+    "p16-b1",
+    "p16-b10",
+    "p3-b21",
+    "p4-b6"
+  ],
+  "primary": "All safe targets must pass the actual protected translator: exact per-block tag multiset, well-formed tags, citation/heading checks, no generated LaTeX, C0 other than LF, Greek or Unicode Sm operators. Original fallbacks must equal the frozen IDs and remain separately counted. Each fixed-panel source/translation must retain its own claims, references, comparative scope and variables. Explicitly inspect untagged ASCII expressions and Unicode subscripts/superscripts: inventory alone is not a semantic guarantee.",
+  "stopping": "Stop at the first transport, completion, structure, protected decoder, coverage, latency or independent assistant review failure. Before G2/G3 require previous raw/request hashes and a passing review. Never tune, retry, repair, split, change endpoint/model/project, or run a model judge in this experiment.",
+  "firstItemMs": "Unmeasured for this keyed protocol by the shared collector; firstText and total latency only. Original math uses offline glyph crops, including saved PDF; no additional API calls."
+}
