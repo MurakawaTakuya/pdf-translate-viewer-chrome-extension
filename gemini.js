@@ -1,5 +1,6 @@
 // Gemini API（Interactions API）で、PDF全文を一括翻訳する
 import { readTranslationStream } from './translation-stream.js';
+import { buildKeyedTask, keyedPrompt, keyedMembers, taskIssue } from './keyed-translations.js';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
@@ -43,14 +44,20 @@ const TRANSLATION_SCHEMA = {
   additionalProperties: false,
 };
 
-export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLanguage, onWait = () => {}, signal, inputFormat = 'legacy' }) {
+export function createKeyedGeminiTranslator(options) {
+  return createGeminiTranslator({ ...options, outputFormat: 'keyed' });
+}
+
+export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLanguage, onWait = () => {}, signal, inputFormat = 'legacy', outputFormat = 'legacy' }) {
   // 分離入力は実生成で対応ずれが残ったため、評価用の明示指定だけで使う。
   const separated = inputFormat === 'separate-targets';
   const system = systemPrompt(LANG_NAMES[sourceLanguage] || sourceLanguage, LANG_NAMES[targetLanguage] || targetLanguage, separated);
+  const src = LANG_NAMES[sourceLanguage] || sourceLanguage, dst = LANG_NAMES[targetLanguage] || targetLanguage;
 
   async function translateDocument(pages, translateIds, onTranslation = () => {}) {
     signal?.throwIfAborted();
     if (!translateIds.length) return new Map();
+    const task = outputFormat === 'keyed' ? await buildKeyedTask(pages, translateIds, src, dst, signal) : null;
     // 全文は読解用、対象一覧は出力との対応用。座標と元のブロックIDはローカルに保持する。
     const numbers = new Map(translateIds.map((id, i) => [id, i + 1]));
     const targets = pages.flatMap((p) => p.blocks.filter((b) => numbers.has(b.id)).map((b) => ({
@@ -74,9 +81,9 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, // キーはURLに載せない
         body: JSON.stringify({
           model: model || DEFAULT_MODEL,
-          system_instruction: system,
-          input: JSON.stringify(input),
-          response_format: { type: 'text', mime_type: 'application/json', schema: TRANSLATION_SCHEMA },
+          system_instruction: task ? keyedPrompt(system, src, dst) : system,
+          input: JSON.stringify(task ? task.input : input),
+          response_format: { type: 'text', mime_type: 'application/json', schema: task ? task.schema : TRANSLATION_SCHEMA },
           generation_config: { max_output_tokens: 65536 },
           stream: true,
           store: false, // Google側に会話を保存しない
@@ -84,18 +91,30 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
       });
       if (res.ok && /text\/event-stream/i.test(res.headers.get('content-type') || '')) {
         const seen = new Set();
+        const keyedValues = new Map();
         let unsafe = false;
-        const streamed = await readTranslationStream(res, { signal, onItem: (item) => {
+        const collector = task && keyedMembers((item) => {
+          if (unsafe) return;
+          const source = task.byKey.get(item.id);
+          if (!source || seen.has(item.id) || !item.text.trim()) { unsafe = true; return; }
+          seen.add(item.id);
+          keyedValues.set(item.id, item.text);
+          if (!taskIssue(task, item.id, keyedValues, src, dst)) {
+            for (const key of task.groups.get(item.id)) onTranslation(task.byKey.get(key).id, keyedValues.get(key));
+          }
+        });
+        const streamed = await readTranslationStream(res, { signal, ...(collector ? { onText: (text) => collector.append(text) } : {}), onItem: (item) => {
           if (unsafe) return;
           if (!validTranslation(item, translateIds.length) || seen.has(item.id)) { unsafe = true; return; }
           seen.add(item.id);
           onTranslation(translateIds[item.id - 1], item.text);
         } });
         signal?.throwIfAborted();
-        return parse({ status: streamed.status, steps: [{ type: 'model_output', content: [{ type: 'text', text: streamed.text }] }] }, translateIds);
+        const body = { status: streamed.status, steps: [{ type: 'model_output', content: [{ type: 'text', text: streamed.text }] }] };
+        return task ? parseKeyed(body, task, src, dst) : parse(body, translateIds);
       }
       const body = await res.json().catch(() => ({}));
-      if (res.ok) return parse(body, translateIds);
+      if (res.ok) return task ? parseKeyed(body, task, src, dst) : parse(body, translateIds);
       const err = (Array.isArray(body) ? body[0] : body)?.error || {}; // エラーは [{ error: … }] の形で返ってくる
 
       // レート制限・一時的なエラーは待って再試行
@@ -143,6 +162,37 @@ export class MissingTranslationsError extends BadOutput {
   }
   get partialTranslations() { return new Map(this.#partial); }
   get missingIds() { return [...this.#missing]; }
+}
+
+function parseKeyed(body, task, src, dst) {
+  if (body.status === 'incomplete') throw new BadOutput('全文の翻訳が途中で切れました（出力上限など）。完了した翻訳としては表示しません');
+  if (body.status && body.status !== 'completed') throw new BadOutput(`翻訳が完了しませんでした（${body.status}）`);
+  const text = (body.steps || []).filter((s) => s.type === 'model_output').flatMap((s) => s.content || [])
+    .filter((c) => c.type === 'text').map((c) => c.text).join('');
+  let entries;
+  try { const collector = keyedMembers(); collector.append(text); entries = collector.finish(); }
+  catch { throw new BadOutput('翻訳応答の形式が不正です。全文を再試行してください'); }
+  const seen = new Set(), out = new Map(), values = new Map(entries.map((b) => [b.id, b.text]));
+  let extra = 0, duplicate = 0, empty = 0, citation = 0, unchanged = 0;
+  for (const { id, text: value } of entries) {
+    const source = task.byKey.get(id);
+    if (!source) extra++;
+    if (seen.has(id)) duplicate++;
+    seen.add(id);
+    if (!value.trim()) { empty++; continue; }
+    if (!source) continue;
+    const issue = taskIssue(task, id, values, src, dst);
+    if (issue === 'citation') citation++;
+    else if (issue === 'unchanged') unchanged++;
+    else if (issue === 'pending') continue;
+    else out.set(source.id, value);
+  }
+  const missing = [...task.byKey.values()].filter((source) => !out.has(source.id)).map((b) => b.id);
+  if (extra || duplicate || empty) throw new BadOutput(`全文の翻訳を検証できませんでした（対象外${extra}件、重複${duplicate}件、空欄${empty}件）。全文を再試行してください`);
+  if (missing.length) {
+    throw new MissingTranslationsError(`全文の翻訳を検証できませんでした（必要${task.byKey.size}件／受信${entries.length}件、補完対象${missing.length}件、参照番号不一致${citation}件、未翻訳${unchanged}件）。有効な訳文を保持しています。対象だけ再翻訳できます`, out, missing);
+  }
+  return out;
 }
 
 function parse(body, ids) {

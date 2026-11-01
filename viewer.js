@@ -1,6 +1,6 @@
 import * as pdfjsLib from './lib/pdf.min.mjs';
 import { loadSettings, openSettings } from './settings.js';
-import { createGeminiTranslator } from './gemini.js';
+import { createKeyedGeminiTranslator as createGeminiTranslator } from './gemini.js';
 import { createDocumentTranslator } from './document-translator.js';
 import { extractBlocks } from './pdf-layout.js';
 import { createPdfLoadProgress } from './pdf-load-progress.js';

@@ -48,13 +48,13 @@ function translationItems(onItem) {
 }
 
 // Interactions APIのSSEを読む。thought/toolは訳文に混ぜず、完了イベントを必須にする。
-export async function readTranslationStream(response, { onItem = () => {}, signal } = {}) {
+export async function readTranslationStream(response, { onItem = () => {}, onText, signal } = {}) {
   signal?.throwIfAborted();
   if (!response.body) throw new StreamError('翻訳の応答が空でした。全文を再試行してください');
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8', { fatal: true });
   const steps = new Map();
-  const items = translationItems(onItem);
+  const items = onText || translationItems(onItem);
   let buffer = '', text = '', status = null;
   const append = (value) => {
     if (typeof value !== 'string') return;

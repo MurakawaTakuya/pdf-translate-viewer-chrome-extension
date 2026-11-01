@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import { createGeminiTranslator } from '../gemini.js';
+import { createGeminiTranslator, createKeyedGeminiTranslator } from '../gemini.js';
 import { createDocumentTranslator } from '../document-translator.js';
 import { disableNativeZoom } from '../native-zoom.js';
 import { createPdfLoadProgress } from '../pdf-load-progress.js';
@@ -35,7 +35,7 @@ const element = () => {
     append() {}, appendChild() {}, replaceChildren() {}, remove() {}, querySelectorAll: () => [],
   };
 };
-async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = null, savedZoom = 1, sourceOverride = null) {
+async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = null, savedZoom = 1, sourceOverride = null, geminiFactory = createGeminiTranslator) {
   const elements = new Map();
   const createdElements = [];
   const listeners = new Map(), resizeObservers = [];
@@ -92,7 +92,8 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
       return { render: async () => { sourceTextCalls.push(['render', row]); },
         release: () => { sourceTextCalls.push(['release', row]); } };
     },
-    createGeminiTranslator, createDocumentTranslator,
+    // Existing numeric-wire fixtures test shared orchestration; keyed tests inject the new codec below.
+    createGeminiTranslator: geminiFactory, createDocumentTranslator,
     resolvePdfSource: sourceOverride ? async () => sourceOverride : resolvePdfSource,
     disableNativeZoom, createPdfLoadProgress, horizontalZoomShift, verticalZoomShift,
     createCitationDialog: () => ({ open() {}, position() {} }),
@@ -182,6 +183,60 @@ test('viewer preserves Chrome local per-page translation', async (t) => {
   assert.ok(api.state.rows[2].translated);
   await api.translateAll();
   assert.ok(api.state.rows.every((r) => r.translated));
+});
+
+test('keyed Gemini viewer maps reordered properties to source blocks and shares the result with export', async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    calls++;
+    const request = JSON.parse(init.body), keys = Object.keys(request.response_format.schema.properties);
+    const values = keys.map((key, i) => [key, '鍵付き訳文 ' + (i + 1)]).reverse();
+    return Response.json({ status: 'completed', steps: [{type:'model_output',content:[{type:'text',text:JSON.stringify(Object.fromEntries(values))}]}] });
+  });
+  const api = await viewer('gemini', {}, null, 1, null, createKeyedGeminiTranslator);
+  await api.start('gemini'); await idle(api);
+  assert.equal(api.state.rows[0].blocks[0].ja, '鍵付き訳文 1');
+  await api.translateAll();
+  assert.deepEqual(api.state.rows.map((r) => r.blocks[0].ja), ['鍵付き訳文 1','鍵付き訳文 2','鍵付き訳文 3']);
+  assert.equal(calls, 1);
+});
+
+test('keyed Gemini streams complete values without exposing partial strings', async (t) => {
+  const f = streamFixture(); let request;
+  t.mock.method(globalThis, 'fetch', async (_url, init) => { request=JSON.parse(init.body);return f.response; });
+  const api = await viewer('gemini', {}, null, 1, null, createKeyedGeminiTranslator);
+  await api.start('gemini'); await until(() => !!request);
+  const keys = Object.keys(request.response_format.schema.properties);
+  f.start(); f.text(`{"${keys[0]}":"完成前`);
+  await new Promise(setImmediate);
+  assert.equal(api.placedBlocks.length,0);
+  f.text('の訳",'); await until(() => api.state.rows[0].blocks[0].ja);
+  assert.equal(api.state.rows[0].blocks[0].ja,'完成前の訳');
+  assert.equal(api.state.translator.completed,false);
+  f.text(keys.slice(1).map((key)=>JSON.stringify(key)+':"次の訳"').join(',')+'}');
+  f.complete(); await idle(api);
+  assert.equal(api.state.translator.completed,true);
+});
+
+test('a source-identical keyed title cannot replace a previous local translation or enable export', async (t) => {
+  let calls=0;
+  const api = await viewer('chrome', {}, null, 1, null, createKeyedGeminiTranslator);
+  const block=api.state.rows[0].blocks[0];
+  block.text='Learning from Images with a Predictive Architecture';block.kind='heading';
+  await api.start('chrome');await idle(api);
+  const previous=block.ja;
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{
+    calls++;const request=JSON.parse(init.body),keys=Object.keys(request.response_format.schema.properties);
+    const values=Object.fromEntries(keys.map((key,i)=>[key,i===0?block.text:'新しい訳']));
+    return Response.json({status:'completed',steps:[{type:'model_output',content:[{type:'text',text:JSON.stringify(values)}]}]});
+  });
+  await api.start('gemini');await idle(api);
+  assert.equal(block.ja,previous);
+  assert.equal(api.state.translator.missingCount,1);
+  assert.match(api.status(),/未翻訳1件/);
+  api.element('#download').onclick();
+  assert.equal(api.element('#downloadTranslated').disabled,true);
+  assert.equal(calls,1);
 });
 
 function localPages(api, count) {

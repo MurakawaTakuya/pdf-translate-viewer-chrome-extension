@@ -41,12 +41,51 @@ export async function makeCases(pages) {
   };
 }
 
+function keyedEntries(text) {
+  let position = 0;
+  const space = () => { while (/\s/.test(text[position] || '') && position < text.length) position++; };
+  const token = (expected) => {
+    space();
+    if (text[position++] !== expected) throw new Error('invalid-keyed-object');
+  };
+  const string = () => {
+    space(); const start = position;
+    if (text[position++] !== '"') throw new Error('invalid-keyed-value');
+    while (position < text.length) {
+      const char = text[position++];
+      if (char === '\\') position++;
+      else if (char === '"') return JSON.parse(text.slice(start, position));
+    }
+    throw new Error('unterminated-keyed-string');
+  };
+  const entries = [];
+  token('{'); space();
+  if (text[position] !== '}') for (;;) {
+    const id = string(); token(':'); const value = string();
+    entries.push({ id, text: value }); space();
+    if (text[position] !== ',') break;
+    position++;
+  }
+  token('}'); space();
+  if (position !== text.length) throw new Error('invalid-keyed-suffix');
+  return entries;
+}
+
 export function analyze(variant, text, status) {
   let output;
   try { output = JSON.parse(text); } catch { return { valid: false, reason: 'invalid-json', status }; }
   const expected = new Map(variant.targets.map((b, i) => [b.wire, { ...b, position: i + 1 }]));
   let entries, invalid = 0, wrongPage = 0, duplicatePages = 0;
-  if ((variant.protocol || variant.name) === 'sequential-flat') entries = output.translations;
+  if (variant.protocol === 'keyed-object') {
+    if (!output || Array.isArray(output) || typeof output !== 'object'
+      || Object.values(output).some((value) => typeof value !== 'string')) {
+      return { valid: false, reason: 'invalid-keyed-object', status };
+    }
+    // Read every raw member: JSON.parse can hide a repeated non-string value.
+    try { entries = keyedEntries(text); }
+    catch { return { valid: false, reason: 'invalid-keyed-object', status }; }
+  }
+  else if ((variant.protocol || variant.name) === 'sequential-flat') entries = output.translations;
   else {
     if (!Array.isArray(output.pages)) return { valid: false, reason: 'invalid-pages', status };
     const seenPages = new Set();
