@@ -84,6 +84,23 @@ test('manual open explicitly selects this viewer even when another MIME handler 
   assert.equal(f.calls.some(([kind]) => kind === 'mimeOptions'), false);
 });
 
+test('switching viewers reloads only same-document PDF navigation and leaves automatic routing enabled', async () => {
+  const f = fixture(), url = 'https://arxiv.org/pdf/2301.08243';
+  f.chrome.tabs.get = async () => ({ id: 42, url });
+  f.chrome.tabs.reload = async (id) => f.chrome.tabs.update(id, { reload: true });
+  await f.api.openOriginal(42, url + '#page=2&gsr=0');
+  assert.deepEqual(f.calls, [['navigate', 42, { url: url + '#page=2&gsr=0' }], ['navigate', 42, { reload: true }]]);
+  assert.equal(f.local.autoOpen, true);
+  assert.equal(f.calls.some(([kind]) => kind === 'mimeOptions'), false);
+});
+
+test('a failed viewer navigation removes its one-shot bypass rather than affecting a later open', async () => {
+  const f = fixture();
+  f.chrome.tabs.update = async () => { throw new Error('closed tab'); };
+  await assert.rejects(f.api.openOriginal(42, 'https://arxiv.org/pdf/2301.08243#gsr=1'), /closed tab/);
+  assert.equal(f.session['nativePdf:42'], undefined);
+});
+
 async function popupFixture(viewerState) {
   const elements = new Map(), messages = [];
   const element = (selector) => {
@@ -114,4 +131,23 @@ test('popup recognizes a MIME viewer despite the address bar containing the orig
 test('popup still offers a manual viewer open for a native PDF tab', async () => {
   const f = await popupFixture(null);
   assert.equal(f.element('#action').textContent, 'このPDFを翻訳ビューアで開く');
+});
+
+test('file PDF viewer selection uses the main-frame URL even when Tab.url is hidden', async () => {
+  const f = fixture(), url = 'file:///papers/local.pdf';
+  f.chrome.tabs.get = async () => ({ id: 42 });
+  f.chrome.webNavigation.getFrame = async ({ frameId }) => { assert.equal(frameId, 0); return { url: url + '#page=2' }; };
+  f.chrome.tabs.reload = async (id) => f.chrome.tabs.update(id, { reload: true });
+  await f.api.openOriginal(42, url + '#page=2&gsr=0');
+  assert.deepEqual(f.calls.at(-1), ['navigate', 42, { reload: true }]);
+  assert.equal(f.session['nativePdf:42'], url + '#page=2&gsr=0');
+});
+
+test('a MIME menu handoff forces a reload even if the current address cannot be read', async () => {
+  const f = fixture();
+  f.chrome.tabs.get = async () => ({ id: 42 });
+  f.chrome.webNavigation.getFrame = async () => null;
+  f.chrome.tabs.reload = async (id) => f.chrome.tabs.update(id, { reload: true });
+  await f.api.openOriginal(42, 'file:///papers/local.pdf#gsr=1', true);
+  assert.deepEqual(f.calls.at(-1), ['navigate', 42, { reload: true }]);
 });

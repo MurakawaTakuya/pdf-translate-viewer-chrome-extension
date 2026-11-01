@@ -5,7 +5,24 @@ export function viewerFileUrl(search) {
   return /^[a-z]+%3A/i.test(match[1]) ? decodeURIComponent(match[1]) : match[1];
 }
 
-export async function resolvePdfSource({ search, mimeHandler, storage, fetch: fetchPdf = globalThis.fetch }) {
+// Scholar's own Chrome-viewer action uses #gsr=0 to opt out of its PDF overlay.
+export function viewerDestinationUrl(url, destination) {
+  if (!['normal', 'chrome'].includes(destination)) throw new Error('不明なビューアです');
+  const target = new URL(url);
+  if (!['https:', 'http:', 'file:'].includes(target.protocol)) throw new Error('PDFのURLが不正です');
+  const hash = new URLSearchParams(target.hash.slice(1));
+  hash.set('gsr', destination === 'chrome' ? '0' : '1');
+  target.hash = hash.toString();
+  return target.href;
+}
+
+const withoutHash = (url) => url?.split('#')[0];
+const requestsChromeViewer = (url) => {
+  try { return new URLSearchParams(new URL(url).hash.slice(1)).get('gsr') === '0'; }
+  catch { return false; }
+};
+
+export async function resolvePdfSource({ search, mimeHandler, storage, getFrameUrl, fetch: fetchPdf = globalThis.fetch }) {
   const originalUrl = viewerFileUrl(search);
   if (originalUrl || !mimeHandler?.getStreamInfo) {
     return { originalUrl, parameters: async () => ({ url: originalUrl }) };
@@ -18,7 +35,11 @@ export async function resolvePdfSource({ search, mimeHandler, storage, fetch: fe
 
   const bypassKey = `nativePdf:${stream.tabId}`;
   const bypass = storage ? (await storage.get({ [bypassKey]: null }))[bypassKey] : null;
-  const nativeFallback = bypass === stream.originalUrl;
+  // Chrome may omit the navigation fragment from stream.originalUrl.
+  const frameUrl = getFrameUrl ? await getFrameUrl(stream.tabId).catch(() => null) : null;
+  const address = withoutHash(frameUrl) === withoutHash(stream.originalUrl) ? frameUrl : stream.originalUrl;
+  const nativeFallback = !!bypass && withoutHash(bypass) === withoutHash(stream.originalUrl)
+    || requestsChromeViewer(address);
   if (bypass && storage) await storage.remove(bypassKey);
 
   let bytes;

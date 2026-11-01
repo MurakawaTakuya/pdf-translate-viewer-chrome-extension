@@ -86,7 +86,7 @@ button:disabled { opacity: .5; cursor: progress; }
 .viewer-toolbar .page-navigation button:disabled { cursor: default; opacity: .3; }
 .language-arrow { width: 14px; height: 14px; color: #a6aab3; }
 .toolbar-separator { width: 1px; height: 20px; background: #ffffff29; margin: 0 5px; flex: none; }
-.download-control { display: inline-flex; align-items: center; position: relative; flex: none; }
+.download-control, .viewer-choice-control { display: inline-flex; align-items: center; position: relative; flex: none; }
 .document-actions { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .download-menu {
   position: absolute; top: calc(100% + 8px); right: 0; width: 190px; padding: 5px;
@@ -95,6 +95,7 @@ button:disabled { opacity: .5; cursor: progress; }
 }
 .viewer-toolbar .download-menu button { width: 100%; height: 36px; justify-content: flex-start; padding: 0 10px; }
 .viewer-toolbar .download-menu button:disabled { cursor: not-allowed; opacity: .35; }
+.viewer-menu { left: 0; right: auto; width: 250px; }
 .viewer-toolbar .translate-button { width: 88px; gap: 6px; background: #ffffff0f; border-color: #ffffff12; }
 .viewer-toolbar .translate-button:hover:not(:disabled) { background: #ffffff20; }
 #status {

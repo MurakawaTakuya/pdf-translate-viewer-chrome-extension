@@ -7,7 +7,7 @@ import { createDocumentTranslator } from '../document-translator.js';
 import { disableNativeZoom } from '../native-zoom.js';
 import { createPdfLoadProgress } from '../pdf-load-progress.js';
 import { horizontalZoomShift, verticalZoomShift } from '../zoom-anchor.js';
-import { resolvePdfSource } from '../pdf-source.js';
+import { resolvePdfSource, viewerDestinationUrl } from '../pdf-source.js';
 import { streamFixture, until } from './helpers/stream.mjs';
 
 const viewerSource = await readFile(new URL('../viewer.js', import.meta.url), 'utf8');
@@ -94,7 +94,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     },
     // Existing numeric-wire fixtures test shared orchestration; keyed tests inject the new codec below.
     createGeminiTranslator: geminiFactory, createDocumentTranslator,
-    resolvePdfSource: sourceOverride ? async () => sourceOverride : resolvePdfSource,
+    resolvePdfSource: sourceOverride ? async () => sourceOverride : resolvePdfSource, viewerDestinationUrl,
     disableNativeZoom, createPdfLoadProgress, horizontalZoomShift, verticalZoomShift,
     createCitationDialog: () => ({ open() {}, position() {} }),
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),
@@ -106,6 +106,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     },
   };
   context.self.Translator = context.Translator;
+  context.chrome = context.self.chrome;
   // Run the actual viewer orchestration. Only PDF/canvas/DOM rendering is replaced.
   const source = viewerSource.replace(/^import .*;\n/gm, '').replaceAll('import.meta.url', JSON.stringify(new URL('../viewer.js', import.meta.url).href)).replace(/\nload\(\);\s*$/, `
     const rendering = { pixelScale, makeCanvas, renderPage, releasePage, viewZoom, trackSourceHover,
@@ -131,6 +132,8 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   api.nativeZoomCalls = nativeZoomCalls;
   api.sourceTextCalls = sourceTextCalls;
   api.zoomSaves = zoomSaves;
+  api.chrome = context.chrome;
+  api.pointerDown = (event) => listeners.get('pointerdown')?.(event);
   api.runtimeMessage = context.dispatchRuntimeMessage;
   api.state.pdf = {};
   api.state.rows = [1, 2, 3].map((index) => ({
@@ -139,6 +142,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   }));
   api.updatePageNavigation();
   api.element('#downloadMenu').hidden = true;
+  api.element('#viewerMenu').hidden = true;
   return api;
 }
 async function idle(api) {
@@ -1268,4 +1272,28 @@ test('changing the language pair clears previous text rather than showing a tran
   assert.ok(api.state.rows.every(r=>r.blocks[0].ja===null));
   f.start();f.text('{"translations":[{"id":1,"text":"첫째"},{"id":2,"text":"둘째"},{"id":3,"text":"셋째"}]}');f.complete();
   await idle(api);
+});
+
+test('viewer menu selects Scholar-compatible or native intent without changing the paper URL', async () => {
+  const url = 'https://arxiv.org/pdf/2301.08243', messages = [];
+  const api = await viewer('gemini', {}, null, 1, { originalUrl: url, tabId: 42, fallback: async () => {} });
+  api.chrome.webNavigation = { getFrame: async () => ({ url: url + '#page=3&gsr=0' }) };
+  api.chrome.runtime.sendMessage = async (message) => { messages.push(message); return { ok: true }; };
+  api.element('#openOriginal').onclick();
+  assert.equal(api.element('#viewerMenu').hidden, false);
+  await api.element('#openNormalViewer').onclick();
+  assert.equal(messages[0].url, url + '#page=3&gsr=1');
+  assert.equal(messages[0].type, 'openOriginal');
+  assert.equal(api.element('#viewerMenu').hidden, true);
+  await api.element('#openChromeViewer').onclick();
+  assert.equal(messages[1].url, url + '#page=3&gsr=0');
+  api.element('#openOriginal').onclick();
+  api.pointerDown({ target: { closest: () => null } });
+  assert.equal(api.element('#viewerMenu').hidden, true);
+  api.element('#openOriginal').onclick();
+  api.key({ key: 'Escape' });
+  assert.equal(api.element('#viewerMenu').hidden, true);
+  api.chrome.runtime.sendMessage = async () => ({ ok: false, error: 'tab closed' });
+  await api.element('#openChromeViewer').onclick();
+  assert.match(api.status(), /tab closed/);
 });

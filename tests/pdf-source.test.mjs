@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolvePdfSource, viewerFileUrl } from '../pdf-source.js';
+import { resolvePdfSource, viewerFileUrl, viewerDestinationUrl } from '../pdf-source.js';
 
 const originalUrl = 'https://arxiv.org/pdf/2301.08243';
 function fixture(extra = {}) {
@@ -82,4 +82,32 @@ test('an absent content length keeps progress indeterminate rather than inventin
   const source = await resolvePdfSource(f.options), progress = [];
   await source.parameters((p) => progress.push(p));
   assert.deepEqual(progress, [{ loaded: 2, total: 0 }, { loaded: 5, total: 0 }]);
+});
+
+test('viewer destinations preserve the paper URL, query and page anchor while opting Scholar in or out', () => {
+  const url = 'https://arxiv.org/pdf/2301.08243?download=1#page=3&zoom=150&gsr=0';
+  const normal = new URL(viewerDestinationUrl(url, 'normal'));
+  const native = new URL(viewerDestinationUrl(normal.href, 'chrome'));
+  assert.equal(normal.origin + normal.pathname + normal.search, url.split('#')[0]);
+  assert.equal(new URLSearchParams(normal.hash.slice(1)).get('gsr'), '1');
+  assert.equal(new URLSearchParams(native.hash.slice(1)).get('gsr'), '0');
+  assert.equal(new URLSearchParams(native.hash.slice(1)).get('page'), '3');
+  assert.throws(() => viewerDestinationUrl('javascript:alert(1)', 'chrome'));
+});
+
+test('Scholar native-viewer intent is honored even if Chrome strips the hash from the stream URL', async () => {
+  const f = fixture({ getFrameUrl: async () => originalUrl + '#page=3&gsr=0' });
+  const source = await resolvePdfSource(f.options);
+  assert.equal(source.nativeFallback, true);
+  assert.equal(source.originalUrl, originalUrl);
+  await source.fallback();
+  assert.deepEqual(f.calls, ['stream://once', 'native']);
+  for (const url of [originalUrl, originalUrl + '#page=3&gsr=1', 'https://example.org/other.pdf#gsr=0']) {
+    assert.equal((await resolvePdfSource(fixture({ getFrameUrl: async () => url }).options)).nativeFallback, false);
+  }
+});
+
+test('one-shot handoff ignores fragments but remains scoped to the same PDF and tab', async () => {
+  const f = fixture({ storage: { get: async () => ({ 'nativePdf:42': originalUrl + '#gsr=1' }), remove: async () => {} } });
+  assert.equal((await resolvePdfSource(f.options)).nativeFallback, true);
 });
