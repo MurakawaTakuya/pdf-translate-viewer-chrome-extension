@@ -1,6 +1,6 @@
 # Shallow ranked-node candidate
 
-Status: **prepared offline; not the viewer default; live quality pending**.
+Status: **F1 rejected with serving-state complexity; no translation output; F2/F3 not run; not the viewer default**.
 
 ## Confirmed API diagnostic
 
@@ -23,3 +23,9 @@ Shallowness does not prove API acceptance: 651 required properties may still exc
 [flat-node-experiment-plan.json](flat-node-experiment-plan.json) records the source, request and implementation hashes before generation. The model stays `gemini-3.5-flash-lite` in LangTalk. There are 212 source targets: 210 generated and the same two separately retained original blocks. The same 73-source panel is preserved. At most three unchanged calls are allowed, stopping on the first transport, completion, structure, decoder, coverage, 150-second latency or independent semantic-review failure. No automatic retry, repair, prompt/schema adjustment or model judge in this experiment.
 
 Offline tests: **266 passed**. Independent assistant protocol checks confirmed field binding, strict rank parsing, block-atomic streaming, cancellation and full-context repair. Synthetic test prose establishes representation only, not model translation quality. Chrome was not operated; the production factory remains unchanged.
+
+## F1 result
+
+The shallow 651-field request was also rejected with HTTP 400 and an explicit too-many-serving-states error after 13.296 seconds. Model output was empty and no completion was received. F2/F3 were not executed, and no prompt/schema adjustment rescued this run. Removing nested objects alone did not make this particular request acceptable; the result does not establish a universal field-count threshold. [Metrics](flat-node-evaluation.json).
+
+The next compact candidate is a separate experiment with one service-required string per block and locally checked positional atom records. It does not re-score F1.

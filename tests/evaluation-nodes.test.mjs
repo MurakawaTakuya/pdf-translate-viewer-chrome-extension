@@ -30,3 +30,12 @@ test('flat evaluation counts fields separately from blocks and replays the real 
   const missing=JSON.parse(text);delete missing[atoms[0].field];
   assert.equal(analyzeNodes(candidate,JSON.stringify(missing),'completed').missing,1);
 });
+
+test('compact evaluation keeps one required field per block and checks records through the real codec',async()=>{
+  const pages=[{page:1,blocks:[{id:'a',text:'We use RN152 following prior work [4].',translate:true},{id:'b',text:'Abstract',kind:'heading',translate:true}]}];
+  const candidate=await captureNodes(pages,{compact:true}),[a,b]=candidate.targets;
+  assert.equal(candidate.request.response_format.schema.required.length,2);
+  const raw=JSON.stringify({[a.wire]:'1:に従い\n0:先行研究\nを使う。',[b.wire]:'概要'});
+  assert.equal(analyzeNodes(candidate,raw,'completed').valid,true);
+  assert.equal((await replayNodes(pages,{status:'completed',outputText:raw},{compact:true})).translated.a,'先行研究[4]に従いRN152を使う。');
+});

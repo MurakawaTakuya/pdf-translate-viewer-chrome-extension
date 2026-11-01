@@ -1,0 +1,42 @@
+{
+  "recordedAt": "2026-11-02T02:33:07+0900",
+  "source": "https://arxiv.org/pdf/2301.08243",
+  "model": "gemini-3.5-flash-lite",
+  "project": "gen-lang-client-0097090168",
+  "requestSha256": "3b07c73c8640eac1c1b07726b5a18bacf81e4179de9a3c791004d824bded823e",
+  "implementationSha256": "e82a2baac9d27688f95794b3d798b4ba7c06ace500052942150b0aadd383fb6d",
+  "rawSha256": "6a32b0ebc14a3d6218a89a670cdf5cbdfa8ac4604d7dcc1d9ad8888467694749",
+  "apiRequests": 1,
+  "confirmationRequests": 0,
+  "retries": 0,
+  "decision": "api_rejected_no_quality_output",
+  "productionFactoryChanged": false,
+  "requiredFields": 651,
+  "http": 400,
+  "totalMs": 13295.745667,
+  "status": "no-completion",
+  "outputChars": 0,
+  "errorCode": "invalid_request",
+  "errorMessageExcerpt": "The specified schema produces a constraint that has too many states for serving.",
+  "run": {
+    "label": "F1",
+    "requestSha256": "3b07c73c8640eac1c1b07726b5a18bacf81e4179de9a3c791004d824bded823e",
+    "rawSha256": "6a32b0ebc14a3d6218a89a670cdf5cbdfa8ac4604d7dcc1d9ad8888467694749",
+    "http": 400,
+    "status": "no-completion",
+    "timing": {
+      "totalMs": 13295.745667,
+      "firstTextMs": null,
+      "firstItemMs": null
+    },
+    "usage": null,
+    "structuralPass": false,
+    "nodePass": false,
+    "coverage": false,
+    "originalIds": [],
+    "issues": [],
+    "error": "全文の翻訳が完了しませんでした",
+    "gate": false
+  },
+  "interpretation": "Shallow all-string fields still exceed the service state limit for this request. F2/F3 stopped; no content score. This does not establish a universal property-count threshold."
+}
