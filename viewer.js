@@ -8,6 +8,7 @@ import { horizontalZoomShift, verticalZoomShift } from './zoom-anchor.js';
 import { toRuns } from './math.js';
 import { disableNativeZoom } from './native-zoom.js';
 import { createCitationDialog } from './citation-ui.js';
+import { createSourceTextLayer } from './source-text.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./lib/pdf.worker.min.mjs', import.meta.url).href;
 
@@ -483,6 +484,7 @@ async function buildRows() {
       translated: false, queued: false, visible: false,
     };
     row._row = r;
+    trackSourceHover(r);
     setRowWidth(r, inner);
     state.rows.push(r);
     io.observe(row);
@@ -558,6 +560,9 @@ function renderPage(r) {
     swapCanvas(r.right, copy);
     r.srcCanvas = canvas;
     r.scale = scale;
+    r.sourceText ??= createSourceTextLayer(r, pdfjsLib.TextLayer, document);
+    // Text extraction failure must not hide an otherwise readable PDF.
+    try { await r.sourceText.render(); } catch (error) { console.error('原文の選択用テキストを読み込めませんでした', error); }
   })();
   return r.renderP;
 }
@@ -566,6 +571,7 @@ function releasePage(r) {
   if (r.busy) return; // 翻訳中のページは画像を使うので残す
   r.renderVersion = (r.renderVersion || 0) + 1;
   r.renderTask?.cancel();
+  r.sourceText?.release();
   for (const box of [r.left, r.right]) {
     const c = box.querySelector(':scope > canvas');
     if (c) { c.width = c.height = 0; c.remove(); }
@@ -661,11 +667,29 @@ function placeBlock(r, b) {
   // 対応する原文と訳文をホバーで強調し、訳文側には操作ボタンを出す
   const hot = (on) => { src.classList.toggle('hot', on); el.classList.toggle('hot', on); };
   el._hot = hot;
-  src.onmouseenter = () => hot(true);
-  src.onmouseleave = () => hot(false);
   el.onmouseenter = () => { hot(true); showTools(el); };
   el.onmouseleave = () => { hot(false); hideToolsSoon(); };
   return el;
+}
+
+// 原文の選択レイヤーがマウスを受け取り、下の枠は選択を遮らず強調表示だけ行う。
+function trackSourceHover(r) {
+  let hovered = null;
+  const set = (next) => {
+    if (next === hovered) return;
+    hovered?._hot(false);
+    hovered = next;
+    hovered?._hot(true);
+  };
+  r.left.onpointermove = (event) => {
+    const rect = r.left.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * r.vp.width / rect.width;
+    const y = (event.clientY - rect.top) * r.vp.height / rect.height;
+    const match = [...(r.blockEls || [])].find(([b]) =>
+      x >= b.x0 - 1.5 && x <= b.x1 + 1.5 && y >= b.top - 1.5 && y <= b.bottom + 1.5);
+    set(match?.[1] || null);
+  };
+  r.left.onpointerleave = () => set(null);
 }
 
 function blockElement(r, b) {

@@ -220,6 +220,38 @@ body[data-view="ja"] .row, body[data-view="orig"] .row { grid-template-columns: 
 .page { position: relative; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); overflow: hidden; }
 .page canvas { position: absolute; inset: 0; display: block; }
 .layer { position: absolute; inset: 0; }
+.page.orig > .layer { pointer-events: none; }
+
+/* PDF.js 4.10 text-layer layout, adapted from mozilla/pdf.js.
+ * Copyright 2014 Mozilla Foundation
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.source-text-layer {
+  position: absolute; inset: 0; overflow: clip; z-index: 3;
+  text-align: initial; line-height: 1; text-size-adjust: none;
+  forced-color-adjust: none; transform-origin: 0 0; user-select: text;
+}
+.source-text-layer :is(span, br) {
+  position: absolute; color: transparent; white-space: pre;
+  cursor: text; transform-origin: 0 0;
+}
+.source-text-layer > :not(.markedContent),
+.source-text-layer .markedContent span:not(.markedContent) { z-index: 1; }
+.source-text-layer span.markedContent { top: 0; height: 0; }
+.source-text-layer span[role="img"] { user-select: none; cursor: default; }
+.source-text-layer ::selection { background: rgba(26, 115, 232, .3); }
+.source-text-layer br::selection { background: transparent; }
+.source-text-layer[data-main-rotation="90"] { transform: rotate(90deg) translateY(-100%); }
+.source-text-layer[data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
+.source-text-layer[data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
 
 /* 訳文ブロック：原文の段落と同じ位置・大きさで上書きする */
 .blk {

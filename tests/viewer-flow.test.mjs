@@ -42,6 +42,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   const savedFiles = [];
   const placedBlocks = [];
   const nativeZoomCalls = [];
+  const sourceTextCalls = [];
   const tabs = {
     getCurrent: async () => ({ id: 42 }),
     setZoomSettings: async (id, settings) => { nativeZoomCalls.push({ id, ...settings }); },
@@ -82,6 +83,11 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     scrollTo(x, y) { scrollCalls.push([x, y]); context.scrollY = y; window.scrollX = x; },
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
     pdfjsLib: { GlobalWorkerOptions: {} },
+    createSourceTextLayer: (row) => {
+      sourceTextCalls.push(['create', row]);
+      return { render: async () => { sourceTextCalls.push(['render', row]); },
+        release: () => { sourceTextCalls.push(['release', row]); } };
+    },
     createGeminiTranslator, createDocumentTranslator,
     disableNativeZoom, createPdfLoadProgress, horizontalZoomShift, verticalZoomShift,
     createCitationDialog: () => ({ open() {}, position() {} }),
@@ -96,7 +102,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   context.self.Translator = context.Translator;
   // Run the actual viewer orchestration. Only PDF/canvas/DOM rendering is replaced.
   const source = viewerSource.replace(/^import .*;\n/gm, '').replaceAll('import.meta.url', JSON.stringify(new URL('../viewer.js', import.meta.url).href)).replace(/\nload\(\);\s*$/, `
-    const rendering = { pixelScale, makeCanvas, renderPage, releasePage, viewZoom,
+    const rendering = { pixelScale, makeCanvas, renderPage, releasePage, viewZoom, trackSourceHover,
       enable() { renderPage = rendering.renderPage; releasePage = rendering.releasePage; } };
     renderPage = async () => {};
     getPageBlocks = async (r) => r.blocks;
@@ -117,6 +123,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
   api.placedBlocks = placedBlocks;
   api.nativeZoomCalls = nativeZoomCalls;
+  api.sourceTextCalls = sourceTextCalls;
   api.zoomSaves = zoomSaves;
   api.state.pdf = {};
   api.state.rows = [1, 2, 3].map((index) => ({
@@ -463,6 +470,25 @@ test('both PDF canvases render above display density and rerender after zooming'
   assert.equal(r.srcCanvas.width, 1500);
   assert.equal(r.srcCanvas.height, 2062);
   assert.equal(r.srcCanvas.style.width, '800px');
+  assert.equal(api.sourceTextCalls.filter(([op]) => op === 'create').length, 1);
+  assert.equal(api.sourceTextCalls.filter(([op]) => op === 'render').length, 2);
+  api.rendering.releasePage(r);
+  assert.equal(api.sourceTextCalls.at(-1)[0], 'release');
+});
+
+test('source text can receive pointer events while block hover follows zoomed page coordinates', async () => {
+  const api = await viewer(), changes = [];
+  const a = { x0: 10, x1: 100, top: 20, bottom: 80 };
+  const b = { x0: 10, x1: 100, top: 100, bottom: 180 };
+  const row = { left: element(), vp: { width: 500, height: 700 },
+    blockEls: new Map([[a, { _hot: (on) => changes.push(['a', on]) }], [b, { _hot: (on) => changes.push(['b', on]) }]]) };
+  row.left.getBoundingClientRect = () => ({ left: -40, top: 60, width: 1000, height: 1400 });
+  api.rendering.trackSourceHover(row);
+  const move = (x, y) => row.left.onpointermove({ clientX: -40 + x * 2, clientY: 60 + y * 2,
+    preventDefault: () => assert.fail('must preserve native text selection') });
+  move(30, 40); move(30, 45); move(30, 140);
+  row.left.onpointerleave();
+  assert.deepEqual(changes, [['a', true], ['a', false], ['b', true], ['b', false]]);
 });
 
 test('high DPI and single-page display increase density while respecting the canvas budget', async () => {
