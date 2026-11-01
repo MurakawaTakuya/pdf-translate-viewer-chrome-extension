@@ -1,8 +1,8 @@
-// Gemini APIの設定（翻訳方法はビューアのボタンで選ぶ）
+// 開いたときの自動翻訳とGemini APIの設定
 import { createGeminiTranslator, DEFAULT_MODEL } from './gemini.js';
 import { dismissOnOutsideClick } from './dialog.js';
 
-const DEFAULTS = { geminiKey: '', geminiModel: DEFAULT_MODEL };
+const DEFAULTS = { autoTranslate: true, geminiKey: '', geminiModel: DEFAULT_MODEL };
 
 // 拡張機能の保存領域（この拡張だけが読める）に保存する。拡張の外で開いたとき（開発用）は localStorage
 const area = self.chrome?.storage?.local;
@@ -24,10 +24,12 @@ export function openSettings(current) {
   const dlg = $('#settings');
   dismissOnOutsideClick(dlg);
   const form = dlg.querySelector('form');
+  const autoInput = $('#autoTranslate');
   const keyInput = $('#apiKey');
   const modelInput = $('#model');
   const testOut = $('#testResult');
 
+  autoInput.checked = current.autoTranslate !== false;
   keyInput.value = current.geminiKey;
   keyInput.type = 'password';
   modelInput.value = current.geminiModel;
@@ -59,6 +61,7 @@ export function openSettings(current) {
       if (e.submitter?.value !== 'save') { resolve(null); return; }
       saving = true;
       const next = {
+        autoTranslate: autoInput.checked,
         geminiKey: keyInput.value.trim(),
         geminiModel: modelInput.value.trim() || DEFAULT_MODEL,
       };

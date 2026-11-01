@@ -7,7 +7,7 @@ import { dismissOnOutsideClick } from '../dialog.js';
 const source = (await readFile(new URL('../settings.js', import.meta.url), 'utf8'))
   .replace(/^import .*;\n/gm, '').replace(/export /g, '');
 
-function fixture(save = async () => {}) {
+function fixture(save = async () => {}, saved = {}) {
   const elements = new Map();
   const $ = (id) => {
     if (!elements.has(id)) elements.set(id, {
@@ -19,11 +19,11 @@ function fixture(save = async () => {}) {
     });
     return elements.get(id);
   };
-  const { openSettings } = vm.runInNewContext(`(function(){${source}; return { openSettings };})()`, {
-    self: { chrome: { storage: { local: { set: save } } } },
+  const { openSettings, loadSettings } = vm.runInNewContext(`(function(){${source}; return { openSettings, loadSettings };})()`, {
+    self: { chrome: { storage: { local: { get: async (defaults) => ({...defaults,...saved}), set: async (next) => { Object.assign(saved,next);await save(next); } } } } },
     document: { querySelector: $ }, dismissOnOutsideClick, DEFAULT_MODEL: 'mock-model',
   });
-  return { $, openSettings };
+  return { $, openSettings, loadSettings };
 }
 
 test('outside settings click cancels without saving credentials', async () => {
@@ -49,4 +49,26 @@ test('native dialog close during asynchronous save does not replace the saved se
   finish();
   await submit;
   assert.equal((await result).geminiModel, 'updated-model');
+});
+
+
+test('automatic local translation defaults on for both new and existing Gemini settings',async()=>{
+  for(const saved of [{},{geminiKey:'existing-key',geminiModel:'existing-model'}]){
+    const f=fixture(async()=>{},saved),settings=await f.loadSettings();
+    assert.equal(settings.autoTranslate,true);
+    if(saved.geminiKey)assert.equal(settings.geminiKey,saved.geminiKey);
+  }
+});
+test('automatic translation can be disabled and enabled persistently without losing Gemini settings',async()=>{
+  const f=fixture();
+  for(const enabled of [false,true]){
+    const pending=f.openSettings({autoTranslate:!enabled,geminiKey:'mock-key',geminiModel:'mock-model'});
+    f.$('#autoTranslate').checked=enabled;
+    await f.$('form').onsubmit({submitter:{value:'save'}});
+    assert.equal((await pending).autoTranslate,enabled);
+    const saved=await f.loadSettings();
+    assert.equal(saved.autoTranslate,enabled);
+    assert.equal(saved.geminiKey,'mock-key');
+    assert.equal(saved.geminiModel,'mock-model');
+  }
 });

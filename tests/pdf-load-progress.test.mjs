@@ -37,17 +37,17 @@ test('completion briefly reaches the right edge; restart cancels hiding and fail
   assert.equal(f.bar.hidden,true);assert.equal(f.timers.size,0);assert.equal(f.attrs.get('aria-valuenow'),undefined);
 });
 
-function loader({failureStage}={}) {
-  const f=fixture(),network=deferred(),rows=deferred(),paint=deferred(),state={rows:[]};
-  const task={promise:network.promise};let status='',built=false,painted=false;
+function loader({failureStage,autoTranslate=false}={}) {
+  const f=fixture(),network=deferred(),rows=deferred(),paint=deferred(),state={rows:[],settings:{autoTranslate}};
+  const task={promise:network.promise},translations=[],dstSel={value:'ko'};let status='',built=false,painted=false;
   const load=vm.runInNewContext(`(function(){${loadSource};return load;})()`,{
-    fileUrl:'https://example.test/paper.pdf',state,document:{},console:{error(){}},
+    fileUrl:'https://example.test/paper.pdf',state,autoTranslatePending:true,document:{},console:{error(){}},
     $:()=>({}),setStatus:text=>{status=text;},pdfLoadProgress:f.progress,
-    pdfjsLib:{getDocument:()=>task},
+    pdfjsLib:{getDocument:()=>task},srcSel:{value:'en'},dstSel,start:async(engine)=>{translations.push([engine,dstSel.value]);},
     buildRows:async()=>{built=true;if(failureStage==='rows')throw new Error('rows');await rows.promise;state.rows=[{}];},
     renderPage:async()=>{painted=true;if(failureStage==='paint')throw new Error('paint');await paint.promise;},
   });
-  return {...f,load,network,rows,paint,task,state,status:()=>status,built:()=>built,painted:()=>painted};
+  return {...f,load,network,rows,paint,task,state,translations,status:()=>status,built:()=>built,painted:()=>painted};
 }
 
 test('actual load wires PDF.js byte events and stays visible through row preparation and first paint',async()=>{
@@ -73,4 +73,14 @@ test('network, row and first-paint failures hide the bar and show the existing l
 test('cached loads with no progress notifications still finish and hide the bar',async()=>{
   const f=loader();f.network.resolve({});f.rows.resolve();f.paint.resolve();
   await f.load();f.flush();assert.equal(f.bar.hidden,true);assert.equal(f.status(),'');
+});
+
+
+test('automatic local translation starts only after PDF preparation and the first paint finish',async()=>{
+  const f=loader({autoTranslate:true}),pending=f.load();
+  f.network.resolve({});f.rows.resolve();await tick();
+  assert.equal(f.translations.length,0);
+  f.paint.resolve();await pending;
+  assert.deepEqual(f.translations,[['chrome','ja']]);
+  assert.equal(f.attrs.get('aria-valuenow'),'100');
 });

@@ -52,6 +52,7 @@ const state = {
 };
 let pageNavigationFrame = null;
 let citationDialog = null;
+let autoTranslatePending = true;
 
 let statusTimer;
 const setStatus = (t) => {
@@ -429,6 +430,16 @@ async function load() {
     setStatus('PDFを開けませんでした ' + hint);
     return;
   }
+  await autoTranslateOnOpen();
+}
+
+async function autoTranslateOnOpen() {
+  if (!autoTranslatePending) return;
+  autoTranslatePending = false;
+  if (state.settings.autoTranslate === false || state.translationVersion || !state.pdf || !state.rows.length) return;
+  dstSel.value = 'ja';
+  if (srcSel.value === 'ja') return; // 日本語の原文を日本語へ再翻訳しない。
+  await start('chrome');
 }
 
 async function buildRows() {
@@ -1146,8 +1157,8 @@ if (fileUrl && self.chrome?.tabs) {
   };
 }
 
-$('#startLocal').onclick = () => start('chrome');
-$('#startGemini').onclick = () => start('gemini');
+$('#startLocal').onclick = () => { autoTranslatePending = false; return start('chrome'); };
+$('#startGemini').onclick = () => { autoTranslatePending = false; return start('gemini'); };
 $('#openSettings').onclick = showSettings;
 $('#download').onclick = toggleDownloadMenu;
 $('#downloadOriginal').onclick = () => download('orig');

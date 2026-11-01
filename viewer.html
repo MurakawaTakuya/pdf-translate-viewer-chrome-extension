@@ -79,7 +79,7 @@
         </span>
         <button id="startLocal" class="translate-button" aria-label="ローカルAIで翻訳" aria-busy="false" title="ローカルAIで翻訳。Chrome内蔵AIを使い、文章は外部に送られません。">ローカルAI</button>
         <button id="startGemini" class="translate-button" aria-label="Geminiで翻訳" aria-busy="false" title="Geminiで翻訳。PDF全文をGoogleへ送信します。APIキーが必要です。">Gemini</button>
-        <button id="openSettings" class="icon-button" title="GeminiのAPIキー・モデルの設定" aria-label="Geminiの設定"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.7 2-2 .9-2-.4-2 3.4 1.4 1.6v2.4L2.8 14l2 3.5 2-.4 2 .9.7 2h4l.7-2 2-.9 2 .4 2-3.5-1.4-1.1v-2.4l1.4-1.6-2-3.4-2 .4-2-.9-.7-2z"/><circle cx="11.5" cy="11.5" r="3"/></svg></button>
+        <button id="openSettings" class="icon-button" title="翻訳の設定" aria-label="翻訳の設定"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.7 2-2 .9-2-.4-2 3.4 1.4 1.6v2.4L2.8 14l2 3.5 2-.4 2 .9.7 2h4l.7-2 2-.9 2 .4 2-3.5-1.4-1.1v-2.4l1.4-1.6-2-3.4-2 .4-2-.9-.7-2z"/><circle cx="11.5" cy="11.5" r="3"/></svg></button>
       </div>
     </div>
     <div id="pdfLoadProgress" class="pdf-load-progress" role="progressbar" aria-label="PDFの読み込み" aria-valuemin="0" aria-valuemax="100" hidden>
@@ -90,7 +90,13 @@
 
   <dialog id="settings">
     <form method="dialog">
-      <h2>Gemini APIの設定</h2>
+      <h2>翻訳の設定</h2>
+      <label class="auto-translate-setting" for="autoTranslate">
+        <span>PDFを開いたときに自動翻訳</span>
+        <input id="autoTranslate" type="checkbox" role="switch" aria-describedby="autoTranslateHelp">
+      </label>
+      <p id="autoTranslateHelp" class="note">ローカルAIで日本語に翻訳します。変更は次にPDFを開いたときから適用されます。</p>
+      <h3>Gemini API</h3>
 
       <div class="gemini-only">
         <div class="field">

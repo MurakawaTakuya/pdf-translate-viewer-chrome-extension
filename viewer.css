@@ -151,6 +151,13 @@ button:disabled { opacity: .5; cursor: progress; }
 }
 #settings::backdrop { background: rgba(0, 0, 0, .35); }
 #settings h2 { margin: 0 0 12px; font-size: 17px; }
+#settings h3 { margin: 18px 0 12px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 14px; }
+.auto-translate-setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 14px; cursor: pointer; }
+#autoTranslate { appearance: none; position: relative; width: 34px; height: 20px; margin: 0; flex: none; border-radius: 12px; border: 1px solid var(--border); background: #777; cursor: pointer; }
+#autoTranslate::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+#autoTranslate:checked { background: #1a73e8; border-color: #1a73e8; }
+#autoTranslate:checked::after { transform: translateX(14px); }
+#autoTranslate:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 #settings .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
 #settings .field .name { font-weight: 600; font-size: 13px; }
 #settings .row-input { display: flex; gap: 6px; }

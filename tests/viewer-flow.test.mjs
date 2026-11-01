@@ -109,7 +109,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     };
     fillBlock = (_el, b, text) => { b.ja = text; };
     saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
-    return { state, buildRows, start, enqueue, enqueueVisiblePages, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
+    return { state, buildRows, autoTranslateOnOpen, start, enqueue, enqueueVisiblePages, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -1035,4 +1035,36 @@ test('vertical zoom limit uses the document start rather than the currently poin
   near(Number(match[2]),0); // Page two must keep following the pointer while the document start is above the viewport.
   near(Number(match[3]),0.9);
   api.finishZoomGesture();
+});
+
+test('opening a PDF automatically translates to Japanese locally exactly once without Gemini calls',async(t)=>{
+  t.mock.method(globalThis,'fetch',async()=>assert.fail('automatic translation must stay local'));
+  const options=[];
+  const api=await viewer('gemini',{create:async (opts)=>{options.push(opts);return {translate:async text=>'自動訳 '+text};}});
+  api.element('#dst').value='ko'; // A remembered manual target must not change the automatic Japanese default.
+  await api.autoTranslateOnOpen();await idle(api);
+  assert.equal(api.state.engine,'chrome');
+  assert.equal(options[0].sourceLanguage,'en');assert.equal(options[0].targetLanguage,'ja');
+  assert.equal(api.state.rows[0].blocks[0].ja,'自動訳 Paragraph on page 1');
+  await api.autoTranslateOnOpen();assert.equal(options.length,1);
+});
+test('automatic translation respects opt-out, existing Japanese source, and an explicit engine choice',async(t)=>{
+  t.mock.method(globalThis,'fetch',async()=>assert.fail('no implicit Gemini calls'));
+  for(const mode of ['off','Japanese source','manual choice']){
+    const api=await viewer();
+    if(mode==='off')api.state.settings.autoTranslate=false;
+    if(mode==='Japanese source')api.element('#src').value='ja';
+    if(mode==='manual choice'){
+      api.state.settings.geminiKey='';await api.startButton.onclick(); // Even an unsuccessful explicit choice takes precedence.
+    }
+    await api.autoTranslateOnOpen();await idle(api);
+    assert.equal(api.state.engine,null);assert.equal(api.state.enabled,false);
+  }
+});
+test('unavailable local AI leaves the PDF readable without an automatic Gemini fallback',async(t)=>{
+  t.mock.method(globalThis,'fetch',async()=>assert.fail('no paid fallback'));
+  const api=await viewer('gemini',{availability:async()=> 'unavailable'});
+  await api.autoTranslateOnOpen();
+  assert.equal(api.state.engine,null);assert.equal(api.state.enabled,false);
+  assert.match(api.status(),/未対応/);
 });
