@@ -11,7 +11,7 @@ const exec = promisify(execFile);
 const sha = (value) => createHash('sha256').update(value).digest('hex');
 const options = { sourceLanguage:'en', targetLanguage:'ja', model:DEFAULT_MODEL, apiKey:'offline-placeholder' };
 const implementationFiles = ['protected-translator.js','protected-spans.js','pdf-layout.js','gemini.js','keyed-translations.js','document-translator.js',
-  'translation-stream.js','viewer.js','viewer.css','export.js','math.js','scripts/evaluation/protected-format.mjs','scripts/evaluation/compare-formats.mjs'];
+  'translation-stream.js','api-error.js','viewer.js','viewer.css','export.js','math.js','scripts/evaluation/protected-format.mjs','scripts/evaluation/compare-formats.mjs'];
 async function implementationHash() {
   return sha((await Promise.all(implementationFiles.map(async (path) => path + '\n' + await readFile(new URL('../../' + path,import.meta.url),'utf8')))).join('\n'));
 }

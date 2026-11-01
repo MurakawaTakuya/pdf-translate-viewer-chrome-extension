@@ -1,0 +1,121 @@
+{
+  "recordedAt": "2026-11-02T01:11:44+0900",
+  "source": "https://arxiv.org/pdf/2301.08243",
+  "sourcePdfSha256": "eddbdc093eb4d48662bcf4fbd1c6735ccd606205cc9070977ce317d68aff3941",
+  "inputSha256": "d759a44dbc8343cf51ce6a90246744c6a15e6a8367329cfe6fb3f1a23cf719d2",
+  "implementationSha256": "3cc6e738b19f7d6fcbefb6ebc6e80aef67a919bec8dbd9c756a553bb16b459a0",
+  "requestSha256": "ef78e067fea178ec46d3b37a011966d6298abb98f4e968b09ddbd9332a59bc7f",
+  "frozenImplementationCommit": "2aa9efd",
+  "model": "gemini-3.5-flash-lite",
+  "project": "gen-lang-client-0097090168",
+  "apiRequests": 1,
+  "maximumApiRequests": 3,
+  "completionResponses": 0,
+  "confirmationRequests": 0,
+  "retries": 0,
+  "automaticRepairs": 0,
+  "productionFactoryChanged": false,
+  "decision": "not_adopted_api_rejected",
+  "qualityVerdict": "not_evaluated_no_model_output",
+  "plannedCoverage": {
+    "targets": 212,
+    "generatedTargets": 210,
+    "originalIds": [
+      "p3-b21",
+      "p4-b6"
+    ],
+    "atomCounts": {
+      "math": 105,
+      "literal": 135,
+      "citation": 201
+    },
+    "semanticPanelTargets": 73
+  },
+  "receivedCoverage": {
+    "modelOutputChars": 0,
+    "translatedTargets": 0,
+    "originalTargetsReturnedByTranslator": 0
+  },
+  "runs": [
+    {
+      "label": "N1",
+      "requestSha256": "ef78e067fea178ec46d3b37a011966d6298abb98f4e968b09ddbd9332a59bc7f",
+      "rawSha256": "1ae08b3be2693d40a51f81693dc8753feb5aee76fbb7e3e283ff9bf3482052e3",
+      "http": 400,
+      "status": "no-completion",
+      "timing": {
+        "totalMs": 1215.922459,
+        "firstTextMs": null,
+        "firstItemMs": null
+      },
+      "usage": null,
+      "structuralPass": false,
+      "nodePass": false,
+      "coverage": false,
+      "originalIds": [],
+      "issues": [],
+      "error": "全文の翻訳が完了しませんでした",
+      "gate": false
+    }
+  ],
+  "actualServiceErrorMessage": null,
+  "failureExplanation": "HTTP 400 is confirmed. The original evaluator attempted response.json() on an SSE error body and lost its detailed contents. The recorded parsing exception is not the underlying service rejection reason. Schema complexity is an unverified hypothesis, not an established diagnosis.",
+  "originalEvaluatorError": {
+    "message": "Unexpected token 'e', \"event: err\"... is not valid JSON"
+  },
+  "postStopDiagnosticsFix": "Added JSON/array/SSE error decoding for client and evaluator, tested offline only. The lost service body cannot be recovered, and N1 was not retried or rescored.",
+  "offlineTests": {
+    "pass": 261,
+    "fail": 0
+  },
+  "roundtrip": {
+    "historicalAcceptedStrings": 208,
+    "exact": 198,
+    "failures": [
+      {
+        "id": "p2-b32",
+        "reason": "node"
+      },
+      {
+        "id": "p5-b25",
+        "reason": "historical text does not preserve a newly required original atom"
+      },
+      {
+        "id": "p5-b35",
+        "reason": "node"
+      },
+      {
+        "id": "p5-b37",
+        "reason": "historical text does not preserve a newly required original atom"
+      },
+      {
+        "id": "p5-b77",
+        "reason": "node"
+      },
+      {
+        "id": "p5-b80",
+        "reason": "node"
+      },
+      {
+        "id": "p6-b29",
+        "reason": "node"
+      },
+      {
+        "id": "p6-b30",
+        "reason": "historical text does not preserve a newly required original atom"
+      },
+      {
+        "id": "p7-b23",
+        "reason": "node"
+      },
+      {
+        "id": "p15-b42",
+        "reason": "node"
+      }
+    ],
+    "inputChars": 39628,
+    "outputChars": 45486,
+    "meaning": "Structural expressiveness only. Excluded/failed historical strings are not rescued, and this is not new translation quality evidence."
+  },
+  "review": "Independent assistant protocol/source reviews only. No semantic review of N1 output was possible; no model output exists. No human score, additional Gemini judge call, Chrome operation or merge."
+}

@@ -1,6 +1,6 @@
 # Ranked original-node candidate
 
-Status: **offline prototype; live experiment pending; not the viewer default**.
+Status: **N1 rejected by the API (HTTP 400); no translation output; N2/N3 not run; not the viewer default**.
 
 The model remains `gemini-3.5-flash-lite`, using the same LangTalk project and Interactions endpoint. The prior protected-tag G1 remains rejected. This is a new candidate, not a relaxed re-score of that output.
 
@@ -30,3 +30,15 @@ Code guarantees the insertion of each registered original atom only after the re
 For this new representation, the time ceiling is **150 seconds**, declared before its first API call. Extra JSON fields increase output overhead, so this changes the prior 131.4-second condition explicitly, rather than rescuing a measured failure. The previous G1 reference was 113.766 seconds; no same-condition speed improvement is claimed.
 
 The existing keyed factory remains active until this candidate passes its frozen checks. Merge requires user permission; formatter/lint and Release work remain deferred.
+
+## N1: API acceptance failed, quality not evaluated
+
+The single N1 request returned **HTTP 400 after 1.216 seconds**, with **zero model-output characters and no completion**. No N2/N3, retry, schema relaxation, repair or judge request followed. This is an **API acceptance failure**, not evidence that the model succeeded or failed at the new translation representation. The planned 210 generated and two original targets must not be confused with received coverage: no translation map was returned. The 73-target semantic review could not be performed on an absent output.
+
+The service error was sent as SSE. The frozen evaluator tried to read a non-2xx body as JSON and recorded `Unexpected token 'e', "event: err"... is not valid JSON` instead of the service's detailed message. **The actual rejection reason was lost and is unconfirmed.** Schema complexity is a hypothesis only; it cannot be established from HTTP 400 alone.
+
+After stopping the experiment, error handling was corrected to read JSON, error arrays and SSE error frames. This correction was verified using synthetic offline responses; it did not recover the lost response, re-run N1 or change N1's verdict. The client and evaluator retain structured retry details and redact the API key. Unparsed HTML/raw bodies are not surfaced. All **261 tests passed** after this diagnostic correction, including structured error details, recursive key redaction and the key-empty guard.
+
+The production factory remains unchanged. The ranked-node prototype is retained for reproducibility and is not enabled. A future design must establish an API-compatible schema before its translation quality can be measured. It must also keep atom inventory checks separate from source-to-claim fidelity. Another live attempt would be a new declared experiment, not a continuation of this failed run.
+
+See [sanitized metrics](node-translation-evaluation.json). Frozen raw artifacts remain local at `/private/tmp/pdf-viewer-nodes-frozen-2/`. Frozen implementation: `2aa9efd`. The later error-decoder correction is separate from that frozen candidate.

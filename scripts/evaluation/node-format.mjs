@@ -12,7 +12,7 @@ import { mapPanel } from './protected-format.mjs';
 import { generate } from './compare-formats.mjs';
 const exec=promisify(execFile),sha=x=>createHash('sha256').update(x).digest('hex');
 const options={apiKey:'offline-placeholder',sourceLanguage:'en',targetLanguage:'ja',model:DEFAULT_MODEL};
-const files=['node-translations.js','json-members.js','protected-translator.js','protected-spans.js','pdf-layout.js','gemini.js','keyed-translations.js','document-translator.js','translation-stream.js','viewer.js','viewer.css','export.js','math.js','scripts/evaluation/node-format.mjs','scripts/evaluation/protected-format.mjs','scripts/evaluation/compare-formats.mjs'];
+const files=['node-translations.js','json-members.js','protected-translator.js','protected-spans.js','pdf-layout.js','gemini.js','api-error.js','keyed-translations.js','document-translator.js','translation-stream.js','viewer.js','viewer.css','export.js','math.js','scripts/evaluation/node-format.mjs','scripts/evaluation/protected-format.mjs','scripts/evaluation/compare-formats.mjs'];
 async function implementationHash(){return sha((await Promise.all(files.map(async f=>f+'\n'+await readFile(new URL('../../'+f,import.meta.url),'utf8')))).join('\n'));}
 
 export async function captureNodes(pages){

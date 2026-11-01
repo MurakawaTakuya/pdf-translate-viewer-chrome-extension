@@ -90,3 +90,15 @@ node scripts/evaluation/protected-format.mjs --prepare --input revised-pages.jso
 Preparation freezes the request, implementation (including evaluator and display/export code), source coverage, 72-target review panel, three-call cap and latency ceiling. Live execution requires explicit `--run --label G1 --project PROJECT --key-resource RESOURCE --directory DIRECTORY`; it reads an existing key through gcloud inside the process. Never print or persist key values. Each subsequent label requires a passing previous guard and hash-bound independent review. Raw responses stay local. No retries, repairs or model-judge calls are permitted in a frozen run.
 
 The recorded G1 failed, so G2/G3 were not run. See [the result](../../reports/protected-translation.md). Do not reinterpret relaxed post-hoc decoding as success or resume that failed run.
+
+## Ranked original-node candidate
+
+`node-format.mjs` captures the actual node codec and keeps the previous source panel's physical coverage after layout joins. Preparation is offline:
+
+```sh
+node scripts/evaluation/node-format.mjs --prepare --input revised-node-pages.json --old-input protected-pages.json --old-plan reports/protected-experiment-plan.json --directory /tmp/new-node-run
+```
+
+The recorded N1 returned HTTP 400 without model output; N2/N3 were not run. Its exact service reason was lost by the former JSON-only error reader. The subsequent JSON/array/SSE error reader and details/key redaction were validated offline, without retrying N1. New preparations hash that diagnostic dependency too. See [the experiment and its limits](../../reports/node-translation.md); the committed plan remains the pre-call snapshot, not an updated plan for the later diagnostic code.
+
+`roundtrip-nodes.mjs --input pages.json --translations accepted-map.json --output report.json` checks expressiveness using existing strings without any model calls. It does not turn historical failed/missing translations into passes.

@@ -1,6 +1,6 @@
 # レビューと検証の状態
 
-各節は記録当時の状態です。最新の結果は末尾の「原文数式の保護候補」を参照してください。
+各節は記録当時の状態です。最新の結果は末尾の「構造化ノード候補」を参照してください。
 
 記録日時: 2026-11-01 19:12:10 JST
 
@@ -59,3 +59,19 @@ TeXの重なったアクセントと次の文字を分断する抽出を限定�
 3担当の独立したassistantレビューで72対象すべてを照合。decoder通過訳にもRN152→RN151、断定から可能性への弱化などを確認した。無関係な段落の連鎖ずれは確認範囲で見つからなかったが、品質合格を意味しない。追加のオフライン原文確認ではtheta-barの上線が前ブロックに分かれ、protected cropから外れる欠陥も判明。事後に基準を緩めず候補は不採用。人間採点や追加のGemini判定生成ではない。
 
 詳細: [保護候補の検証](protected-translation.md)、[固定条件](protected-experiment-plan.json)、[結果](protected-translation-evaluation.json)。Gemini品質は未解決、PRはdraftのまま。merge・Release公開・lint/formatter導入は行っていない。Chromeも操作していない。
+
+## 構造化ノード候補
+
+追記日時: 2026-11-02 01:14:08 JST
+
+モデルは同じgemini-3.5-flash-liteのまま。引用・数学・数字入り識別子を必須ノードのpropertyにし、モデルが返す日本語順のrankと直前proseを組み合わせて原文atomをcodeが復元する候補を実装した。固定順や文字offsetを避ける。型・完全順列・入れ子の重複key・NFKC・復元後識別子multisetを検証し、block完成後だけ暫定表示する。科学表記の係数と指数、識別子に続く%もまとめた。通常のviewer factoryは切り替えていない。
+
+独立レビューで、atomだけの固有名の誤検知、原文と訳文のUnicode正規化の非対称、atom前後の文字連結によるRN1521/RNRN152化を修正・確認。元glyph座標を変えず、別column captionに引かれたbarを一意なmathbaseへ所属させた。上付きcropは本文lineBaseを使う。独立実PDF確認でtheta-barと6科学表記を確認、元213targetから212へ（page4のjoinのみ）。関連33tests成功。
+
+生成前に送信/実装/評価器等のhash、210生成+原文2、441atom、固定73target、最大3call、150秒上限を固定。新形式の出力overheadを見込み、旧131.4秒と異なる基準を事前に明記した。N1の1requestは約1.216秒でHTTP400。モデル出力・completion・内容採点なし。N2/N3・retry・repair・追加judgeは行っていない。
+
+当初の評価器はnon-2xx SSEエラーをJSONとして読み、詳細本文を失った。HTTP400の拒否理由は未確定で、schema複雑性と断定していない。停止後にJSON/array/SSEのエラー取得とdetails保持・再帰キー伏字を修正し、syntheticfixtureのみで検証。失った実エラーは復元できず、N1のやり直し・合格への変更はしていない。
+
+最新の全体テスト261件成功、失敗0件。protocolとsourceのassistantレビューは実施済み、N1の翻訳内容レビューは出力がないため未実施。過去の208訳の表現力確認では198exact roundtrip、10は新検査不合格であり新たな翻訳成功数ではない。
+
+[構造化方式の詳細](node-translation.md)、[固定条件](node-experiment-plan.json)、[結果](node-translation-evaluation.json)。Gemini品質は未解決、候補未採用・PR draft。Chrome操作・merge・Release・lint/formatter導入はしていない。
