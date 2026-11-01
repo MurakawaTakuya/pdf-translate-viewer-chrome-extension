@@ -290,9 +290,9 @@ body[data-view="ja"] .row, body[data-view="orig"] .row { grid-template-columns: 
 .blk-tools button[hidden] { display: none; }
 
 /* ホバーで対応する原文・訳文を強調 */
-.src { position: absolute; border-radius: 2px; }
-.src.hot { background: rgba(255, 200, 0, .25); outline: 2px solid rgba(255, 180, 0, .8); }
-.blk.hot { outline: 2px solid rgba(255, 180, 0, .8); z-index: 2; }
+.src { position: absolute; }
+.src.hot, .blk.hot { outline: 2px solid rgba(255, 180, 0, .8); }
+.blk.hot { z-index: 2; }
 
 .page-msg {
   position: absolute; top: 8px; left: 8px; right: 8px; padding: 6px 10px; border-radius: 4px;
