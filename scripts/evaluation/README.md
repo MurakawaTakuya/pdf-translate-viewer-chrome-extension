@@ -68,3 +68,14 @@ node scripts/evaluation/keyed-format.mjs --run --directory /path/to/new-task-pla
 Each label is executed once with an exclusive `.started` file and no retry. There are at most three labels per candidate. The next label requires the previous response to pass both structural checks and an independent manual review bound to its response hash. Failure stops that candidate. K1, S1 and T1 all failed the full quality gate; no second or third runs were made. The guarded T1 replay held two citation failures, and one explicit repair still left one failure. See [the sanitized evaluation report](../../reports/keyed-translation-evaluation.md). No successful full-paper completion is claimed.
 
 The historical first-complete-item latency scanner does not measure keyed properties; its missing `firstItemMs` must not be read as zero or used to claim a speed improvement. Keep raw source, full requests, generated responses and credentials outside Git. The checked-in report contains only measurements, hashes and bounded failure examples.
+
+## Citation inventory and marker comparison
+
+`citation-formats.mjs` freezes three candidates before live execution: B is the byte-identical current viewer, P adds a per-property reference inventory without changing source text, and M substitutes unique per-occurrence reference markers in all context and target text. M requires the exact ordered marker inventory in each output block before local restoration; it never guesses or appends a missing reference. Restored outputs still face the current all-page citation/heading guard and a fixed 40-block manual scope/fidelity review.
+
+```sh
+node scripts/evaluation/citation-formats.mjs --prepare --input /path/to/pages.json --baseline-plan /path/to/prior-plan.json --directory /path/to/new-citation-plan
+node scripts/evaluation/citation-formats.mjs --run --directory /path/to/new-citation-plan --label B1 --project PROJECT_ID --key-resource RESOURCE
+```
+
+Explicit initial labels run in B1/P1/M1 order. A transport or incomplete-response failure stops the run; quality failures reject that candidate without tuning or repeating it. A P or M candidate qualifies for two identical confirmation runs only after passing both guards and manual review, with latency at most 1.25 times B1. The selection is recorded in `selection.json`, each preceding review is bound to its response and request hashes, and `.started` files enforce a total budget of five remote calls. No automatic retries or repairs are made. This evaluator does not change the viewer's production request.

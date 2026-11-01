@@ -17,7 +17,7 @@ export async function captureCurrent(pages, { format = 'keyed' } = {}) {
   const original = globalThis.fetch;
   globalThis.fetch = async (_url, init) => {
     request = JSON.parse(init.body);
-    const fixture = (b) => 'fixture ' + (b.text.match(/\[\d+(?:\s*,\s*\d+)*\]/g) || []).join(' ');
+    const fixture = (b) => 'fixture ' + (b.text.match(/\[\d+(?:\s*[-–—]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–—]\s*\d+)?)*\]/g) || []).join(' ');
     const output = format === 'keyed'
       ? Object.fromEntries(request.response_format.schema.required.map((key, i) => [key, fixture(targets[i])]))
       : {translations:targets.map((b,i)=>({id:i+1,text:fixture(b)}))};
