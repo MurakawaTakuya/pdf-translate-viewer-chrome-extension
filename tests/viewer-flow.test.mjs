@@ -103,11 +103,13 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     releasePage = () => {};
     placeBlock = (r, b) => {
       const el = elementStub();
+      el._b = b;
+      el.classList.add('pending');
       el.remove = () => { el.removed = true; };
       placedBlocks.push({ row: r, block: b, el });
       return el;
     };
-    fillBlock = (_el, b, text) => { b.ja = text; };
+    fillBlock = (el, b, text) => { b.ja = text; el.textContent = text; el.classList.remove('pending'); };
     saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
     return { state, buildRows, autoTranslateOnOpen, start, enqueue, enqueueVisiblePages, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
   `);
@@ -1067,4 +1069,74 @@ test('unavailable local AI leaves the PDF readable without an automatic Gemini f
   await api.autoTranslateOnOpen();
   assert.equal(api.state.engine,null);assert.equal(api.state.enabled,false);
   assert.match(api.status(),/未対応/);
+});
+
+test('local to Gemini keeps current overlays and replaces only completed incoming blocks',async(t)=>{
+  const f=streamFixture();let calls=0;
+  t.mock.method(globalThis,'fetch',async()=>{calls++;return f.response;});
+  const api=await viewer();
+  api.state.rows[0].blocks.push({text:'Second paragraph',translate:true,colors:{}});
+  await api.localButton.onclick();await idle(api);
+  const old=api.state.rows.flatMap(r=>r.blocks.map(b=>b.ja));
+  const overlays=api.placedBlocks.map(entry=>entry.el);
+  await api.startButton.onclick();await until(()=>calls===1);
+  assert.deepEqual(api.state.rows.flatMap(r=>r.blocks.map(b=>b.ja)),old);
+  assert.equal(api.placedBlocks.length,4);
+  f.start();f.text('{"translations":[{"id":1,"text":"Geminiの新しい訳"},');
+  await until(()=>api.state.rows[0].blocks[0].ja==='Geminiの新しい訳');
+  assert.equal(overlays[0].textContent,'Geminiの新しい訳');
+  assert.equal(api.state.rows[0].blocks[1].ja,old[1]);
+  assert.equal(api.state.rows[1].blocks[0].ja,old[2]);
+  api.element('#download').onclick();assert.equal(api.element('#downloadTranslated').disabled,true);
+  f.text('{"id":2,"text":"新しい訳2"},{"id":3,"text":"新しい訳3"},{"id":4,"text":"新しい訳4"}]}');f.complete();
+  await idle(api);await api.translateAll();
+  assert.deepEqual(api.state.rows.flatMap(r=>r.blocks.map(b=>b.ja)),['Geminiの新しい訳','新しい訳2','新しい訳3','新しい訳4']);
+  assert.equal(api.placedBlocks.length,4);
+  assert.ok(overlays.every(el=>!el.removed));
+});
+
+test('Gemini to local keeps the previous translation until each local result arrives',async(t)=>{
+  let first,second;
+  const firstGate=new Promise(resolve=>{first=resolve;}),secondGate=new Promise(resolve=>{second=resolve;});
+  t.mock.method(globalThis,'fetch',async(_url,init)=>success(JSON.parse(JSON.parse(init.body).input)));
+  const api=await viewer('gemini',{create:async()=>({translate:async text=>{
+    if(text.endsWith('1'))await firstGate;
+    if(text.endsWith('2'))await secondGate;
+    return '切替後のローカル訳 '+text;
+  }})});
+  await api.startButton.onclick();await idle(api);await api.translateAll();
+  const old=api.state.rows.map(r=>r.blocks[0].ja),overlays=api.placedBlocks.map(entry=>entry.el);
+  await api.localButton.onclick();
+  assert.deepEqual(api.state.rows.map(r=>r.blocks[0].ja),old);
+  first();await until(()=>api.state.rows[0].blocks[0].ja.startsWith('切替後'));
+  assert.equal(api.state.rows[1].blocks[0].ja,old[1]);
+  second();await idle(api);
+  assert.ok(api.state.rows.every(r=>r.blocks[0].ja.startsWith('切替後')));
+  assert.equal(api.placedBlocks.length,3);assert.ok(overlays.every(el=>!el.removed));
+});
+
+test('invalid Gemini replacement restores the previous local text without exposing English or enabling export',async(t)=>{
+  const f=streamFixture();let calls=0;
+  t.mock.method(globalThis,'fetch',async()=>{calls++;return f.response;});
+  const api=await viewer();await api.localButton.onclick();await idle(api);
+  const old=api.state.rows.map(r=>r.blocks[0].ja),overlays=api.placedBlocks.map(entry=>entry.el);
+  await api.startButton.onclick();await until(()=>calls===1);
+  f.start();f.text('{"translations":[{"id":1,"text":"暫定のGemini訳"},');
+  await until(()=>api.state.rows[0].blocks[0].ja==='暫定のGemini訳');
+  f.text('{"id":1,"text":"重複した訳"}]}');f.complete();await idle(api);
+  assert.deepEqual(api.state.rows.map(r=>r.blocks[0].ja),old);
+  assert.deepEqual(overlays.map(el=>el.textContent),old);
+  assert.ok(overlays.every(el=>!el.removed));
+  api.element('#download').onclick();assert.equal(api.element('#downloadTranslated').disabled,true);
+});
+
+test('changing the language pair clears previous text rather than showing a translation in the wrong language',async(t)=>{
+  const f=streamFixture();let calls=0;
+  t.mock.method(globalThis,'fetch',async()=>{calls++;return f.response;});
+  const api=await viewer();await api.localButton.onclick();await idle(api);
+  api.element('#dst').value='ko';
+  await api.startButton.onclick();await until(()=>calls===1);
+  assert.ok(api.state.rows.every(r=>r.blocks[0].ja===null));
+  f.start();f.text('{"translations":[{"id":1,"text":"첫째"},{"id":2,"text":"둘째"},{"id":3,"text":"셋째"}]}');f.complete();
+  await idle(api);
 });

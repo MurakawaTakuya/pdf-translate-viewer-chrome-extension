@@ -40,6 +40,7 @@ const state = {
   engine: null, // 翻訳ボタンで明示的に選んだエンジン
   translationAbort: null,
   translationVersion: 0,
+  translationPair: null,
   enabled: false,
   queue: [],
   working: false,
@@ -667,6 +668,13 @@ function placeBlock(r, b) {
   return el;
 }
 
+function blockElement(r, b) {
+  r.blockEls ??= new Map();
+  let el = r.blockEls.get(b);
+  if (!el) { el = placeBlock(r, b); r.blockEls.set(b, el); }
+  return el;
+}
+
 function fillBlock(el, b, text) {
   b.ja = text; // PDF保存用に覚えておく
   el.classList.remove('pending');
@@ -808,20 +816,34 @@ async function start(engine = state.engine) {
     }
     if (version !== state.translationVersion) return;
     // 切替先の準備が成功するまでは、既存の翻訳結果を使えるようにしておく。
+    // 未検証のGeminiプレビューは、切替前の有効な訳へ戻してから引き継ぐ。
+    if (state.translator?.ready && !state.translator.completed) clearTranslationPreviews();
+    const pair = `${sourceLanguage}:${targetLanguage}`;
+    const preserve = state.translationPair === pair && state.rows.some((r) => r.blocks?.some((b) => typeof b.ja === 'string'));
     state.translationAbort?.abort();
     state.translationAbort = controller;
     state.translator = translator;
+    state.translationPair = pair;
     prepared = true;
+    tools.remove();
+    toolsFor = null;
 
-    // やり直し：状態をリセット
     state.queue = [];
     for (const r of state.rows) {
       r.translated = false;
       r.queued = false;
+      r.failed = false;
       r.previewEls = new Map();
-      for (const b of r.blocks || []) b.ja = null;
-      r.srcLayer.replaceChildren();
-      r.dstLayer.replaceChildren();
+      r.previousTranslations = preserve
+        ? new Map((r.blocks || []).filter((b) => typeof b.ja === 'string').map((b) => [b, b.ja]))
+        : null;
+      if (!preserve) {
+        for (const b of r.blocks || []) b.ja = null;
+        r.blockEls = new Map();
+        r.srcLayer.replaceChildren();
+        r.dstLayer.replaceChildren();
+      }
+      for (const el of r.dstLayer.querySelectorAll('.page-msg')) el.remove();
     }
     state.enabled = true;
     setStatus('翻訳中…');
@@ -933,6 +955,9 @@ async function pump() {
 
 // 訳せなかった段落は原文の表示に戻し、ページの上にエラーと「再試行」ボタンを出す
 function showPageError(r, e) {
+  for (const [b, el] of r.blockEls || []) if (el.classList.contains('pending')) {
+    el._src?.remove(); el.remove(); r.blockEls.delete(b);
+  }
   for (const el of r.dstLayer.querySelectorAll('.blk.pending')) { el._src?.remove(); el.remove(); }
   for (const el of r.dstLayer.querySelectorAll('.page-msg')) el.remove();
   const msg = document.createElement('div');
@@ -991,7 +1016,7 @@ async function translatePage(r, translator) {
   }
 }
 
-// 未完成の段落には何も重ねず、原文を残す。完成済みの段落だけを暫定表示する。
+// 新しい訳が届くまでは、既存の訳（なければ原文）を残す。
 async function previewTranslatedPage(r, translator) {
   if (!r?.visible || translator !== state.translator || translator.completed || !translator.previewPage(r).length) return;
   await renderPage(r);
@@ -1006,7 +1031,7 @@ async function previewTranslatedPage(r, translator) {
       pix ??= r.srcCanvas.getContext('2d').getImageData(0, 0, r.srcCanvas.width, r.srcCanvas.height);
       b.colors = pickColors(r, pix, b);
     }
-    if (!el) { el = placeBlock(r, b); r.previewEls.set(b, el); }
+    if (!el) { el = blockElement(r, b); r.previewEls.set(b, el); }
     fillBlock(el, b, text);
   }
 }
@@ -1014,9 +1039,15 @@ async function previewTranslatedPage(r, translator) {
 function clearTranslationPreviews() {
   for (const r of state.rows) {
     for (const [b, el] of r.previewEls || []) {
-      el._src?.remove();
-      el.remove();
-      b.ja = null;
+      const previous = r.previousTranslations?.get(b);
+      if (previous !== undefined) {
+        fillBlock(el, b, previous);
+      } else {
+        el._src?.remove();
+        el.remove();
+        r.blockEls?.delete(b);
+        b.ja = null;
+      }
     }
     r.previewEls?.clear();
   }
@@ -1034,10 +1065,8 @@ async function translatePageInner(r, translator) {
     for (const b of r.blocks) if (b.translate) b.colors = pickColors(r, pix, b);
   }
   if (translator !== state.translator) return; // 待っている間にやり直された
-  for (const b of r.blocks) { b.ja = null; b.failed = false; }
-  r.srcLayer.replaceChildren();
-  r.dstLayer.replaceChildren();
-  r.previewEls?.clear();
+  for (const b of r.blocks) b.failed = false;
+  for (const el of r.dstLayer.querySelectorAll('.page-msg')) el.remove();
 
   const targets = r.blocks.filter((b) => b.translate);
   if (!targets.length) {
@@ -1049,16 +1078,21 @@ async function translatePageInner(r, translator) {
     return;
   }
 
-  const els = targets.map((b) => placeBlock(r, b));
+  const els = targets.map((b) => blockElement(r, b));
   const onEach = (i, text) => {
     if (translator !== state.translator) return false; // 言語や設定を切り替えられた
-    if (text == null) { markFailed(els[i], targets[i]); return; } // 訳せなかった段落は原文のまま
+    if (text == null) {
+      if (typeof targets[i].ja !== 'string') markFailed(els[i], targets[i]);
+      return; // 以前の訳があれば残し、なければ原文を見せる。
+    }
     fillBlock(els[i], targets[i], text);
   };
   if (translator.translatePage) await translator.translatePage(r, onEach);
   else await translator.translateBatch(targets.map((b) => b.text), onEach);
   if (translator !== state.translator) return;
   r.translated = true;
+  r.previewEls?.clear();
+  r.previousTranslations = null;
 }
 
 // ---------- PDFとして保存 ----------
