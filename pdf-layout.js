@@ -1,4 +1,5 @@
 import * as pdfjsLib from './lib/pdf.min.mjs';
+import { sourceMathSpans } from './protected-spans.js';
 
 function fontInfo(page, styles, fontName) {
   let f = null;
@@ -7,8 +8,10 @@ function fontInfo(page, styles, fontName) {
   const family = styles[fontName]?.fontFamily || '';
   const clamp = (v, lo, hi, d) => (Number.isFinite(v) && v >= lo && v <= hi ? v : d);
   return {
-    bold: !!(f?.bold || f?.black) || /bold|black|heavy|semibold|demi|medi|CMBX|-B$/i.test(name),
+    bold: !!(f?.bold || f?.black) || /bold|black|heavy|semibold|demi|medi|CMBX|CMMIB|-B$/i.test(name),
     sans: family === 'sans-serif' || /sans|helvet|arial|gothic|verdana|calibri/i.test(name),
+    math: /CMMI|CMSY|CMEX|MSAM|MSBM|STIX.*Math|MathItalic|MathSymbols/i.test(name),
+    mathRoman: /CMR\d|CMSS\d|CMBX\d/i.test(name),
     ascent: clamp(f?.ascent, 0.6, 1.1, 0.85),
     descent: clamp(-(f?.descent ?? NaN), 0.1, 0.4, 0.25),
   };
@@ -58,11 +61,13 @@ export async function extractBlocks(r) {
   const body = bodyFontSize(blocks);
   for (const b of blocks) {
     let text = '';
+    b.parts = [];
     let chars = 0, boldChars = 0, sansChars = 0;
     for (const l of b.lines) {
-      if (!text) text = l.text;
-      else if (/[a-z]-$/.test(text) && /^[a-z]/.test(l.text)) text += l.text; // 語中の改行だけを除き、複合語のハイフンを失わない
-      else text += ' ' + l.text;
+      const separator = !text || /[a-z]-$/.test(text) && /^[a-z]/.test(l.text) ? '' : ' ';
+      const offset = text.length + separator.length;
+      text += separator + l.text;
+      b.parts.push(...l.parts.map((part) => ({ ...part, start: offset + part.start, end: offset + part.end })));
       chars += l.chars; boldChars += l.boldChars; sansChars += l.sansChars;
     }
     b.text = text;
@@ -71,6 +76,9 @@ export async function extractBlocks(r) {
     b.align = alignOf(b, r.vp.width);
     b.translate = shouldTranslate(b, body);
     b.kind = blockKind(b, body);
+    const math = sourceMathSpans(b);
+    b.mathSpans = math.spans;
+    b.mathUncertain = math.uncertain;
   }
   return blocks;
 }
@@ -157,13 +165,23 @@ function makeLines(items) {
   for (const band of bands) {
     let ln = null;
     for (const it of band.items.sort((a, b) => a.x0 - b.x0)) {
-      const same = ln && it.x0 >= ln.x1 - ln.h * 0.5 && it.x0 - ln.x1 < Math.max(ln.h, it.h) * 1.5;
+      // TeX paints a hat and its base glyph on top of one another. That narrow
+      // overlap is one mathematical atom, not a second column or text line.
+      const accent = ln && Math.abs(it.base - ln.base) < Math.max(ln.h, it.h) * 0.3
+        && it.x0 >= ln.x1 - ln.h && it.x0 <= ln.x1
+        && (/[ˆˇ˘˙˚˜¯]\s*$/.test(ln.text) && it.fi.math && [...it.str.trim()].length === 1 && it.x1 - it.x0 <= it.h * 1.5
+          || /^[ˆˇ˘˙˚˜¯]$/.test(it.str.trim()) && ln.parts.at(-1)?.fi.math
+            && [...ln.parts.at(-1).str.trim()].length === 1);
+      const same = ln && (it.x0 >= ln.x1 - ln.h * 0.5 || accent)
+        && it.x0 - ln.x1 < Math.max(ln.h, it.h) * 1.5;
       if (!same) {
         if (ln) lines.push(ln);
-        ln = { ...it, text: it.str, main: it.str.length, chars: 0, boldChars: 0, sansChars: 0 };
+        ln = { ...it, text: it.str, parts: [{ ...it, start: 0, end: it.str.length }], main: it.str.length, chars: 0, boldChars: 0, sansChars: 0 };
       } else {
         const space = it.x0 - ln.x1 > ln.h * 0.12 && !/\s$/.test(ln.text) && !/^\s/.test(it.str);
+        const start = ln.text.length + (space ? 1 : 0);
         ln.text += (space ? ' ' : '') + it.str;
+        ln.parts.push({ ...it, start, end: ln.text.length });
         ln.x1 = Math.max(ln.x1, it.x1);
         ln.top = Math.min(ln.top, it.top);
         ln.bottom = Math.max(ln.bottom, it.bottom);
@@ -176,7 +194,16 @@ function makeLines(items) {
     }
     if (ln) lines.push(ln);
   }
-  for (const l of lines) { l.text = l.text.trim(); l.bold = l.boldChars > l.chars / 2; }
+  for (const l of lines) {
+    const leading = l.text.length - l.text.trimStart().length;
+    l.text = l.text.trim();
+    l.parts = l.parts.map((part) => ({ ...part,
+      sourceStart: Math.max(0, leading - part.start),
+      sourceEnd: part.str.length - Math.max(0, part.end - leading - l.text.length),
+      start: Math.max(0, part.start - leading), end: Math.min(l.text.length, part.end - leading),
+    }));
+    l.bold = l.boldChars > l.chars / 2;
+  }
   return lines;
 }
 

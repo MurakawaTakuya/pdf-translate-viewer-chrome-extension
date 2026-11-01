@@ -14,7 +14,8 @@ export async function extractPages(path) {
       await page.getOperatorList();
       const blocks = await extractBlocks({ page, vp: page.getViewport({ scale: 1 }) });
       pages.push({ page: index, blocks: blocks.map((b, i) => ({ id: `p${index}-b${i}`, text: b.text, kind: b.kind, translate: b.translate,
-        bbox: [b.x0, b.top, b.x1, b.bottom], fontSize: b.h, lines: b.lines.length })) });
+        bbox: [b.x0, b.top, b.x1, b.bottom], fontSize: b.h, lines: b.lines.length,
+        mathSpans: b.mathSpans, mathUncertain: b.mathUncertain })) });
     }
     return pages;
   } finally { await pdf.destroy(); }
