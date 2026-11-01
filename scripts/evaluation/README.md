@@ -79,3 +79,14 @@ node scripts/evaluation/citation-formats.mjs --run --directory /path/to/new-cita
 ```
 
 Explicit initial labels run in B1/P1/M1 order. A transport or incomplete-response failure stops the run; quality failures reject that candidate without tuning or repeating it. A P or M candidate qualifies for two identical confirmation runs only after passing both guards and manual review, with latency at most 1.25 times B1. The selection is recorded in `selection.json`, each preceding review is bound to its response and request hashes, and `.started` files enforce a total budget of five remote calls. No automatic retries or repairs are made. This evaluator does not change the viewer's production request.
+# Original-glyph protection candidate
+
+`protected-format.mjs` captures and replays the actual experimental protected translator. It is not the default viewer translator. Offline preparation requires the revised extraction, the earlier extraction and its fixed-panel plan:
+
+```sh
+node scripts/evaluation/protected-format.mjs --prepare --input revised-pages.json --old-input old-pages.json --old-plan reports/citation-experiment-plan.json --directory /tmp/new-protected-run
+```
+
+Preparation freezes the request, implementation (including evaluator and display/export code), source coverage, 72-target review panel, three-call cap and latency ceiling. Live execution requires explicit `--run --label G1 --project PROJECT --key-resource RESOURCE --directory DIRECTORY`; it reads an existing key through gcloud inside the process. Never print or persist key values. Each subsequent label requires a passing previous guard and hash-bound independent review. Raw responses stay local. No retries, repairs or model-judge calls are permitted in a frozen run.
+
+The recorded G1 failed, so G2/G3 were not run. See [the result](../../reports/protected-translation.md). Do not reinterpret relaxed post-hoc decoding as success or resume that failed run.
