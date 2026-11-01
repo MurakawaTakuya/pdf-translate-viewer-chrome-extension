@@ -83,12 +83,11 @@ export function protectedPrompt(system, src, dst) {
 
 export function createProtectedGeminiTranslator(options) {
   const inner = createGeminiTranslator({ ...options, outputFormat: 'keyed', taskBuilder: buildProtectedTask, promptBuilder: protectedPrompt });
-  const split = (pages, ids) => {
-    const unsafe = new Set(pages.flatMap((p) => p.blocks.filter((b) => b.mathUncertain
-      // Literal dollars would also be ambiguous to the existing $...$ renderer.
-      || [...b.text.matchAll(/\$/g)].some((match) => !b.mathSpans?.some((s) => match.index >= s.start && match.index < s.end))).map((b) => b.id)));
-    return { safe: ids.filter((id) => !unsafe.has(id)), originals: ids.filter((id) => unsafe.has(id)) };
-  };
+  return withOriginalFallback(inner);
+}
+
+export function withOriginalFallback(inner) {
+  const split = splitProtectedTargets;
   return {
     ...inner,
     async translateDocument(pages, ids, onEach) {
@@ -110,4 +109,11 @@ export function createProtectedGeminiTranslator(options) {
       return inner.relatedTargets(pages, safe, id);
     },
   };
+}
+
+export function splitProtectedTargets(pages, ids) {
+  const unsafe = new Set(pages.flatMap((p) => p.blocks.filter((b) => b.mathUncertain
+    // Literal dollars would also be ambiguous to the existing $...$ renderer.
+    || [...b.text.matchAll(/\$/g)].some((match) => !b.mathSpans?.some((s) => match.index >= s.start && match.index < s.end))).map((b) => b.id)));
+  return { safe: ids.filter((id) => !unsafe.has(id)), originals: ids.filter((id) => unsafe.has(id)) };
 }

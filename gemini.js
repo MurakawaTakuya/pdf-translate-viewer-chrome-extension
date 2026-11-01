@@ -58,6 +58,7 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
     signal?.throwIfAborted();
     if (!translateIds.length) return new Map();
     const task = outputFormat === 'keyed' ? await taskBuilder(pages, translateIds, src, dst, signal) : null;
+    const parseOutput = (body) => task?.parse ? task.parse(body) : task ? parseKeyed(body, task, src, dst) : parse(body, translateIds);
     // 全文は読解用、対象一覧は出力との対応用。座標と元のブロックIDはローカルに保持する。
     const numbers = new Map(translateIds.map((id, i) => [id, i + 1]));
     const targets = pages.flatMap((p) => p.blocks.filter((b) => numbers.has(b.id)).map((b) => ({
@@ -93,7 +94,7 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
         const seen = new Set();
         const keyedValues = new Map();
         let unsafe = false;
-        const collector = task && keyedMembers((item) => {
+        const collector = task?.collector ? task.collector(onTranslation) : task && keyedMembers((item) => {
           if (unsafe) return;
           const source = task.byKey.get(item.id);
           if (!source || seen.has(item.id) || !item.text.trim()) { unsafe = true; return; }
@@ -111,10 +112,10 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
         } });
         signal?.throwIfAborted();
         const body = { status: streamed.status, steps: [{ type: 'model_output', content: [{ type: 'text', text: streamed.text }] }] };
-        return task ? parseKeyed(body, task, src, dst) : parse(body, translateIds);
+        return parseOutput(body);
       }
       const body = await res.json().catch(() => ({}));
-      if (res.ok) return task ? parseKeyed(body, task, src, dst) : parse(body, translateIds);
+      if (res.ok) return parseOutput(body);
       const err = (Array.isArray(body) ? body[0] : body)?.error || {}; // エラーは [{ error: … }] の形で返ってくる
 
       // レート制限・一時的なエラーは待って再試行
