@@ -88,6 +88,15 @@ export async function buildNodeTask(pages,ids,src,dst,signal) {
       if(/\p{L}{2}/u.test(ordinarySource) && !prose.trim())return {issue:'unchanged'};
     }
     if(identifierInventory(source.text)!==identifierInventory(expanded))return {issue:'node'};
+    // Numeric tuples can evade the identifier/Greek/operator guards. Count
+    // their literal appearances as well as inserted originals so a copied
+    // tuple cannot accompany the original image a second time.
+    const compact=text=>text.normalize('NFKC').replace(/\s+/g,''),original=compact(source.text),result=compact(expanded);
+    for(const atom of atoms){
+      const literal=compact(atom.source);
+      if(atom.kind==='math'&&/^[([{].*[)\]}]$/.test(literal)&&/\d/.test(literal)
+        &&original.split(literal).length!==result.split(literal).length)return {issue:'node'};
+    }
     return {text:display,issue:blockIssue(source,expanded,src,dst)};
   };
   const collector=(onEach=()=>{})=>{
@@ -120,12 +129,19 @@ export async function buildNodeTask(pages,ids,src,dst,signal) {
 }
 
 export function nodePrompt(system,src,dst) {
-  return keyedPrompt(system,src,dst)
+  return originalAtomPrompt(system,src,dst)
     .replace(/^- Return one JSON object.*$/m,'- Return the required JSON object. For a block with atoms, each required atom property has {"o": integer, "t": string}, followed by "tail": string. For a block without atoms, return its translated string. Each property belongs only to its matching source block.')
     .replace(/^- Write every mathematical expression.*$/m,'- Math, references and alphanumeric identifiers are original atoms inserted by local code. Never write their source or any identifier/tag in prose fields. Never reconstruct math, LaTeX or dollar delimiters.')
     .replace(/^- The text was extracted.*$/m,'- Fix ordinary prose hyphenation only. Do not infer or repair original atoms.')
     .replace(/^- Every translation value.*$/m,`- Write the prose in ${dst}. Empty t/tail is allowed for adjacent atoms; a whole ordinary paragraph must still be translated.`)
     +'\n- First compose the natural translation of the WHOLE matching block. Then assign each atom a unique Japanese occurrence rank o from 0 to k-1 and put only the prose immediately before that atom in t. Put all prose after the last atom in tail. Reordering atoms together with their claims is allowed. Do not translate source_parts independently: they identify positions in the original, not separate translation tasks.\n- Never omit a claim, condition or comparative qualifier. Less/fewer means a smaller amount, not none. Each atom must remain attached to its own claim. Do not duplicate a phrase across t fields or complete a sentence with neighboring source content.';
+}
+
+// Registered occurrences are inserted by code, not copied by the model. Keep
+// the general preservation rule only for source content outside those atoms.
+export function originalAtomPrompt(system,src,dst) {
+  return keyedPrompt(system,src,dst)
+    .replace(/^- Keep these unchanged:.*$/m,'- Registered original atoms are restored by local code. Never repeat their source in prose fields. Preserve the spelling of unregistered names, numbers with units, URLs and code in ordinary prose.');
 }
 
 export function createNodeGeminiTranslator(options) {

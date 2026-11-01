@@ -120,8 +120,9 @@ export function blockIssue(source, translated, sourceLanguage, targetLanguage) {
     const ordinary = source.text.match(/\b(?:a|an|the|with|without|from|for|of|in|into|and|or|is|are|was|were|to|by)\b/gi) || [];
     const section = source.text.replace(/^\s*\d+(?:\.\d+)*[.)]?\s+/, '').trim();
     const descriptive = ordinary.length || /^(?:abstract|introduction|background|overview|methods|results|discussion|conclusions?|references|appendix|acknowledg(?:e)?ments|experiments|evaluation|related work|implementation details)$/i.test(section);
-    // Bibliographies and author/affiliation paragraphs may retain publication names.
-    if (['heading','title'].includes(source.kind) && descriptive) return 'unchanged';
+    // Captions are explanatory prose too. Bibliographies and author/affiliation
+    // paragraphs may retain publication names, so do not reject them by length.
+    if (['heading','title','caption'].includes(source.kind) && descriptive) return 'unchanged';
   }
   return null;
 }

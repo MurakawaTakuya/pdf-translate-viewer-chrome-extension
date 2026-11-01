@@ -69,6 +69,12 @@ test('ordinary source headings cannot silently remain English, while names and f
   }
 });
 
+test('unchanged explanatory captions are withheld rather than accepted as translated', () => {
+  const source={text:'Figure 7. For each image, the first column contains the original image.',kind:'caption'};
+  assert.equal(blockIssue(source,source.text,'English','Japanese'),'unchanged');
+  assert.equal(blockIssue(source,'図7。各画像の最初の列は元の画像である。','English','Japanese'),null);
+});
+
 test('citation ranges cannot disappear and expanded equivalent ranges are accepted', async (t) => {
   for (const text of ['Prior work [4–7].','Prior work [1, 3-5].']) {
     assert.equal(blockIssue({text},'先行研究である。','English','Japanese'),'citation');

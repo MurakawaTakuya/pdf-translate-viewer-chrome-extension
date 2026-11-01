@@ -1,10 +1,9 @@
 // One service-required string per source block. Atom records are positional
 // source slots within that block, with independently validated Japanese ranks.
 import { createGeminiTranslator,MissingTranslationsError } from './gemini.js';
-import { buildNodeTask } from './node-translations.js';
+import { buildNodeTask,originalAtomPrompt } from './node-translations.js';
 import { parseRankField } from './flat-node-translations.js';
 import { withOriginalFallback } from './protected-translator.js';
-import { keyedPrompt } from './keyed-translations.js';
 import { jsonMembers } from './json-members.js';
 
 export async function buildCompactNodeTask(pages,ids,src,dst,signal){
@@ -23,6 +22,9 @@ export async function buildCompactNodeTask(pages,ids,src,dst,signal){
     if(typeof value!=='string')return {issue:'node'};
     if(!atoms.length)return base.decode(key,value);
     const lines=value.split('\n');if(lines.length!==atoms.length+1)return {issue:'node'};
+    // A final rank prefix is another record, not translated tail prose. Never
+    // display it or guess which source atom the model intended.
+    if(/^\d+:/.test(lines.at(-1)))return {issue:'node'};
     const node={tail:lines.at(-1)};
     for(let i=0;i<atoms.length;i++){
       const packet=parseRankField(lines[i]);if(!packet)return {issue:'node'};node[atoms[i].key]=packet;
@@ -55,7 +57,7 @@ export async function buildCompactNodeTask(pages,ids,src,dst,signal){
   };
 }
 export function compactNodePrompt(system,src,dst){
-  return keyedPrompt(system,src,dst)
+  return originalAtomPrompt(system,src,dst)
     .replace(/^- Return one JSON object.*$/m,'- Return the required JSON object with one STRING per block. Blocks without atoms use ordinary translated prose. For a block with k atoms, encode exactly k+1 LF-separated lines inside its string: line i (1-based) belongs to source atom ai-1, and contains ASCII Japanese-rank:preceding prose; the final line contains only the tail. Keep SOURCE SLOT order for the lines, even when their Japanese ranks reorder the atoms. Empty preceding prose is written as rank:; an empty tail requires a trailing LF. Do not trim it. Never insert LF within prose. Inside the encoded value, never emit nested JSON, source-slot labels, field names or extra headings. Required root keys and genuine source headings must still be returned or translated as specified.')
     .replace(/^- Write every mathematical expression.*$/m,'- Original math, references and alphanumeric identifiers are inserted locally, once each. Never write their source or tags in prose, and never reconstruct LaTeX or dollar-delimited math.')
     .replace(/^- The text was extracted.*$/m,'- Fix ordinary prose hyphenation only. Do not infer, complete or repair original atoms.')

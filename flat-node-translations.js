@@ -1,9 +1,8 @@
 // Same local original-node decoder, with a shallow all-string API schema.
 // The schema requires each field; ranks are strict ASCII prefixes validated locally.
 import { createGeminiTranslator,MissingTranslationsError } from './gemini.js';
-import { buildNodeTask } from './node-translations.js';
+import { buildNodeTask,originalAtomPrompt } from './node-translations.js';
 import { withOriginalFallback } from './protected-translator.js';
-import { keyedPrompt } from './keyed-translations.js';
 import { jsonMembers } from './json-members.js';
 
 export function parseRankField(field){
@@ -79,7 +78,7 @@ export async function buildFlatNodeTask(pages,ids,src,dst,signal){
 }
 
 export function flatNodePrompt(system,src,dst){
-  return keyedPrompt(system,src,dst)
+  return originalAtomPrompt(system,src,dst)
     .replace(/^- Return one JSON object.*$/m,'- Return one flat JSON object with ALL required property names and STRING values. For each atom field named by source_parts.field, write ASCII rank:prose, e.g. "0:ベクトル" or "1:". Split at the first colon only: everything after it is prose, including other colons or line breaks. A tail_field is prose after the last atom, without a rank. A whole_field is the entire translation, without a rank. Never return nested objects or arrays.')
     .replace(/^- Write every mathematical expression.*$/m,'- Original math, references and alphanumeric identifiers are inserted locally, once each. Never write their source or tags in prose, and never reconstruct LaTeX or dollar-delimited math.')
     .replace(/^- The text was extracted.*$/m,'- Fix ordinary prose hyphenation only. Do not infer, complete or repair original atoms.')

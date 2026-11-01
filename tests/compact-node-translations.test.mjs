@@ -34,3 +34,14 @@ test('compact prompt describes source slots separately from Japanese ranks',()=>
   const prompt=compactNodePrompt('- Return a JSON object with translations.\n- Write every mathematical expression as inline LaTeX.','English','Japanese');
   assert.match(prompt,/SOURCE SLOT order/);assert.match(prompt,/trailing LF/);assert.ok(!prompt.includes('as inline LaTeX'));
 });
+
+test('a rank-prefixed tail and copied original numeric tuple are withheld before preview',async()=>{
+  const text='multi-block Block(0.15, 0.2)',source=[{page:1,blocks:[{id:'tuple',text,kind:'paragraph',mathSpans:[{start:17,end:text.length,text:text.slice(17)}]}]}];
+  const task=await buildCompactNodeTask(source,['tuple'],'English','Japanese'),[key]=task.byKey.keys();
+  for(const value of ['0:マルチブロック Block\n1:(0.15, 0.2)','0:マルチブロック Block\n (0.15,0.2)']){
+    const shown=[],collector=task.collector((...a)=>shown.push(a)),json=JSON.stringify({[key]:value});
+    collector.append(json);collector.finish();assert.deepEqual(shown,[]);
+    assert.throws(()=>task.parse(body(json)),MissingTranslationsError);
+  }
+  assert.match(task.parse(body(JSON.stringify({[key]:'0:マルチブロック Block\n'}))).get('tuple'),/^マルチブロック Block<m_/);
+});
