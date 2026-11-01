@@ -105,7 +105,7 @@ function applyView() {
 // 表示上の倍率。片側表示のときは、空いた幅いっぱいまで大きくする
 const viewZoom = () => state.zoom * (viewSel.value === 'both' ? 1 : state.fit);
 const ZOOM_SETTLE_MS = 140;
-const ZOOM_GESTURE_SENSITIVITY = 0.0025; // ピンチ・ホイールの移動量に対する倍率変化
+const ZOOM_GESTURE_SENSITIVITY = 0.00375; // ピンチ・ホイールの移動量に対する倍率変化
 let wheelZoom = 0, wheelZoomFrame = null, zoomSettleTimer = null, zoomGesture = null;
 
 function applyZoom(anchor = null) {

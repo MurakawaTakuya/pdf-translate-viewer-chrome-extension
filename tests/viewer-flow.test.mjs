@@ -701,8 +701,8 @@ test('keyboard shortcuts and pinch adjust PDF zoom while leaving the toolbar siz
   near(api.state.zoom, 1);
   api.wheel({ ctrlKey: true, deltaY: -100, deltaMode: 0, preventDefault: () => { prevented++; } });
   api.flushPageFrames();
-  near(api.state.zoom, Math.exp(0.25));
-  assert.equal(api.element('#zoomLabel').textContent, '128%');
+  near(api.state.zoom, Math.exp(0.375));
+  assert.equal(api.element('#zoomLabel').textContent, '145%');
   api.key(event('0'));
   assert.equal(api.state.zoom, 1);
   assert.equal(api.element('header').height, 60);
@@ -751,7 +751,7 @@ test('pinching only transforms the existing page until idle, then renders once a
   assert.match(api.element('#pages').style.transform, /^scale\(/);
   assert.equal(api.element('#pages').classList.contains('zoom-preview'), true);
   assert.equal(api.document.documentElement.style.getPropertyValue('--zoom'), 1);
-  near(api.state.zoom, Math.exp(0.125));
+  near(api.state.zoom, Math.exp(0.1875));
   await new Promise((resolve) => setTimeout(resolve, 190)); // Verify automatic idle completion.
   assert.equal(renders, 2);
   assert.equal(api.element('#pages').style.transform, '');
