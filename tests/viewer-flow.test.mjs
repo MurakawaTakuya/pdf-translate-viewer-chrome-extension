@@ -705,8 +705,8 @@ test('keyboard shortcuts and pinch adjust PDF zoom while leaving the toolbar siz
   near(api.state.zoom, 1);
   api.wheel({ ctrlKey: true, deltaY: -100, deltaMode: 0, preventDefault: () => { prevented++; } });
   api.flushPageFrames();
-  near(api.state.zoom, Math.exp(0.6));
-  assert.equal(api.element('#zoomLabel').textContent, '182%');
+  near(api.state.zoom, Math.exp(0.7));
+  assert.equal(api.element('#zoomLabel').textContent, '201%');
   api.key(event('0'));
   assert.equal(api.state.zoom, 1);
   assert.equal(api.element('header').height, 60);
@@ -759,7 +759,7 @@ test('pinching only transforms the existing page until idle, then renders once a
   assert.match(api.element('#pages').style.transform, /^translate\(.+px, .+px\) scale\(/);
   assert.equal(api.element('#pages').classList.contains('zoom-preview'), true);
   assert.equal(api.document.documentElement.style.getPropertyValue('--zoom'), 1);
-  near(api.state.zoom, Math.exp(0.3));
+  near(api.state.zoom, Math.exp(0.35));
   await new Promise((resolve) => setTimeout(resolve, 190)); // Verify automatic idle completion.
   assert.equal(renders, 2);
   assert.equal(api.element('#pages').style.transform, '');
@@ -959,7 +959,7 @@ test('centered and pointer-based zoom previews match the final layout without a 
     const target = {closest: selector => selector === '.page' && !scenario.pointer ? left : null};
     // Split across frames to exercise a continuous gesture and the width threshold.
     for (let i=0;i<2;i++) {
-      api.wheel({ctrlKey:true,deltaMode:0,deltaY:-Math.log(scenario.target/scenario.initial)/2/0.006,clientX,clientY,target,preventDefault(){}});
+      api.wheel({ctrlKey:true,deltaMode:0,deltaY:-Math.log(scenario.target/scenario.initial)/2/0.007,clientX,clientY,target,preventDefault(){}});
       api.flushPageFrames();
     }
     const match = /^translate\((.+)px, (.+)px\) scale\((.+)\)$/.exec(pages.style.transform);
@@ -1028,7 +1028,7 @@ test('vertical zoom limit uses the document start rather than the currently poin
     {index:1,left:first,right:first,vp:{width:500,height:700}},
     {index:2,left:second,right:second,vp:{width:500,height:700}},
   ];
-  api.wheel({ctrlKey:true,deltaMode:0,deltaY:-Math.log(0.9)/0.006,clientX:600,clientY:400,
+  api.wheel({ctrlKey:true,deltaMode:0,deltaY:-Math.log(0.9)/0.007,clientX:600,clientY:400,
     target:{closest:selector=>selector==='.page'?second:null},preventDefault(){}});
   api.flushPageFrames();
   const match = /^translate\((.+)px, (.+)px\) scale\((.+)\)$/.exec(api.element('#pages').style.transform);
