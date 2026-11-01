@@ -152,3 +152,11 @@ test('an accent with no unambiguous math base is kept and flagged instead of sil
   assert.match(blocks[0].text,/¯/);
   assert.equal(blocks[0].mathUncertain,true);
 });
+
+test('isolated superscript math crops retain the enclosing prose baseline',async()=>{
+  const blocks=await extract([item('A learning rate of 3e',50,100,160),item('−5',211,96.5,8,'math',7),item('is used for optimization.',221,100,150)]);
+  const span=blocks[0].mathSpans.find(s=>s.text==='−5');
+  assert.equal(span.base,100);
+  assert.equal(blocks[0].parts.find(p=>p.str==='−5').base,96.5);
+  assert.ok(span.bottom<span.base);
+});

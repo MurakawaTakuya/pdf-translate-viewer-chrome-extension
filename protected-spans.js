@@ -23,7 +23,7 @@ export function sourceMathSpans(block) {
       x1: Math.max(...parts.map((p) => p.x1)) + 0.3,
       top: Math.min(...parts.map((p) => p.top)) - 0.3,
       bottom: Math.max(...parts.map((p) => p.bottom)) + 0.3,
-      base: main.base, h: block.h };
+      base: main.lineBase ?? main.base, h: block.h };
   });
   // A mixed prose/formula glyph run cannot safely be split using an estimated
   // character width. Keep such a paragraph in the original PDF instead.

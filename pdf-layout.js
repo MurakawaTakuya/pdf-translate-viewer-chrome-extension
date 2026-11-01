@@ -67,7 +67,7 @@ export async function extractBlocks(r) {
       const separator = !text || /[a-z]-$/.test(text) && /^[a-z]/.test(l.text) ? '' : ' ';
       const offset = text.length + separator.length;
       text += separator + l.text;
-      b.parts.push(...l.parts.map((part) => ({ ...part, start: offset + part.start, end: offset + part.end })));
+      b.parts.push(...l.parts.map((part) => ({ ...part, lineBase:l.base, start: offset + part.start, end: offset + part.end })));
       chars += l.chars; boldChars += l.boldChars; sansChars += l.sansChars;
     }
     b.text = text;
