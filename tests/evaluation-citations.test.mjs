@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { citationVariants, restoreCitations, citationMetrics } from '../scripts/evaluation/citation-formats.mjs';
+import { citationVariants, restoreCitations, citationMetrics, verifyPriorCalls } from '../scripts/evaluation/citation-formats.mjs';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { captureCurrent } from '../scripts/evaluation/reproduce-current.mjs';
 import { analyze } from '../scripts/evaluation/compare-formats.mjs';
 
@@ -39,6 +42,8 @@ test('masked decoding refuses missing, duplicated, foreign, reordered and damage
   for (const text of [
     '引用なし', markers[0], markers.join(' ') + ' ' + markers[0],
     markers.join(' ') + ' [[REF_deadbeef]]', [...markers].reverse().join(' '),
+    markers.join(' ') + ' [[REF-deadbeef]]', markers.join(' ') + ' [[REFX_deadbeef]]',
+    markers.join(' ') + ' [[RFE_broken]]', markers.join(' ') + ' [[REF_broken',
     first.maskedText.replace('[[REF_', '[[REF_CHANGED_'),
   ]) {
     const decoded = restoreCitations(M, { [first.id]: text });
@@ -59,4 +64,18 @@ test('all-page metrics keep production reference and heading checks after decodi
   assert.equal((await citationMetrics(pages, P, wrong)).guardPass, false);
   const masked = result(M, Object.fromEntries(M.targets.map((target) => [target.id, '訳 ' + target.maskedText])));
   assert.equal((await citationMetrics(pages, M, masked)).guardPass, true);
+});
+
+test('a transport or incomplete failure in any prior variant prevents later confirmation calls', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pdf-citation-gate-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  for (const label of ['B1', 'P1', 'M1']) {
+    await writeFile(join(directory, label + '.started'), '');
+    await writeFile(join(directory, label + '.json'), JSON.stringify({ http: 200, status: 'completed' }));
+  }
+  await verifyPriorCalls(directory);
+  for (const result of [{ http: 429, status: 'no-completion' }, { http: 200, status: 'incomplete' }, { http: 200, status: 'completed', error: { message: 'stream failed' } }]) {
+    await writeFile(join(directory, 'M1.json'), JSON.stringify(result));
+    await assert.rejects(verifyPriorCalls(directory), /whole experiment/);
+  }
 });

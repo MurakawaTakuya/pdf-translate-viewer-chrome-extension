@@ -64,7 +64,10 @@ export function restoreCitations(candidate, translated) {
     const found = [...text.matchAll(markerPattern())].map((m) => m[0]);
     const valid = JSON.stringify(expected) === JSON.stringify(found);
     const decoded = text.replace(markerPattern(), (marker) => candidate.markers[marker] ?? marker);
-    if (!valid || /\[\[REF_|REF_/i.test(decoded)) {
+    // Allow literal double brackets only when they already occur in the source.
+    let remainder = decoded;
+    for (const literal of target.text.match(/\[\[[\s\S]*?\]\]/g) || []) remainder = remainder.replace(literal, '');
+    if (!valid || /\[\[|\]\]|REF[_-]/i.test(remainder)) {
       failures.push({ id: target.id, page: target.page, expected: expected.length, received: found.length });
       continue; // Never append missing references or guess where they belong.
     }
@@ -84,6 +87,13 @@ export async function citationMetrics(pages, candidate, result) {
   return { structuralPass: result.analysis.valid === true, markerFailures: restored.markerFailures, issues,
     guardPass: result.analysis.valid === true && !restored.markerFailures.length && !issues.length,
     translated: restored.translated };
+}
+
+export async function verifyPriorCalls(directory) {
+  for (const name of (await readdir(directory)).filter((file) => /^[BPM][123]\.started$/.test(file))) {
+    const result = JSON.parse(await readFile(`${directory}/${name.replace('.started', '.json')}`, 'utf8'));
+    if (result.http !== 200 || result.error || result.status !== 'completed') throw new Error('A prior transport/API failure stops the whole experiment');
+  }
 }
 
 async function main() {
@@ -120,6 +130,7 @@ async function main() {
   const source = await readFile(`${directory}/pages.json`, 'utf8'), pages = JSON.parse(source);
   if (sha(source) !== plan.inputSha256) throw new Error('Frozen source changed');
   const label = arg('--label'), initialIndex = plan.initialOrder.indexOf(label);
+  await verifyPriorCalls(directory);
   let code = label[0], previous;
   if (initialIndex >= 0) previous = plan.initialOrder[initialIndex - 1];
   else {
