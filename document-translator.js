@@ -6,6 +6,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
   let missingIds = [], repairing = false;
   const partial = new Map();
   const idsByBlock = new Map();
+  const blocksById = new Map();
   const targetsByRow = new Map();
   const rowsById = new Map(), preview = new Map();
   let completed = false;
@@ -22,6 +23,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
         pages.push({ page: r.index, blocks: blocks.map((b, i) => {
           const id = `p${r.index}-b${i}`;
           idsByBlock.set(b, id);
+          blocksById.set(id, b);
           rowsById.set(id, r);
           if (b.translate) { ids.push(id); targets.push(b); }
           return { id, kind: b.kind || 'paragraph', text: b.text };
@@ -83,9 +85,25 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
     return translationPromise;
   }
 
+  async function retranslateBlocks(b) {
+    const out = await ready();
+    const { pages, ids } = await prepare();
+    signal?.throwIfAborted();
+    const id = idsByBlock.get(b);
+    if (!id) throw new Error('翻訳対象の段落が見つかりません');
+    const related = translator.relatedTargets ? await translator.relatedTargets(pages, ids, id) : [id];
+    signal?.throwIfAborted();
+    // A shared sentence's citations must be replaced atomically, never one fragment alone.
+    const result = await translator.translateDocument(pages, related);
+    signal?.throwIfAborted();
+    for (const [key, text] of result) out.set(key, text);
+    return new Map([...result].map(([key, text]) => [blocksById.get(key), text]));
+  }
+
   return {
     ready,
     repairMissing,
+    retranslateBlocks,
     get completed() { return completed; },
     previewPage(r) {
       return (targetsByRow.get(r) || []).flatMap((block) => {
@@ -103,16 +121,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
       }
     },
     async retranslateBlock(b) {
-      const out = await ready();
-      const { pages } = await prepare();
-      signal?.throwIfAborted();
-      const id = idsByBlock.get(b);
-      if (!id) throw new Error('翻訳対象の段落が見つかりません');
-      // 手動の訳し直しでも、参照用に全文を渡す。
-      const result = await translator.translateDocument(pages, [id]);
-      signal?.throwIfAborted();
-      out.set(id, result.get(id));
-      return result.get(id);
+      return (await retranslateBlocks(b)).get(b);
     },
   };
 }

@@ -130,6 +130,12 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
 
   return {
     translateDocument,
+    ...(outputFormat === 'keyed' ? { async relatedTargets(pages, ids, id) {
+      const task = await buildKeyedTask(pages, ids, src, dst, signal);
+      const key = [...task.byKey].find(([, b]) => b.id === id)?.[0];
+      if (!key) throw new Error('翻訳対象の段落が見つかりません');
+      return task.groups.get(key).map((member) => task.byKey.get(member).id);
+    } } : {}),
     // 設定画面の接続テスト用。本文の翻訳は translateDocument を使う。
     async translateBatch(texts, onEach) {
       const blocks = texts.map((text, i) => ({ id: String(i), text }));

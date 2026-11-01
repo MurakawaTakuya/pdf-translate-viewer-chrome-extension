@@ -123,7 +123,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     };
     fillBlock = (el, b, text) => { b.ja = text; el.textContent = text; el.classList.remove('pending'); };
     saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
-    return { state, buildRows, autoTranslateOnOpen, start, enqueue, enqueueVisiblePages, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
+    return { state, buildRows, autoTranslateOnOpen, start, enqueue, enqueueVisiblePages, translateAll, redoBlock, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -237,6 +237,17 @@ test('a source-identical keyed title cannot replace a previous local translation
   api.element('#download').onclick();
   assert.equal(api.element('#downloadTranslated').disabled,true);
   assert.equal(calls,1);
+});
+
+test('viewer replaces every validated member of a shared-sentence redo together',async()=>{
+  const api=await viewer(),row=api.state.rows[0],a=row.blocks[0],b={text:'Continuation',ja:'古い続き'};
+  row.blocks.push(b);a.ja='古い先頭';
+  const left=element(),right=element();left._b=a;right._b=b;
+  row.blockEls=new Map([[a,left],[b,right]]);
+  api.state.translator={retranslateBlocks:async()=>new Map([[a,'新しい先頭'],[b,'新しい続き']])};
+  await api.redoBlock(left);
+  assert.equal(left.textContent,'新しい先頭');assert.equal(right.textContent,'新しい続き');
+  assert.equal(a.ja,'新しい先頭');assert.equal(b.ja,'新しい続き');
 });
 
 function localPages(api, count) {

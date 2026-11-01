@@ -785,10 +785,14 @@ async function redoBlock(el) {
   el.classList.add('pending');
   const finish = beginTranslation();
   try {
-    const t = await tr.retranslateBlock(b);
+    const updates = tr.retranslateBlocks ? await tr.retranslateBlocks(b) : new Map([[b, await tr.retranslateBlock(b)]]);
     if (tr !== state.translator) return;
-    if (b.failed) { b.failed = false; b.hidden = false; }
-    fillBlock(el, b, t);
+    for (const [block, text] of updates) {
+      const row = state.rows.find((r) => r.blocks?.includes(block));
+      if (!row) continue;
+      if (block.failed) { block.failed = false; block.hidden = false; }
+      fillBlock(block === b ? el : blockElement(row, block), block, text);
+    }
   } catch (e) {
     if (tr !== state.translator) return;
     console.error(e);

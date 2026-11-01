@@ -28,7 +28,7 @@ export async function buildKeyedTask(pages, ids, sourceLanguage, targetLanguage,
     const before = positions.get(a.id), after = positions.get(b.id);
     if (sourceLanguage === 'English' && a.kind === 'paragraph' && b.kind === 'paragraph'
       && before.page === after.page && after.index === before.index + 1
-      && /\d[\d,.]*$/.test(a.text.trim())
+      && /\d(?:[\d,.]*\d)?$/.test(a.text.trim())
       && /^(?:iterations|epochs|steps|samples|images|tokens|seconds|minutes|hours|days)\b/.test(b.text.trim())) {
       const group = [...groups.get(key), next];
       for (const member of group) groups.set(member, group);
@@ -102,17 +102,26 @@ export function keyedMembers(onItem = () => {}) {
   };
 }
 
-const citations = (text) => [...text.normalize('NFKC').matchAll(/\[(\d+(?:\s*,\s*\d+)*)\]/g)]
-  .flatMap((m) => m[1].split(',').map(Number)).sort((a, b) => a - b).join(',');
+const citations = (text) => [...text.normalize('NFKC').matchAll(/\[(\d+(?:\s*[-–—]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–—]\s*\d+)?)*)\]/g)]
+  .flatMap((m) => m[1].split(',').flatMap((part) => {
+    const range = part.trim().split(/\s*[-–—]\s*/).map(Number);
+    if (range.length === 1) return range;
+    const [first, last] = range;
+    // Bound work for untrusted PDF strings; huge/descending ranges remain literal markers.
+    if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last) || last < first || last - first > 10000) return [`range:${part.trim()}`];
+    return Array.from({ length: last - first + 1 }, (_, i) => first + i);
+  })).sort().join(',');
 
 export function blockIssue(source, translated, sourceLanguage, targetLanguage) {
   if (citations(source.text) !== citations(translated)) return 'citation';
   if (sourceLanguage === 'English' && targetLanguage !== 'English'
     && source.text.normalize('NFKC').trim() === translated.normalize('NFKC').trim()) {
     // Names/numbers/formulas may stay unchanged; descriptive English headings may not.
-    const ordinary = source.text.match(/\b(?:a|an|the|with|without|from|for|of|in|into|and|or|is|are|was|were|to|by)\b/g) || [];
+    const ordinary = source.text.match(/\b(?:a|an|the|with|without|from|for|of|in|into|and|or|is|are|was|were|to|by)\b/gi) || [];
+    const section = source.text.replace(/^\s*\d+(?:\.\d+)*[.)]?\s+/, '').trim();
+    const descriptive = ordinary.length || /^(?:abstract|introduction|background|overview|methods|results|discussion|conclusions?|references|appendix|acknowledg(?:e)?ments|experiments|evaluation|related work|implementation details)$/i.test(section);
     // Bibliographies and author/affiliation paragraphs may retain publication names.
-    if (source.kind === 'heading' && ordinary.length) return 'unchanged';
+    if (['heading','title'].includes(source.kind) && descriptive) return 'unchanged';
   }
   return null;
 }

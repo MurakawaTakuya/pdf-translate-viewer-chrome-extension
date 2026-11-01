@@ -58,9 +58,29 @@ test('citation checks preserve repeated markers while tolerating spacing and ful
 test('ordinary source headings cannot silently remain English, while names and formulas can', () => {
   const title = { text: 'Learning from Images with a Predictive Architecture', kind: 'heading' };
   assert.equal(blockIssue(title, title.text, 'English', 'Japanese'), 'unchanged');
+  for (const source of [
+    {text:'Learning From Images With A Predictive Architecture',kind:'heading'},
+    {text:'Learning from images with a predictive architecture',kind:'title'},
+    {text:'ABSTRACT',kind:'heading'},
+    {text:'1. Introduction',kind:'heading'},
+  ]) assert.equal(blockIssue(source,source.text,'English','Japanese'),'unchanged');
   for (const text of ['I-JEPA', 'Mahmoud Assran', 'University of Oxford', '$x$']) {
     assert.equal(blockIssue({text,kind:'paragraph'},text,'English','Japanese'),null);
   }
+});
+
+test('citation ranges cannot disappear and expanded equivalent ranges are accepted', async (t) => {
+  for (const text of ['Prior work [4–7].','Prior work [1, 3-5].']) {
+    assert.equal(blockIssue({text},'先行研究である。','English','Japanese'),'citation');
+  }
+  assert.equal(blockIssue({text:'Prior work [1, 3-5].'},'先行研究 [1,3,4,5]','English','Japanese'),null);
+  assert.equal(blockIssue({text:'Prior work [4—7].'},'先行研究 [4,5,6,7]','English','Japanese'),null);
+  const source=[{page:1,blocks:[{id:'a',text:'Prior work [4–7].',kind:'paragraph'}]}];
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{
+    const request=JSON.parse(init.body);
+    return Response.json(body(JSON.stringify(output(request,['先行研究である。']))));
+  });
+  await assert.rejects(createKeyedGeminiTranslator(options).translateDocument(source,['a']),MissingTranslationsError);
 });
 
 test('streaming withholds a citation-mismatched block before preview, retains safe results and makes no automatic repair call', async (t) => {
@@ -148,4 +168,53 @@ test('only adjacent number/unit fragments share citation checks; table labels re
   assert.equal(taskIssue(task,keys[0],values,'English','Japanese'),null);
   assert.equal(task.groups.get(keys[2]).length,1);
   assert.equal(task.groups.get(keys[3]).length,1);
+});
+
+test('citation groups cannot cross complete sentences, reference-only blocks or page boundaries', async () => {
+  const a={id:'a',text:'We train for 10',kind:'paragraph'},b={id:'b',text:'iterations using settings [13].',kind:'paragraph'};
+  for(const input of [
+    [{page:1,blocks:[{...a,text:a.text+'.'},b]}],
+    [{page:1,blocks:[a,{id:'reference',text:'Intervening figure label'},b]}],
+    [{page:1,blocks:[a]},{page:2,blocks:[b]}],
+  ]){
+    const task=await buildKeyedTask(input,['a','b'],'English','Japanese');
+    assert.ok([...task.groups.values()].every(group=>group.length===1));
+  }
+});
+
+test('manual redo updates a shared sentence as one validated group without duplicating citations', async (t) => {
+  const blocks=[{text:'We train for 300,000',kind:'paragraph',translate:true},
+    {text:'iterations using settings [13]. Next we visualize representations.',kind:'paragraph',translate:true}];
+  const row={index:1},requests=[];
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{
+    const request=JSON.parse(init.body);requests.push(request);
+    const values=requests.length===1?['設定 [13] を使い300,000回学習する。','続いて表現を可視化する。']
+      :['300,000回学習する。','設定 [13] を使用する。続いて表現を可視化する。'];
+    return Response.json(body(JSON.stringify(output(request,values))));
+  });
+  const tr=createDocumentTranslator({rows:[row],translator:createKeyedGeminiTranslator(options),getBlocks:async()=>blocks});
+  await tr.ready();
+  const changed=await tr.retranslateBlocks(blocks[1]);
+  assert.equal(changed.size,2);
+  assert.equal(JSON.parse(requests[1].input).translate_count,2);
+  const shown=[];await tr.translatePage(row,(_i,text)=>shown.push(text));
+  assert.deepEqual(shown,['300,000回学習する。','設定 [13] を使用する。続いて表現を可視化する。']);
+  assert.equal((shown.join('').match(/\[13\]/g)||[]).length,1);
+  assert.equal(tr.completed,true);
+});
+
+test('a failed shared-sentence redo leaves both previous cached values intact', async (t) => {
+  const blocks=[{text:'We train for 300,000',kind:'paragraph',translate:true},
+    {text:'iterations using settings [13]. Next we visualize.',kind:'paragraph',translate:true}];
+  const row={index:1};let calls=0;
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{
+    const request=JSON.parse(init.body);calls++;
+    return Response.json(body(JSON.stringify(output(request,calls===1?['設定 [13] を使い学習する。','可視化する。']:['新しい訳 [13]','誤った参照 [18]']))));
+  });
+  const tr=createDocumentTranslator({rows:[row],translator:createKeyedGeminiTranslator(options),getBlocks:async()=>blocks});
+  await tr.ready();
+  await assert.rejects(tr.retranslateBlock(blocks[1]),MissingTranslationsError);
+  const shown=[];await tr.translatePage(row,(_i,text)=>shown.push(text));
+  assert.deepEqual(shown,['設定 [13] を使い学習する。','可視化する。']);
+  assert.equal(tr.completed,true);
 });
