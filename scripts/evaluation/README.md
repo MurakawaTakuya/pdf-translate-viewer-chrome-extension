@@ -71,7 +71,7 @@ The historical first-complete-item latency scanner does not measure keyed proper
 
 ## Citation inventory and marker comparison
 
-`citation-formats.mjs` freezes three candidates before live execution: B is the byte-identical current viewer, P adds a per-property reference inventory without changing source text, and M substitutes unique per-occurrence reference markers in all context and target text. M requires the exact ordered marker inventory in each output block before local restoration; it never guesses or appends a missing reference. Restored outputs still face the current all-page citation/heading guard and a fixed 40-block manual scope/fidelity review.
+`citation-formats.mjs` freezes three candidates before live execution: B is the byte-identical current viewer, P adds a per-property reference inventory without changing source text, and M substitutes unique per-occurrence reference markers in all context and target text. M requires the exact ordered marker inventory in each output block before local restoration; it never guesses or appends a missing reference. Restored outputs still face the current all-page citation/heading guard and a fixed 40-block source/translation inspection. In the recorded run, independent assistant agents performed this reading; no human scorer or additional Gemini judge request was used.
 
 ```sh
 node scripts/evaluation/citation-formats.mjs --prepare --input /path/to/pages.json --baseline-plan /path/to/prior-plan.json --directory /path/to/new-citation-plan

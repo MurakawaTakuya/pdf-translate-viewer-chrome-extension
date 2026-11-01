@@ -1,0 +1,534 @@
+{
+  "recordedAt": "2026-11-01T21:49:41+0900",
+  "status": "NO_CANDIDATE_PROMOTED",
+  "plan": {
+    "recordedAt": "2026-11-01T21:30:12+0900",
+    "source": "https://arxiv.org/pdf/2301.08243",
+    "project": "gen-lang-client-0097090168",
+    "model": "gemini-3.5-flash-lite",
+    "inputSha256": "32f7c1a02556cf65aca6fe92eec43fc64e6ae6eaba25d74ae5a9ea449602703d",
+    "pages": 17,
+    "targets": 217,
+    "maximumGenerationRequests": 5,
+    "initialOrder": [
+      "B1",
+      "P1",
+      "M1"
+    ],
+    "retries": 0,
+    "automaticRepairs": 0,
+    "semanticPanel": [
+      "p1-b0",
+      "p1-b3",
+      "p1-b4",
+      "p1-b5",
+      "p1-b6",
+      "p1-b7",
+      "p1-b9",
+      "p1-b32",
+      "p1-b33",
+      "p1-b34",
+      "p1-b35",
+      "p2-b17",
+      "p2-b20",
+      "p2-b23",
+      "p2-b24",
+      "p2-b25",
+      "p2-b26",
+      "p2-b33",
+      "p2-b34",
+      "p6-b27",
+      "p6-b29",
+      "p6-b31",
+      "p6-b55",
+      "p6-b60",
+      "p7-b49",
+      "p16-b20",
+      "p17-b0",
+      "p17-b1",
+      "p5-b3",
+      "p5-b25",
+      "p5-b41",
+      "p5-b57",
+      "p6-b3",
+      "p6-b17",
+      "p6-b36",
+      "p6-b47",
+      "p3-b0",
+      "p13-b5",
+      "p16-b15",
+      "p16-b16"
+    ],
+    "requestSha256": {
+      "B": "2b1024288219162adde4915f407b3d270a7fdfd0b064679005e6eddbf3b8ed33",
+      "P": "2c06e7bf07f0c848400e8fac9a7ab4591d58ab59aceae2783b9a4e2c114fbafa",
+      "M": "a34dc4cae28aa01d4580a95b4e8bdc0ecf6514895bdc68da21275f7047e2a57f"
+    },
+    "primary": "All targets present, production citation/heading guard passes, exact ordered marker inventory if used, and fixed-panel manual source scope/fidelity pass. Never equate key coverage or marker presence with semantic accuracy.",
+    "selection": "After B1/P1/M1, select a P or M candidate only if guard and manual panel pass and total latency <=1.25*B1. Prefer lower latency; then lower output tokens. Lock one selection and repeat it twice without changes. If neither qualifies, stop without confirmations.",
+    "stopping": "Stop all on HTTP/transport/incomplete failures. A failed candidate is not tuned or repeated. Stop confirmations at first guard/manual failure. No model/endpoint/key/billing changes or automatic repairs.",
+    "firstItemMs": "unmeasured by shared keyed collector; compare total latency and first text only"
+  },
+  "actualGenerationCalls": 3,
+  "startedLabels": [
+    "B1",
+    "P1",
+    "M1"
+  ],
+  "confirmationCalls": 0,
+  "automaticRepairs": 0,
+  "retries": 0,
+  "productionProtocolChanged": false,
+  "rawSourceOrOutputStoredInGit": false,
+  "results": [
+    {
+      "label": "B1",
+      "requestSha256": "2b1024288219162adde4915f407b3d270a7fdfd0b064679005e6eddbf3b8ed33",
+      "rawSha256": "03604b0f8397282c739b128c818ea86ed6104f947b094bc622688299353ea396",
+      "http": 200,
+      "status": "completed",
+      "timing": {
+        "totalMs": 105119.795417,
+        "firstTextMs": 3105.8497920000004,
+        "firstItemMs": null
+      },
+      "usage": {
+        "total_tokens": 46153,
+        "total_input_tokens": 24174,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 24174
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 21979,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 54429
+      },
+      "structuralPass": true,
+      "markerFailures": [],
+      "issues": [
+        {
+          "id": "p4-b22",
+          "page": 4,
+          "reason": "citation"
+        }
+      ],
+      "guardPass": false,
+      "structuralCounts": {
+        "valid": true,
+        "status": "completed",
+        "expected": 217,
+        "received": 217,
+        "missing": 0,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 0,
+          "17": 0
+        }
+      },
+      "review": {
+        "gate": "fail",
+        "panelChecked": 40,
+        "findings": [
+          {
+            "id": "p16-b15",
+            "kind": "formula_scope",
+            "reason": "The formula fragment is reconstructed in the adjacent p16-b14 translation, not retained in its own source block."
+          },
+          {
+            "id": "p16-b16",
+            "kind": "symbol_change",
+            "reason": "Representation vector s_y becomes y."
+          },
+          {
+            "id": "p4-b22",
+            "kind": "citation_omission",
+            "fixedPanel": false,
+            "references": [
+              18,
+              25,
+              79
+            ]
+          }
+        ],
+        "recordedAt": "2026-11-01T21:47:14+0900",
+        "requestSha256": "2b1024288219162adde4915f407b3d270a7fdfd0b064679005e6eddbf3b8ed33",
+        "rawSha256": "03604b0f8397282c739b128c818ea86ed6104f947b094bc622688299353ea396",
+        "reviewerType": "independent assistant sub-agent"
+      },
+      "controlCharactersDiagnostic": [
+        {
+          "id": "p3-b21",
+          "codePoints": [
+            8,
+            9
+          ]
+        },
+        {
+          "id": "p4-b5",
+          "codePoints": [
+            9
+          ]
+        },
+        {
+          "id": "p4-b6",
+          "codePoints": [
+            9,
+            9
+          ]
+        }
+      ],
+      "controlCharactersDiagnosticScope": "Post-hoc diagnostic flags, not all are independently reviewed mathematical errors; not a new promotion gate."
+    },
+    {
+      "label": "P1",
+      "requestSha256": "2c06e7bf07f0c848400e8fac9a7ab4591d58ab59aceae2783b9a4e2c114fbafa",
+      "rawSha256": "303da13f4bb39a14e070d5372252c2b4e6bc558f0e8d6e5f17ed19d3bf79fc3e",
+      "http": 200,
+      "status": "completed",
+      "timing": {
+        "totalMs": 87592.913292,
+        "firstTextMs": 3925.478167,
+        "firstItemMs": null
+      },
+      "usage": {
+        "total_tokens": 46374,
+        "total_input_tokens": 24246,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 24246
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 22128,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 61549
+      },
+      "structuralPass": true,
+      "markerFailures": [],
+      "issues": [
+        {
+          "id": "p3-b0",
+          "page": 3,
+          "reason": "citation"
+        }
+      ],
+      "guardPass": false,
+      "structuralCounts": {
+        "valid": true,
+        "status": "completed",
+        "expected": 217,
+        "received": 217,
+        "missing": 0,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 0,
+          "17": 0
+        }
+      },
+      "review": {
+        "gate": "fail",
+        "panelChecked": 40,
+        "findings": [
+          {
+            "id": "p3-b0",
+            "kind": "citation_omission",
+            "references": [
+              4,
+              5,
+              18
+            ]
+          },
+          {
+            "id": "p1-b3",
+            "kind": "heading_translation",
+            "reason": "Abstract is rendered as the Japanese word for abstraction rather than the paper section summary."
+          },
+          {
+            "id": "p16-b14",
+            "kind": "formula_encoding",
+            "fixedPanel": false,
+            "reason": "The expected omega expression becomes h_ plus a newline and u."
+          },
+          {
+            "id": "p1-b35",
+            "kind": "claim_strength_concern",
+            "reason": "Less prior knowledge is phrased as not requiring prior knowledge; it may read as a stronger claim."
+          }
+        ],
+        "recordedAt": "2026-11-01T21:47:14+0900",
+        "requestSha256": "2c06e7bf07f0c848400e8fac9a7ab4591d58ab59aceae2783b9a4e2c114fbafa",
+        "rawSha256": "303da13f4bb39a14e070d5372252c2b4e6bc558f0e8d6e5f17ed19d3bf79fc3e",
+        "reviewerType": "independent assistant sub-agent"
+      },
+      "controlCharactersDiagnostic": [
+        {
+          "id": "p3-b21",
+          "codePoints": [
+            8,
+            9
+          ]
+        },
+        {
+          "id": "p4-b5",
+          "codePoints": [
+            9
+          ]
+        },
+        {
+          "id": "p4-b6",
+          "codePoints": [
+            10,
+            10
+          ]
+        },
+        {
+          "id": "p16-b12",
+          "codePoints": [
+            10
+          ]
+        },
+        {
+          "id": "p16-b14",
+          "codePoints": [
+            10
+          ]
+        }
+      ],
+      "controlCharactersDiagnosticScope": "Post-hoc diagnostic flags, not all are independently reviewed mathematical errors; not a new promotion gate."
+    },
+    {
+      "label": "M1",
+      "requestSha256": "a34dc4cae28aa01d4580a95b4e8bdc0ecf6514895bdc68da21275f7047e2a57f",
+      "rawSha256": "43da5c56fe8d4f784487c59c937840ed55027f8240582f73136c0df5f0b91edd",
+      "http": 200,
+      "status": "completed",
+      "timing": {
+        "totalMs": 126215.500209,
+        "firstTextMs": 3189.7654169999996,
+        "firstItemMs": null
+      },
+      "usage": {
+        "total_tokens": 49743,
+        "total_input_tokens": 25956,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 25956
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 23787,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 66566
+      },
+      "structuralPass": true,
+      "markerFailures": [
+        {
+          "id": "p12-b5",
+          "page": 12,
+          "expected": 11,
+          "received": 11
+        },
+        {
+          "id": "p13-b5",
+          "page": 13,
+          "expected": 5,
+          "received": 3
+        }
+      ],
+      "issues": [
+        {
+          "id": "p12-b5",
+          "page": 12,
+          "reason": "missing"
+        },
+        {
+          "id": "p13-b5",
+          "page": 13,
+          "reason": "missing"
+        }
+      ],
+      "guardPass": false,
+      "structuralCounts": {
+        "valid": true,
+        "status": "completed",
+        "expected": 217,
+        "received": 217,
+        "missing": 0,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 0,
+          "17": 0
+        }
+      },
+      "review": {
+        "recordedAt": "2026-11-01T21:49:41+0900",
+        "gate": "fail",
+        "panelChecked": 40,
+        "requestSha256": "a34dc4cae28aa01d4580a95b4e8bdc0ecf6514895bdc68da21275f7047e2a57f",
+        "rawSha256": "43da5c56fe8d4f784487c59c937840ed55027f8240582f73136c0df5f0b91edd",
+        "findings": [
+          {
+            "id": "p12-b5",
+            "kind": "valid_reference_reordering",
+            "fixedPanel": false,
+            "reason": "All eleven reference occurrences still support their original claims after Japanese word-order changes; the predeclared ordered-marker check nevertheless fails."
+          },
+          {
+            "id": "p13-b5",
+            "kind": "merged_marker_syntax",
+            "reason": "Two opaque reference IDs survive but are merged into one bracket group. Bibliographic identities are not changed, but individual anchors are coarser and the frozen decoder refuses the malformed syntax."
+          },
+          {
+            "id": "p16-b14",
+            "kind": "formula_encoding_and_duplication",
+            "fixedPanel": false,
+            "reason": "U+0008 corrupts the boldsymbol command, and the x at the split formula boundary is duplicated across p16-b14/p16-b15."
+          },
+          {
+            "id": "p1-b35",
+            "kind": "claim_strength_concern",
+            "reason": "The comparative less prior knowledge can be read as no prior knowledge."
+          }
+        ],
+        "noUnrelatedSubstitutionOnFixedPanel": true,
+        "reviewScope": "Fixed forty blocks plus adjacent and flagged blocks, reviewed by an independent assistant agent; not an exhaustive review of all 217.",
+        "reviewerType": "independent assistant sub-agent"
+      },
+      "controlCharactersDiagnostic": [
+        {
+          "id": "p3-b21",
+          "codePoints": [
+            8,
+            9,
+            9
+          ]
+        },
+        {
+          "id": "p4-b5",
+          "codePoints": [
+            9
+          ]
+        },
+        {
+          "id": "p4-b6",
+          "codePoints": [
+            9,
+            9,
+            9
+          ]
+        },
+        {
+          "id": "p4-b7",
+          "codePoints": [
+            9
+          ]
+        },
+        {
+          "id": "p4-b22",
+          "codePoints": [
+            9
+          ]
+        },
+        {
+          "id": "p16-b12",
+          "codePoints": [
+            8
+          ]
+        },
+        {
+          "id": "p16-b14",
+          "codePoints": [
+            8
+          ]
+        }
+      ],
+      "controlCharactersDiagnosticScope": "Post-hoc diagnostic flags, not all are independently reviewed mathematical errors; not a new promotion gate."
+    }
+  ],
+  "markerIdentityDiagnostic": {
+    "postHoc": true,
+    "targetReferenceOccurrences": 201,
+    "receivedIndividualIDs": 201,
+    "perTargetIDMultisetMismatches": 0,
+    "explanation": "All individual reference IDs remain in their original target blocks. This does not pass the frozen ordered-marker decoder or prove claim-level citation alignment."
+  },
+  "limitations": [
+    "One generation per candidate on one paper; no reliability or causal speed claim.",
+    "M hides repeated-reference identities across the paper and imposes stricter per-block ordered syntax than B/P; compare candidate packages, not masking alone.",
+    "Guard checks cover all 217 blocks; independent-agent scope/fidelity review covers the fixed forty and related flagged/adjacent blocks.",
+    "Original failures are retained. No post-hoc decoder relaxation or automatic citation appending is promoted.",
+    "The frozen plan uses manual for source/translation inspection; the reviewers were independent assistant agents, not human scorers."
+  ],
+  "reviewMethod": "Independent assistant sub-agents read the source and translations; no human scoring or additional Gemini judge requests."
+}

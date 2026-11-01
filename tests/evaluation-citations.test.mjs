@@ -44,6 +44,7 @@ test('masked decoding refuses missing, duplicated, foreign, reordered and damage
     markers.join(' ') + ' [[REF_deadbeef]]', [...markers].reverse().join(' '),
     markers.join(' ') + ' [[REF-deadbeef]]', markers.join(' ') + ' [[REFX_deadbeef]]',
     markers.join(' ') + ' [[RFE_broken]]', markers.join(' ') + ' [[REF_broken',
+    '[[' + markers.map((marker) => marker.slice(2, -2)).join(', ') + ']]',
     first.maskedText.replace('[[REF_', '[[REF_CHANGED_'),
   ]) {
     const decoded = restoreCitations(M, { [first.id]: text });
