@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { DEFAULT_MODEL } from '../../gemini.js';
 import { legacyRequest } from './legacy-format.mjs';
+import { readApiError, redactApiError } from '../../api-error.js';
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 const sha = (value) => createHash('sha256').update(value).digest('hex');
@@ -169,7 +170,7 @@ export async function generate(variant, apiKey, label, directory, analyzeOutput 
   try {
     const response = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(variant.request), signal: AbortSignal.timeout(600000) });
     http = response.status;
-    if (!response.ok) error = (await response.json()).error;
+    if (!response.ok) error = await readApiError(response);
     else if (/text\/event-stream/i.test(response.headers.get('content-type') || '')) {
       let buffer = ''; const decoder = new TextDecoder();
       for await (const chunk of response.body) {
@@ -188,7 +189,8 @@ export async function generate(variant, apiKey, label, directory, analyzeOutput 
   const result = {
     label, variant: variant.name, model: variant.request.model, http, status: terminal.status || 'no-completion', usage: terminal.usage || null,
     timing: { totalMs: performance.now() - started, firstTextMs, firstItemMs }, chunks, outputChars: text.length,
-    error: error ? { code: error.code, status: error.status, message: String(error.message || '').replaceAll(apiKey, '[redacted]') } : null,
+    error: error ? redactApiError({ code: error.code, status: error.status, message: String(error.message || ''),
+      ...(error.details ? { details: error.details } : {}) }, apiKey) : null,
     analysis: analyzeOutput(variant, text, terminal.status), outputText: text,
   };
   await writeFile(`${directory}/${label}.json`, JSON.stringify(result, null, 2));

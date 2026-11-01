@@ -1,6 +1,7 @@
 // Gemini API（Interactions API）で、PDF全文を一括翻訳する
 import { readTranslationStream } from './translation-stream.js';
 import { buildKeyedTask, keyedPrompt, keyedMembers, taskIssue } from './keyed-translations.js';
+import { readApiError, redactApiError } from './api-error.js';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
@@ -114,9 +115,8 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
         const body = { status: streamed.status, steps: [{ type: 'model_output', content: [{ type: 'text', text: streamed.text }] }] };
         return parseOutput(body);
       }
-      const body = await res.json().catch(() => ({}));
-      if (res.ok) return parseOutput(body);
-      const err = (Array.isArray(body) ? body[0] : body)?.error || {}; // エラーは [{ error: … }] の形で返ってくる
+      if (res.ok) return parseOutput(await res.json().catch(() => ({})));
+      const err = redactApiError(await readApiError(res), apiKey);
 
       // レート制限・一時的なエラーは待って再試行
       if ((res.status === 429 || res.status >= 500) && attempt < 6) {
