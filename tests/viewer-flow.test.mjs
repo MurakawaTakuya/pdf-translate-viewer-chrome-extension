@@ -34,7 +34,7 @@ const element = () => {
     append() {}, appendChild() {}, replaceChildren() {}, remove() {}, querySelectorAll: () => [],
   };
 };
-async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = null) {
+async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = null, savedZoom = 1) {
   const elements = new Map();
   const createdElements = [];
   const listeners = new Map(), resizeObservers = [];
@@ -76,7 +76,8 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     dispatchHeaderResize: () => resizeObservers.forEach((callback) => callback()),
     getComputedStyle: (el) => el.computedStyle,
     ResizeObserver: class { constructor(callback) { resizeObservers.push(callback); } observe() {} },
-    localStorage: { getItem: () => null, setItem(name, value) { if (name === 'zoom') zoomSaves.push(value); } },
+    IntersectionObserver: class { observe() {} },
+    localStorage: { getItem: (name) => name === 'zoom' ? String(savedZoom) : null, setItem(name, value) { if (name === 'zoom') zoomSaves.push(value); } },
     matchMedia: () => ({ addEventListener() {} }), devicePixelRatio: 1, scrollY: 0,
     scrollTo(x, y) { scrollCalls.push([x, y]); context.scrollY = y; window.scrollX = x; },
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
@@ -108,7 +109,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     };
     fillBlock = (_el, b, text) => { b.ja = text; };
     saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
-    return { state, start, enqueue, enqueueVisiblePages, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
+    return { state, buildRows, start, enqueue, enqueueVisiblePages, translateAll, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -945,13 +946,14 @@ test('centered and pointer-based zoom previews match the final layout without a 
     api.state.zoom = scenario.initial;
     api.document.documentElement.style.setProperty('--zoom', scenario.initial);
     api.window.scrollX = scenario.scroll;
-    const left = element(), right = element();
+    const left = element(), right = element(), rowElement = element();
     left.getBoundingClientRect = () => {
       const scale = Number(api.document.documentElement.style.getPropertyValue('--zoom'));
       const width = 600 * scale, height = 800 * scale, top = 72 - api.scrollY();
-      return {left:14+Math.max(0,(972-width)/2)-(api.window.scrollX || 0),top,width,height,bottom:top+height};
+      return {left:14+(parseFloat(rowElement.style.width)*scale-width)/2-(api.window.scrollX || 0),top,width,height,bottom:top+height};
     };
-    api.state.rows = [{index:1,visible:true,left,right,vp:{width:600,height:800}}];
+    api.state.rows = [{index:1,element:rowElement,visible:true,left,right,vp:{width:600,height:800}}];
+    api.resize();
     const before = left.getBoundingClientRect(), clientX = scenario.pointer || 750, clientY = 350;
     const x = (clientX-before.left)/before.width, y = (clientY-before.top)/before.height;
     const target = {closest: selector => selector === '.page' && !scenario.pointer ? left : null};
@@ -973,4 +975,37 @@ test('centered and pointer-based zoom previews match the final layout without a 
     if (600*scenario.target<=972) near(api.window.scrollX,0);
     assert.equal(pages.style.transform,'');
   });
+});
+
+test('saved 70% startup centers the pair seam and both single-page views using explicit CSS pixel widths', async () => {
+  const api = await viewer('gemini', {}, null, 0.7);
+  fitFixture(api);
+  api.document.documentElement.clientWidth = 2048;
+  api.element('#pages').clientWidth = 2048;
+  api.state.rows = [];
+  api.state.pdf = {numPages:1,getPage:async()=>({getViewport:({scale})=>({width:600*scale,height:800*scale})})};
+  await api.buildRows();
+  const row = api.state.rows[0];
+  const assertCentered = (view) => {
+    const zoom = api.rendering.viewZoom();
+    assert.match(row.element.style.width,/^[\d.]+px$/);
+    const rowWidth = parseFloat(row.element.style.width)*zoom;
+    const pageWidth = parseFloat(row.left.style.width)*zoom;
+    const contentWidth = view==='both' ? pageWidth*2+12*zoom : pageWidth;
+    near(rowWidth,2048-28);
+    const contentLeft = 14+(rowWidth-contentWidth)/2;
+    const center = view==='both' ? contentLeft+pageWidth+6*zoom : contentLeft+pageWidth/2;
+    near(center,1024);
+    assert.ok(contentLeft>14);
+  };
+  assertCentered('both');
+  for (const view of ['orig','ja','both']) {
+    api.viewSelect.value = view;
+    api.viewSelect.onchange();
+    assertCentered(view);
+  }
+  api.document.documentElement.clientWidth = 1800;
+  api.element('#pages').clientWidth = 1800;
+  api.resize();
+  near(parseFloat(row.element.style.width)*api.rendering.viewZoom(),1800-28);
 });

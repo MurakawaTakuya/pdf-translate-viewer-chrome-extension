@@ -129,6 +129,7 @@ function applyZoom(anchor = null) {
   }
   const ratio = anchor ? null : scrollY / Math.max(1, document.documentElement.scrollHeight);
   document.documentElement.style.setProperty('--zoom', viewZoom());
+  updateRowWidths();
   $('#zoomLabel').textContent = Math.round(state.zoom * 100) + '%';
   $('#fitWidth').setAttribute('aria-pressed', String(state.fitMode === 'width'));
   $('#fitHeight').setAttribute('aria-pressed', String(state.fitMode === 'height'));
@@ -140,6 +141,25 @@ function applyZoom(anchor = null) {
   } else scrollTo(0, ratio * document.documentElement.scrollHeight);
   rerenderVisible();
   schedulePageNavigation();
+}
+
+// CSS zoom内のパーセント幅は包含ブロックとの倍率差で補正される。
+// ここではCSS pxの幅を明示し、余白用の倍率補正が二重に掛からないようにする。
+function setRowWidth(r, available) {
+  if (!r.element || !r.vp) return;
+  const columns = viewSel.value === 'both' ? 2 : 1;
+  const content = r.vp.width * columns + GAP * (columns - 1);
+  const scale = zoomGesture?.base ?? viewZoom(); // 操作中はプレビュー前のレイアウト幅を保つ
+  r.element.style.width = Math.max(content, available / scale) + 'px';
+}
+
+function updateRowWidths() {
+  if (!state.rows.length) return;
+  const cs = getComputedStyle(pagesEl);
+  const available = document.documentElement.clientWidth
+    - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  if (available <= 0) return;
+  for (const r of state.rows) setRowWidth(r, available);
 }
 
 function stepZoom(dir) {
@@ -278,6 +298,7 @@ const refit = () => {
   const height = $('header').getBoundingClientRect().height;
   document.documentElement.style.setProperty('--toolbar-height', `${height}px`);
   if (state.fitMode) fitToViewport(state.fitMode, currentFitRow(), false);
+  updateRowWidths();
   schedulePageNavigation();
   citationDialog?.position();
 };
@@ -433,11 +454,12 @@ async function buildRows() {
     pagesEl.appendChild(row);
 
     const r = {
-      index: i, page, vp, left, right, srcLayer, dstLayer,
+      index: i, element: row, page, vp, left, right, srcLayer, dstLayer,
       renderP: null, renderScale: 0, srcCanvas: null, scale: 1, blocks: null, busy: false,
       translated: false, queued: false, visible: false,
     };
     row._row = r;
+    setRowWidth(r, inner);
     state.rows.push(r);
     io.observe(row);
   }
