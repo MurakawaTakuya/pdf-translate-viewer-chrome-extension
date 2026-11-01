@@ -4,6 +4,7 @@ import { createGeminiTranslator } from './gemini.js';
 import { createDocumentTranslator } from './document-translator.js';
 import { extractBlocks } from './pdf-layout.js';
 import { createPdfLoadProgress } from './pdf-load-progress.js';
+import { horizontalZoomShift } from './zoom-anchor.js';
 import { toRuns } from './math.js';
 import { disableNativeZoom } from './native-zoom.js';
 import { createCitationDialog } from './citation-ui.js';
@@ -113,6 +114,8 @@ let wheelZoom = 0, wheelZoomFrame = null, zoomSettleTimer = null, zoomGesture = 
 function applyZoom(anchor = null) {
   if (zoomGesture) {
     const gesture = zoomGesture;
+    if (gesture.horizontal) gesture.anchor.clientX = gesture.horizontal.pointer
+      + horizontalZoomShift(gesture.horizontal, viewZoom() / gesture.base);
     anchor ??= gesture.anchor;
     zoomGesture = null;
     clearTimeout(zoomSettleTimer);
@@ -204,11 +207,27 @@ function startZoomGesture(e) {
   const rect = pagesEl.getBoundingClientRect();
   const clientX = Number.isFinite(e.clientX) ? e.clientX : document.documentElement.clientWidth / 2;
   const clientY = Number.isFinite(e.clientY) ? e.clientY : document.documentElement.clientHeight / 2;
-  const element = e.target?.closest?.('.page') || e.target?.closest?.('.row') || pagesEl;
+  const pageElement = e.target?.closest?.('.page');
+  const rowElement = e.target?.closest?.('.row');
+  const row = rowElement?._row
+    || state.rows.find((r) => r.left === pageElement || r.right === pageElement)
+    || currentFitRow();
+  const first = viewSel.value === 'ja' ? row?.right : row?.left;
+  // 余白上のピンチでも、幅が変わらない外側コンテナではなくPDFを基準にする。
+  const element = pageElement || first || rowElement || pagesEl;
   const box = element.getBoundingClientRect();
+  const firstBox = first === element ? box : first?.getBoundingClientRect?.();
+  const cs = getComputedStyle(pagesEl);
+  const columns = viewSel.value === 'both' ? 2 : 1;
+  const width = row?.vp && (row.vp.width * columns + GAP * (columns - 1)) * viewZoom();
+  const horizontal = firstBox && Number.isFinite(firstBox.left) && Number.isFinite(width) ? {
+    left: firstBox.left, width, pointer: clientX,
+    start: parseFloat(cs.paddingLeft) || 0,
+    end: document.documentElement.clientWidth - (parseFloat(cs.paddingRight) || 0),
+  } : null;
   let resolve;
   const finished = new Promise((done) => { resolve = done; });
-  zoomGesture = { base: viewZoom(), finished, resolve, anchor: {
+  zoomGesture = { base: viewZoom(), finished, resolve, horizontal, anchor: {
     element, clientX, clientY,
     x: box.width ? (clientX - box.left) / box.width : 0,
     y: box.height ? (clientY - box.top) / box.height : 0,
@@ -224,7 +243,10 @@ function previewWheelZoom() {
   state.zoom = Math.min(5, Math.max(0.1, state.zoom * Math.exp(-wheelZoom * ZOOM_GESTURE_SENSITIVITY)));
   wheelZoom = 0;
   state.fitMode = null;
-  pagesEl.style.transform = `scale(${viewZoom() / zoomGesture.base})`;
+  const scale = viewZoom() / zoomGesture.base;
+  const shift = zoomGesture.horizontal ? horizontalZoomShift(zoomGesture.horizontal, scale) : 0;
+  if (zoomGesture.horizontal) zoomGesture.anchor.clientX = zoomGesture.horizontal.pointer + shift;
+  pagesEl.style.transform = `translateX(${shift}px) scale(${scale})`;
   $('#zoomLabel').textContent = Math.round(state.zoom * 100) + '%';
   $('#fitWidth').setAttribute('aria-pressed', 'false');
   $('#fitHeight').setAttribute('aria-pressed', 'false');

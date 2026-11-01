@@ -130,7 +130,9 @@ button:disabled { opacity: .5; cursor: progress; }
 
 #pages { padding: 12px 14px 60px; display: flex; flex-direction: column; gap: 14px; }
 #pages.zoom-preview { will-change: transform; }
-.row { display: grid; grid-template-columns: auto auto; gap: 12px; justify-content: center; zoom: var(--zoom, 1); }
+/* 小さい間は利用可能幅の中央。大きくなったら左端を保ち右へ広げる。 */
+.row { display: grid; grid-template-columns: auto auto; gap: 12px; justify-content: center;
+  width: max-content; min-width: calc(100% / var(--zoom, 1)); zoom: var(--zoom, 1); }
 
 /* 拡大・縮小ボタン */
 .zoom-controls { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; white-space: nowrap; }

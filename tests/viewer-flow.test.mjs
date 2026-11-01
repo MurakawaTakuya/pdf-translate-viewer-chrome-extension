@@ -6,6 +6,7 @@ import { createGeminiTranslator } from '../gemini.js';
 import { createDocumentTranslator } from '../document-translator.js';
 import { disableNativeZoom } from '../native-zoom.js';
 import { createPdfLoadProgress } from '../pdf-load-progress.js';
+import { horizontalZoomShift } from '../zoom-anchor.js';
 import { streamFixture, until } from './helpers/stream.mjs';
 
 const viewerSource = await readFile(new URL('../viewer.js', import.meta.url), 'utf8');
@@ -81,7 +82,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
     pdfjsLib: { GlobalWorkerOptions: {} },
     createGeminiTranslator, createDocumentTranslator,
-    disableNativeZoom, createPdfLoadProgress,
+    disableNativeZoom, createPdfLoadProgress, horizontalZoomShift,
     createCitationDialog: () => ({ open() {}, position() {} }),
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),
     openSettings: async () => nextSettings,
@@ -721,6 +722,10 @@ test('pinching only transforms the existing page until idle, then renders once a
   t.mock.method(globalThis, 'fetch', async () => assert.fail('pinch must not call translation API'));
   const api = await viewer();
   fitFixture(api);
+  api.document.documentElement.clientWidth = 450;
+  api.viewSelect.value = 'orig';
+  api.document.body.dataset.view = 'orig';
+  api.state.fit = 1;
   api.rendering.enable();
   let renders = 0, geometryReads = 0;
   const left = element(), right = element();
@@ -750,7 +755,7 @@ test('pinching only transforms the existing page until idle, then renders once a
   assert.equal(geometryReads, reads); // No per-frame page geometry reads.
   assert.equal(api.zoomSaves.length, saves);
   assert.equal(api.scrollCalls.length, scrolls);
-  assert.match(api.element('#pages').style.transform, /^scale\(/);
+  assert.match(api.element('#pages').style.transform, /^translateX\(.+px\) scale\(/);
   assert.equal(api.element('#pages').classList.contains('zoom-preview'), true);
   assert.equal(api.document.documentElement.style.getPropertyValue('--zoom'), 1);
   near(api.state.zoom, Math.exp(0.1875));
@@ -803,6 +808,8 @@ test('a render interrupted by pinching waits for gesture completion instead of f
       tasks.push(task); return task;
     },
   } };
+  row.left.getBoundingClientRect = () => ({left:14,top:72,width:500,height:700,bottom:772});
+  row.right.getBoundingClientRect = () => ({left:526,top:72,width:500,height:700,bottom:772});
   api.state.rows = [row];
   const pending = api.rendering.renderPage(row);
   api.wheel({ ctrlKey: true, deltaY: -50, deltaMode: 0, preventDefault() {} });
@@ -916,4 +923,54 @@ test('restarting streamed translation cancels its reader and clears old provisio
   assert.equal(api.state.translator.completed, true);
   assert.equal(calls, 2);
   assert.equal(api.startButton.getAttribute('aria-busy'), 'false');
+});
+
+test('centered and pointer-based zoom previews match the final layout without a horizontal snap', async (t) => {
+  for (const scenario of [
+    { name: 'margins remain', initial: 1, target: 1.25, scroll: 0 },
+    { name: 'cross into overflow', initial: 1, target: 1.9, scroll: 0 },
+    { name: 'shrink back into margins', initial: 2, target: 1.2, scroll: 200 },
+    { name: 'already overflowing', initial: 2, target: 2.5, scroll: 200 },
+    { name: 'pointer in the side margin', initial: 1, target: 1.9, scroll: 0, pointer: 980 },
+  ]) await t.test(scenario.name, async () => {
+    const api = await viewer();
+    fitFixture(api);
+    api.document.documentElement.clientWidth = 1000;
+    const pages = api.element('#pages');
+    pages.clientWidth = 1000;
+    pages.getBoundingClientRect = () => ({left: -(api.window.scrollX || 0), top:60-api.scrollY(), width:1000, height:2200});
+    api.viewSelect.value = 'orig';
+    api.document.body.dataset.view = 'orig';
+    api.state.fit = 1;
+    api.state.zoom = scenario.initial;
+    api.document.documentElement.style.setProperty('--zoom', scenario.initial);
+    api.window.scrollX = scenario.scroll;
+    const left = element(), right = element();
+    left.getBoundingClientRect = () => {
+      const scale = Number(api.document.documentElement.style.getPropertyValue('--zoom'));
+      const width = 600 * scale, height = 800 * scale, top = 72 - api.scrollY();
+      return {left:14+Math.max(0,(972-width)/2)-(api.window.scrollX || 0),top,width,height,bottom:top+height};
+    };
+    api.state.rows = [{index:1,visible:true,left,right,vp:{width:600,height:800}}];
+    const before = left.getBoundingClientRect(), clientX = scenario.pointer || 750, clientY = 350;
+    const x = (clientX-before.left)/before.width, y = (clientY-before.top)/before.height;
+    const target = {closest: selector => selector === '.page' && !scenario.pointer ? left : null};
+    // Split across frames to exercise a continuous gesture and the width threshold.
+    for (let i=0;i<2;i++) {
+      api.wheel({ctrlKey:true,deltaMode:0,deltaY:-Math.log(scenario.target/scenario.initial)/2/0.00375,clientX,clientY,target,preventDefault(){}});
+      api.flushPageFrames();
+    }
+    const match = /^translateX\((.+)px\) scale\((.+)\)$/.exec(pages.style.transform);
+    const shift = Number(match[1]), scale = Number(match[2]);
+    const previewLeft = clientX+(before.left-clientX)*scale+shift;
+    if (600*scenario.target<=972) near(previewLeft+600*scenario.target/2,500);
+    else if (scenario.initial===1) near(previewLeft,clientX+(14-clientX)*(600*scenario.target/972));
+    api.finishZoomGesture();
+    const after = left.getBoundingClientRect();
+    near(after.left,previewLeft);
+    near(after.left+after.width*x,clientX+shift);
+    near(after.top+after.height*y,clientY);
+    if (600*scenario.target<=972) near(api.window.scrollX,0);
+    assert.equal(pages.style.transform,'');
+  });
 });
