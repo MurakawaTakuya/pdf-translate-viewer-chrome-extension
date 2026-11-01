@@ -24,7 +24,8 @@ export async function buildCompactNodeTask(pages,ids,src,dst,signal){
     const lines=value.split('\n');if(lines.length!==atoms.length+1)return {issue:'node'};
     // A final rank prefix is another record, not translated tail prose. Never
     // display it or guess which source atom the model intended.
-    if(/^\d+:/.test(lines.at(-1)))return {issue:'node'};
+    const tailRank=lines.at(-1).match(/^(\d+):/);
+    if(tailRank&&Number(tailRank[1])<=atoms.length&&!base.byKey.get(key).text.includes(tailRank[0]))return {issue:'node'};
     const node={tail:lines.at(-1)};
     for(let i=0;i<atoms.length;i++){
       const packet=parseRankField(lines[i]);if(!packet)return {issue:'node'};node[atoms[i].key]=packet;

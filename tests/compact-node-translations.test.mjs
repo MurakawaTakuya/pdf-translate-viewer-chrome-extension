@@ -45,3 +45,10 @@ test('a rank-prefixed tail and copied original numeric tuple are withheld before
   }
   assert.match(task.parse(body(JSON.stringify({[key]:'0:マルチブロック Block\n'}))).get('tuple'),/^マルチブロック Block<m_/);
 });
+
+test('bibliography years and source numeric colon labels are not mistaken for leaked ranks',async()=>{
+  for(const text of ['[4]2020: Learning representation methods.','[4]1: Learning representation methods.']){
+    const task=await buildCompactNodeTask([{page:1,blocks:[{id:'a',kind:'reference',text}]}],['a'],'English','Japanese'),[key]=task.byKey.keys();
+    assert.equal(task.parse(body(JSON.stringify({[key]:`0:\n${text.slice(3)}`}))).get('a'),text);
+  }
+});
