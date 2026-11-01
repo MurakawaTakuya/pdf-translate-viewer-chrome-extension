@@ -142,7 +142,7 @@ function objectCollector(onItem) {
   };
 }
 
-export async function generate(variant, apiKey, label, directory) {
+export async function generate(variant, apiKey, label, directory, analyzeOutput = analyze) {
   const started = performance.now(), expected = new Set(variant.targets.map((b) => b.wire));
   let firstTextMs = null, firstItemMs = null, text = '', terminal = {}, http, error = null, chunks = 0;
   const steps = new Map();
@@ -189,7 +189,7 @@ export async function generate(variant, apiKey, label, directory) {
     label, variant: variant.name, model: variant.request.model, http, status: terminal.status || 'no-completion', usage: terminal.usage || null,
     timing: { totalMs: performance.now() - started, firstTextMs, firstItemMs }, chunks, outputChars: text.length,
     error: error ? { code: error.code, status: error.status, message: String(error.message || '').replaceAll(apiKey, '[redacted]') } : null,
-    analysis: analyze(variant, text, terminal.status), outputText: text,
+    analysis: analyzeOutput(variant, text, terminal.status), outputText: text,
   };
   await writeFile(`${directory}/${label}.json`, JSON.stringify(result, null, 2));
   const { translated, ...summary } = result.analysis;
