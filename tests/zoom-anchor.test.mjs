@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { horizontalZoomShift } from '../zoom-anchor.js';
+import { horizontalZoomShift, verticalZoomShift } from '../zoom-anchor.js';
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 const base={left:200,width:600,pointer:750,start:0,end:1000};
 const position=(g,s)=>g.pointer+(g.left-g.pointer)*s+horizontalZoomShift(g,s);
@@ -31,4 +31,27 @@ test('viewport padding participates in centering and invalid geometry cannot cau
   near(position(padded,1.2)+padded.width*1.2/2,514);
   near(horizontalZoomShift({...base,width:NaN},1.2),0);
   near(horizontalZoomShift({...base,end:0},1.2),0);
+});
+
+
+test('shrinking at the document start keeps its top in place during the preview',()=>{
+  const geometry={top:72,pointer:500,start:72};
+  for(const scale of [0.9,0.7,0.3]){
+    const rawTop=geometry.pointer+(geometry.top-geometry.pointer)*scale;
+    near(rawTop+verticalZoomShift(geometry,scale),72);
+  }
+});
+test('a scrolled document follows the pointer until its start would create empty space',()=>{
+  const geometry={top:-128,pointer:500,start:72};
+  near(verticalZoomShift(geometry,0.8),0);
+  near(500+(-128-500)*0.5+verticalZoomShift(geometry,0.5),72);
+  near(verticalZoomShift(geometry,1.2),0);
+});
+test('the vertical limit works in both directions within one gesture without fabricating a gap',()=>{
+  const geometry={top:72,pointer:500,start:72};
+  for(const scale of [1,0.6,0.8,1,1.2]){
+    const position=500+(72-500)*scale+verticalZoomShift(geometry,scale);
+    assert.ok(position<=72+1e-8);
+  }
+  near(verticalZoomShift({...geometry,top:NaN},0.5),0);
 });

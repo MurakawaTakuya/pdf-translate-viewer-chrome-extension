@@ -17,3 +17,10 @@ export function horizontalZoomShift({ left, width, pointer, start, end }, scale)
   }
   return nextLeft - pointerLeft;
 }
+
+// 縮小のプレビューでも、文書上端をヘッダー下の通常位置より下げない。
+export function verticalZoomShift({ top, pointer, start }, scale) {
+  if (![top, pointer, start, scale].every(Number.isFinite) || scale <= 0) return 0;
+  const pointerTop = pointer + (top - pointer) * scale;
+  return Math.min(0, start - pointerTop);
+}

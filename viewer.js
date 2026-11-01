@@ -4,7 +4,7 @@ import { createGeminiTranslator } from './gemini.js';
 import { createDocumentTranslator } from './document-translator.js';
 import { extractBlocks } from './pdf-layout.js';
 import { createPdfLoadProgress } from './pdf-load-progress.js';
-import { horizontalZoomShift } from './zoom-anchor.js';
+import { horizontalZoomShift, verticalZoomShift } from './zoom-anchor.js';
 import { toRuns } from './math.js';
 import { disableNativeZoom } from './native-zoom.js';
 import { createCitationDialog } from './citation-ui.js';
@@ -116,6 +116,8 @@ function applyZoom(anchor = null) {
     const gesture = zoomGesture;
     if (gesture.horizontal) gesture.anchor.clientX = gesture.horizontal.pointer
       + horizontalZoomShift(gesture.horizontal, viewZoom() / gesture.base);
+    if (gesture.vertical) gesture.anchor.clientY = gesture.vertical.pointer
+      + verticalZoomShift(gesture.vertical, viewZoom() / gesture.base);
     anchor ??= gesture.anchor;
     zoomGesture = null;
     clearTimeout(zoomSettleTimer);
@@ -245,9 +247,17 @@ function startZoomGesture(e) {
     start: parseFloat(cs.paddingLeft) || 0,
     end: document.documentElement.clientWidth - (parseFloat(cs.paddingRight) || 0),
   } : null;
+  // いま見ているページではなく文書全体の先頭を使い、途中のページまで上端に固定しない。
+  const documentFirst = viewSel.value === 'ja' ? state.rows[0]?.right : state.rows[0]?.left;
+  const documentBox = documentFirst === element ? box
+    : documentFirst === first ? firstBox : documentFirst?.getBoundingClientRect?.();
+  const vertical = Number.isFinite(documentBox?.top) ? {
+    top: documentBox.top, pointer: clientY,
+    start: $('header').getBoundingClientRect().bottom + (parseFloat(cs.paddingTop) || 0),
+  } : null;
   let resolve;
   const finished = new Promise((done) => { resolve = done; });
-  zoomGesture = { base: viewZoom(), finished, resolve, horizontal, anchor: {
+  zoomGesture = { base: viewZoom(), finished, resolve, horizontal, vertical, anchor: {
     element, clientX, clientY,
     x: box.width ? (clientX - box.left) / box.width : 0,
     y: box.height ? (clientY - box.top) / box.height : 0,
@@ -265,8 +275,10 @@ function previewWheelZoom() {
   state.fitMode = null;
   const scale = viewZoom() / zoomGesture.base;
   const shift = zoomGesture.horizontal ? horizontalZoomShift(zoomGesture.horizontal, scale) : 0;
+  const shiftY = zoomGesture.vertical ? verticalZoomShift(zoomGesture.vertical, scale) : 0;
   if (zoomGesture.horizontal) zoomGesture.anchor.clientX = zoomGesture.horizontal.pointer + shift;
-  pagesEl.style.transform = `translateX(${shift}px) scale(${scale})`;
+  if (zoomGesture.vertical) zoomGesture.anchor.clientY = zoomGesture.vertical.pointer + shiftY;
+  pagesEl.style.transform = `translate(${shift}px, ${shiftY}px) scale(${scale})`;
   $('#zoomLabel').textContent = Math.round(state.zoom * 100) + '%';
   $('#fitWidth').setAttribute('aria-pressed', 'false');
   $('#fitHeight').setAttribute('aria-pressed', 'false');

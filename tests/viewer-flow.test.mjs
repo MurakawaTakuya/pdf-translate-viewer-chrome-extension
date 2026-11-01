@@ -6,7 +6,7 @@ import { createGeminiTranslator } from '../gemini.js';
 import { createDocumentTranslator } from '../document-translator.js';
 import { disableNativeZoom } from '../native-zoom.js';
 import { createPdfLoadProgress } from '../pdf-load-progress.js';
-import { horizontalZoomShift } from '../zoom-anchor.js';
+import { horizontalZoomShift, verticalZoomShift } from '../zoom-anchor.js';
 import { streamFixture, until } from './helpers/stream.mjs';
 
 const viewerSource = await readFile(new URL('../viewer.js', import.meta.url), 'utf8');
@@ -83,7 +83,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
     pdfjsLib: { GlobalWorkerOptions: {} },
     createGeminiTranslator, createDocumentTranslator,
-    disableNativeZoom, createPdfLoadProgress, horizontalZoomShift,
+    disableNativeZoom, createPdfLoadProgress, horizontalZoomShift, verticalZoomShift,
     createCitationDialog: () => ({ open() {}, position() {} }),
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),
     openSettings: async () => nextSettings,
@@ -756,7 +756,7 @@ test('pinching only transforms the existing page until idle, then renders once a
   assert.equal(geometryReads, reads); // No per-frame page geometry reads.
   assert.equal(api.zoomSaves.length, saves);
   assert.equal(api.scrollCalls.length, scrolls);
-  assert.match(api.element('#pages').style.transform, /^translateX\(.+px\) scale\(/);
+  assert.match(api.element('#pages').style.transform, /^translate\(.+px, .+px\) scale\(/);
   assert.equal(api.element('#pages').classList.contains('zoom-preview'), true);
   assert.equal(api.document.documentElement.style.getPropertyValue('--zoom'), 1);
   near(api.state.zoom, Math.exp(0.3));
@@ -962,16 +962,20 @@ test('centered and pointer-based zoom previews match the final layout without a 
       api.wheel({ctrlKey:true,deltaMode:0,deltaY:-Math.log(scenario.target/scenario.initial)/2/0.006,clientX,clientY,target,preventDefault(){}});
       api.flushPageFrames();
     }
-    const match = /^translateX\((.+)px\) scale\((.+)\)$/.exec(pages.style.transform);
-    const shift = Number(match[1]), scale = Number(match[2]);
+    const match = /^translate\((.+)px, (.+)px\) scale\((.+)\)$/.exec(pages.style.transform);
+    const shift = Number(match[1]), shiftY = Number(match[2]), scale = Number(match[3]);
     const previewLeft = clientX+(before.left-clientX)*scale+shift;
+    const previewTop = clientY+(before.top-clientY)*scale+shiftY;
+    assert.ok(previewTop<=72+1e-8, 'shrinking must not create a blank area above the first PDF page');
     if (600*scenario.target<=972) near(previewLeft+600*scenario.target/2,500);
     else if (scenario.initial===1) near(previewLeft,clientX+(14-clientX)*(600*scenario.target/972));
     api.finishZoomGesture();
     const after = left.getBoundingClientRect();
     near(after.left,previewLeft);
+    near(after.top,previewTop);
     near(after.left+after.width*x,clientX+shift);
-    near(after.top+after.height*y,clientY);
+    near(after.top+after.height*y,clientY+shiftY);
+    assert.ok(api.scrollY()>=-1e-8, 'the final anchor must not require scrolling above the document');
     if (600*scenario.target<=972) near(api.window.scrollX,0);
     assert.equal(pages.style.transform,'');
   });
@@ -1008,4 +1012,27 @@ test('saved 70% startup centers the pair seam and both single-page views using e
   api.element('#pages').clientWidth = 1800;
   api.resize();
   near(parseFloat(row.element.style.width)*api.rendering.viewZoom(),1800-28);
+});
+
+
+test('vertical zoom limit uses the document start rather than the currently pointed page', async () => {
+  const api = await viewer();
+  fitFixture(api);
+  api.viewSelect.value = 'orig';
+  api.document.body.dataset.view = 'orig';
+  api.state.fit = 1;
+  const first = element(), second = element();
+  first.getBoundingClientRect = () => ({left:350,top:-500,bottom:200,width:500,height:700});
+  second.getBoundingClientRect = () => ({left:350,top:300,bottom:1000,width:500,height:700});
+  api.state.rows = [
+    {index:1,left:first,right:first,vp:{width:500,height:700}},
+    {index:2,left:second,right:second,vp:{width:500,height:700}},
+  ];
+  api.wheel({ctrlKey:true,deltaMode:0,deltaY:-Math.log(0.9)/0.006,clientX:600,clientY:400,
+    target:{closest:selector=>selector==='.page'?second:null},preventDefault(){}});
+  api.flushPageFrames();
+  const match = /^translate\((.+)px, (.+)px\) scale\((.+)\)$/.exec(api.element('#pages').style.transform);
+  near(Number(match[2]),0); // Page two must keep following the pointer while the document start is above the viewport.
+  near(Number(match[3]),0.9);
+  api.finishZoomGesture();
 });
