@@ -6,6 +6,13 @@ import { withOriginalFallback } from './protected-translator.js';
 import { keyedPrompt } from './keyed-translations.js';
 import { jsonMembers } from './json-members.js';
 
+export function parseRankField(field){
+  if(typeof field!=='string')return null;
+  const colon=field.indexOf(':'),rank=field.slice(0,colon);
+  if(colon<0||!/^(?:0|[1-9]\d*)$/.test(rank)||!Number.isSafeInteger(Number(rank)))return null;
+  return {o:Number(rank),t:field.slice(colon+1)};
+}
+
 export async function buildFlatNodeTask(pages,ids,src,dst,signal){
   const base=await buildNodeTask(pages,ids,src,dst,signal),properties={},fields=new Map(),byBlock=new Map(),used=new Set();
   const name=async(block,atom)=>{
@@ -38,10 +45,8 @@ export async function buildFlatNodeTask(pages,ids,src,dst,signal){
     if(!layout.atoms.length)return base.decode(block,tail);
     const value={tail};
     for(let i=0;i<layout.atoms.length;i++){
-      const field=values.get(list[i]);if(typeof field!=='string')return {issue:'node'};
-      const colon=field.indexOf(':'),rank=field.slice(0,colon);
-      if(colon<0||!/^(?:0|[1-9]\d*)$/.test(rank))return {issue:'node'};
-      value[layout.atoms[i].key]={o:Number(rank),t:field.slice(colon+1)};
+      const packet=parseRankField(values.get(list[i]));if(!packet)return {issue:'node'};
+      value[layout.atoms[i].key]=packet;
     }
     return base.decode(block,value);
   };
