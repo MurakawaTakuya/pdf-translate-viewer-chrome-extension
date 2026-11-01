@@ -17,3 +17,16 @@ test('evaluation captures the real node schema and replays whole-block guards wi
   const invalid=await replayNodes(pages,{status:'completed',outputText:JSON.stringify({[target.wire]:{a0:{o:0,t:'モデル'},tail:'である。'}})});
   assert.equal(invalid.accepted,false);assert.equal(invalid.issues[0].reason,'node');
 });
+
+test('flat evaluation counts fields separately from blocks and replays the real flat codec',async()=>{
+  const pages=[{page:1,blocks:[{id:'a',text:'We use RN152 [4].',kind:'paragraph',translate:true},{id:'b',text:'Abstract',kind:'heading',translate:true}]}];
+  const candidate=await captureNodes(pages,{flat:true}),blocks=JSON.parse(candidate.request.input).pages[0].blocks;
+  const a=blocks[0],b=blocks[1],atoms=a.source_parts.filter(p=>p.atom);
+  const text=JSON.stringify({[atoms[0].field]:'0:モデル',[atoms[1].field]:'1:を使う',[a.tail_field]:'。',[b.whole_field]:'概要'});
+  assert.equal(analyzeNodes(candidate,text,'completed').valid,true);
+  assert.equal(analyzeNodes(candidate,text,'completed').expected,4);
+  const out=await replayNodes(pages,{status:'completed',outputText:text},{flat:true});
+  assert.equal(out.accepted,true);assert.equal(out.translated.a,'モデルRN152を使う[4]。');
+  const missing=JSON.parse(text);delete missing[atoms[0].field];
+  assert.equal(analyzeNodes(candidate,JSON.stringify(missing),'completed').missing,1);
+});

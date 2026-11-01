@@ -1,0 +1,17 @@
+{
+  "recordedAt": "2026-11-02T02:20:17+0900",
+  "purpose": "New single-call diagnostic of the prior identical request; not a continuation or rescue of failed N1",
+  "requestSha256": "ef78e067fea178ec46d3b37a011966d6298abb98f4e968b09ddbd9332a59bc7f",
+  "rawSha256": "d8280cc97f57761a9494178c9728e693bf224ae6f49ccaf4ac086d499708c5cd",
+  "model": "gemini-3.5-flash-lite",
+  "project": "gen-lang-client-0097090168",
+  "apiRequests": 1,
+  "retries": 0,
+  "http": 400,
+  "status": "no-completion",
+  "totalMs": 1252.4024999999997,
+  "modelOutputChars": 0,
+  "errorCode": "invalid_request",
+  "errorMessageExcerpt": "The specified schema produces a constraint that has too many states for serving.",
+  "finding": "The identical nested-node request reproduces HTTP 400 with an explicit too-many-serving-states error. The prior N1 body remains lost; D1 is a separate diagnostic, not N1 replay scoring or translation quality evidence."
+}
