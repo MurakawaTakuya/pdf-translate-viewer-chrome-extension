@@ -38,3 +38,15 @@ node scripts/evaluation/compare-inputs.mjs --baseline-input /path/to/original-pa
 Only `--run --project PROJECT_ID --key-resource RESOURCE` enables up to four generation calls, in fixed A1/C1/C2/A2 order, without retries. The fixed panel from the first comparison is mapped to revised targets before inference, allowing a former fragment to belong to a larger logical paragraph. Inspect the whole revised target's source scope, not just its old fragment. Extraction, order and input protocol change together, so this experiment does not isolate the contribution of each. No output format or prompt tuning is done after observing the results.
 
 The separated-target protocol is explicitly selected only by the evaluator (`inputFormat: 'separate-targets'`). The viewer uses the legacy wire format by default because the live comparison still exhibited severe content/ID mismatches. Layout reconstruction remains enabled. This default combination has local regression coverage; the fixed four-call comparison did not include a separate layout-only generation arm.
+
+## Reproduce the current viewer unchanged
+
+`reproduce-current.mjs` captures the request directly from the current production translator, without an input-format override. It exercises the current extraction with the current default wire protocol; it does not reuse a frozen historical baseline. The fixed diagnostic panel is specific to arXiv:2301.08243 and must be present in the extraction before inference.
+
+```sh
+node scripts/evaluation/reproduce-current.mjs --input /path/to/revised-pages.json --output /path/to/new-plan
+```
+
+Add `--run --project PROJECT_ID --key-resource RESOURCE` only for explicitly authorized live execution. This writes a plan before making at most three identical generation requests, in R1/R2/R3 order, with no retries, prompt changes, repair requests or judge calls. HTTP/transport errors or absent API completion stop the run. A new output directory is required, including for offline preparation.
+
+Raw responses are also replayed offline through the actual production parser. This verifies coverage handling without another model call. Numeric citation differences on pages 1–8 are diagnostic flags, not proof of wrong scope or a translation-quality score. Compare source and raw response content for the fixed source IDs before attributing a visual problem to rendering. Keep full source, request and response files outside Git; publish only sanitized measurements, hashes and observed mappings.

@@ -1,0 +1,1958 @@
+{
+  "recordedAt": "2026-11-01T16:41:33+0900",
+  "sourceCommit": "3d462cd",
+  "project": "gen-lang-client-0097090168",
+  "endpoint": "https://generativelanguage.googleapis.com/v1beta/interactions",
+  "pdfSha256": "eddbdc093eb4d48662bcf4fbd1c6735ccd606205cc9070977ce317d68aff3941",
+  "plan": {
+    "recordedAt": "2026-11-01T16:34:55+0900",
+    "model": "gemini-3.5-flash-lite",
+    "source": "https://arxiv.org/pdf/2301.08243",
+    "inputSha256": "32f7c1a02556cf65aca6fe92eec43fc64e6ae6eaba25d74ae5a9ea449602703d",
+    "requestSha256": "f747b7c26e91fd3137da0d9e23dd119bdf6bd8c04a212484691f32d44ec5277b",
+    "pages": 17,
+    "targets": 217,
+    "inputChars": 83818,
+    "order": [
+      "R1",
+      "R2",
+      "R3"
+    ],
+    "maximumGenerationRequests": 3,
+    "retries": 0,
+    "inputOrPromptChanges": false,
+    "primary": "Inspect the raw translations associated with fixed source IDs: paragraph scope, adjacent-block merging, ID substitution and untranslated text. Structural validity alone does not establish alignment.",
+    "semanticPanel": [
+      "p1-b0",
+      "p1-b3",
+      "p1-b4",
+      "p1-b5",
+      "p1-b6",
+      "p1-b7",
+      "p1-b9",
+      "p1-b32",
+      "p1-b33",
+      "p1-b34",
+      "p1-b35",
+      "p2-b17",
+      "p2-b20",
+      "p2-b23",
+      "p2-b24",
+      "p2-b25",
+      "p2-b26",
+      "p2-b33",
+      "p2-b34",
+      "p6-b27",
+      "p6-b29",
+      "p6-b31",
+      "p6-b55",
+      "p6-b60",
+      "p7-b49",
+      "p16-b20",
+      "p17-b0",
+      "p17-b1"
+    ],
+    "diagnostic": "Citation-number differences on pages 1-8 flag possible scope drift; manual source/translation comparison is required.",
+    "stopping": "Stop on HTTP/transport errors or absent API completion; never retry, split, repair, judge with another model, or tune the prompt in this run."
+  },
+  "results": [
+    {
+      "label": "R1",
+      "variant": "current-viewer-unchanged",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 45934,
+        "total_input_tokens": 23589,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 23589
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 22345,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 23703
+      },
+      "timing": {
+        "totalMs": 92511.03525,
+        "firstTextMs": 3537.8863330000004,
+        "firstItemMs": 3605.1436250000006
+      },
+      "chunks": 869,
+      "outputChars": 49066,
+      "error": null,
+      "analysis": {
+        "valid": false,
+        "status": "completed",
+        "expected": 217,
+        "received": 207,
+        "missing": 10,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [
+          208,
+          209,
+          210,
+          211,
+          212,
+          213,
+          214,
+          215,
+          216,
+          217
+        ],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 8,
+          "17": 2
+        }
+      },
+      "productionValidation": {
+        "accepted": false,
+        "name": "MissingTranslationsError",
+        "message": "全文の翻訳を検証できませんでした（必要217件／受信207件、不足10件、対象外0件、重複0件、空欄0件、形式不正0件）。受信済みの訳文を保持しています。不足分だけ再翻訳できます"
+      },
+      "citationDiagnostics": [
+        {
+          "id": "p1-b7",
+          "page": 1,
+          "missing": [],
+          "extra": [
+            11
+          ]
+        },
+        {
+          "id": "p1-b34",
+          "page": 1,
+          "missing": [
+            11
+          ],
+          "extra": [
+            8,
+            9,
+            31,
+            36,
+            57,
+            59,
+            67,
+            68,
+            71
+          ]
+        },
+        {
+          "id": "p1-b35",
+          "page": 1,
+          "missing": [
+            8,
+            9,
+            31,
+            36,
+            57,
+            59,
+            67,
+            68,
+            71
+          ],
+          "extra": []
+        },
+        {
+          "id": "p2-b24",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            4
+          ]
+        },
+        {
+          "id": "p2-b25",
+          "page": 2,
+          "missing": [
+            4
+          ],
+          "extra": [
+            48
+          ]
+        },
+        {
+          "id": "p2-b26",
+          "page": 2,
+          "missing": [
+            48
+          ],
+          "extra": []
+        },
+        {
+          "id": "p2-b28",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            36
+          ]
+        },
+        {
+          "id": "p2-b29",
+          "page": 2,
+          "missing": [
+            36
+          ],
+          "extra": []
+        },
+        {
+          "id": "p2-b30",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            79
+          ]
+        },
+        {
+          "id": "p2-b32",
+          "page": 2,
+          "missing": [
+            79
+          ],
+          "extra": [
+            49
+          ]
+        },
+        {
+          "id": "p2-b33",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            20
+          ]
+        },
+        {
+          "id": "p2-b34",
+          "page": 2,
+          "missing": [
+            49
+          ],
+          "extra": [
+            4,
+            5,
+            8,
+            10,
+            15,
+            18,
+            24,
+            35,
+            37,
+            74
+          ]
+        },
+        {
+          "id": "p2-b35",
+          "page": 2,
+          "missing": [
+            20
+          ],
+          "extra": [
+            9,
+            38
+          ]
+        },
+        {
+          "id": "p2-b36",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            48
+          ]
+        },
+        {
+          "id": "p3-b0",
+          "page": 3,
+          "missing": [
+            4,
+            5,
+            8,
+            10,
+            15,
+            18,
+            24,
+            35,
+            37,
+            74
+          ],
+          "extra": []
+        },
+        {
+          "id": "p3-b1",
+          "page": 3,
+          "missing": [
+            9,
+            38
+          ],
+          "extra": []
+        },
+        {
+          "id": "p3-b2",
+          "page": 3,
+          "missing": [
+            48
+          ],
+          "extra": []
+        },
+        {
+          "id": "p3-b4",
+          "page": 3,
+          "missing": [],
+          "extra": [
+            29,
+            36,
+            63,
+            66
+          ]
+        },
+        {
+          "id": "p3-b5",
+          "page": 3,
+          "missing": [],
+          "extra": [
+            8
+          ]
+        },
+        {
+          "id": "p3-b20",
+          "page": 3,
+          "missing": [
+            29,
+            36,
+            63,
+            66
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b3",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            18,
+            25,
+            79
+          ]
+        },
+        {
+          "id": "p4-b4",
+          "page": 4,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b5",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            46,
+            47,
+            57,
+            67,
+            77
+          ]
+        },
+        {
+          "id": "p4-b6",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            9,
+            27,
+            29,
+            36,
+            58,
+            71
+          ]
+        },
+        {
+          "id": "p4-b7",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            7,
+            8,
+            25
+          ]
+        },
+        {
+          "id": "p4-b22",
+          "page": 4,
+          "missing": [
+            18,
+            25,
+            79
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b24",
+          "page": 4,
+          "missing": [
+            46,
+            47,
+            57,
+            67,
+            77
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b25",
+          "page": 4,
+          "missing": [
+            9,
+            27,
+            29,
+            36,
+            58,
+            71
+          ],
+          "extra": [
+            4,
+            18,
+            79
+          ]
+        },
+        {
+          "id": "p4-b26",
+          "page": 4,
+          "missing": [
+            8,
+            25
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b3",
+          "page": 5,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b25",
+          "page": 5,
+          "missing": [
+            21
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b35",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            60
+          ]
+        },
+        {
+          "id": "p5-b36",
+          "page": 5,
+          "missing": [
+            7
+          ],
+          "extra": [
+            8,
+            22,
+            36,
+            79
+          ]
+        },
+        {
+          "id": "p5-b37",
+          "page": 5,
+          "missing": [
+            4,
+            18,
+            79
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b41",
+          "page": 5,
+          "missing": [
+            8
+          ],
+          "extra": [
+            4,
+            17,
+            79
+          ]
+        },
+        {
+          "id": "p5-b57",
+          "page": 5,
+          "missing": [
+            79
+          ],
+          "extra": [
+            18
+          ]
+        },
+        {
+          "id": "p5-b79",
+          "page": 5,
+          "missing": [
+            60
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b80",
+          "page": 5,
+          "missing": [
+            8,
+            22,
+            36
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b0",
+          "page": 6,
+          "missing": [],
+          "extra": [
+            43
+          ]
+        },
+        {
+          "id": "p6-b3",
+          "page": 6,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b17",
+          "page": 6,
+          "missing": [
+            18
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b28",
+          "page": 6,
+          "missing": [
+            79
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b29",
+          "page": 6,
+          "missing": [
+            4,
+            8,
+            17,
+            79
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b30",
+          "page": 6,
+          "missing": [
+            18
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b34",
+          "page": 6,
+          "missing": [],
+          "extra": [
+            13
+          ]
+        },
+        {
+          "id": "p6-b36",
+          "page": 6,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b47",
+          "page": 6,
+          "missing": [
+            18
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b57",
+          "page": 6,
+          "missing": [
+            43
+          ],
+          "extra": []
+        },
+        {
+          "id": "p7-b54",
+          "page": 7,
+          "missing": [
+            13
+          ],
+          "extra": []
+        },
+        {
+          "id": "p8-b0",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "id": "p8-b1",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            4,
+            5,
+            6
+          ]
+        },
+        {
+          "id": "p8-b2",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            7,
+            8
+          ]
+        },
+        {
+          "id": "p8-b4",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            9,
+            10
+          ]
+        },
+        {
+          "id": "p8-b6",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            11,
+            12,
+            13
+          ]
+        },
+        {
+          "id": "p8-b7",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            14
+          ]
+        },
+        {
+          "id": "p8-b30",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ]
+        },
+        {
+          "id": "p8-b31",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            21,
+            22,
+            23
+          ]
+        },
+        {
+          "id": "p8-b32",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            24,
+            25,
+            26
+          ]
+        },
+        {
+          "id": "p8-b33",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            27,
+            28
+          ]
+        },
+        {
+          "id": "p8-b35",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37
+          ]
+        },
+        {
+          "id": "p8-b40",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            38
+          ]
+        },
+        {
+          "id": "p8-b41",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            39,
+            40
+          ]
+        },
+        {
+          "id": "p8-b42",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            41,
+            42
+          ]
+        },
+        {
+          "id": "p8-b43",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            43
+          ]
+        },
+        {
+          "id": "p8-b44",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            44,
+            45,
+            46
+          ]
+        }
+      ],
+      "rawResultSha256": "359f1af3ea6e3c60fd9635303f65d74d3febd145df10cc1342416bed920c3727",
+      "outputTextSha256": "b85409b8d946df3d762bb7d4cd2f98b38443bca46cef3eba7ad956b44a1b0d85",
+      "observations": {
+        "invarianceScope": "wire 8 contains its own source and all of source wire 13; wire 13 contains source wire 14; wire 14 contains source wire 15.",
+        "laterScope": "wire 80 (Table 3 caption) contains Table 5 caption; wire 84 (Local Prediction Tasks heading) contains body text."
+      }
+    },
+    {
+      "label": "R2",
+      "variant": "current-viewer-unchanged",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 46064,
+        "total_input_tokens": 23589,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 23589
+          }
+        ],
+        "total_cached_tokens": 20259,
+        "cached_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 20259
+          }
+        ],
+        "total_output_tokens": 22475,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 23703
+      },
+      "timing": {
+        "totalMs": 90224.23924999998,
+        "firstTextMs": 1280.0912919999973,
+        "firstItemMs": 1285.0665829999925
+      },
+      "chunks": 876,
+      "outputChars": 47776,
+      "error": null,
+      "analysis": {
+        "valid": false,
+        "status": "completed",
+        "expected": 217,
+        "received": 213,
+        "missing": 4,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [
+          136,
+          215,
+          216,
+          217
+        ],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 1,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 1,
+          "17": 2
+        }
+      },
+      "productionValidation": {
+        "accepted": false,
+        "name": "MissingTranslationsError",
+        "message": "全文の翻訳を検証できませんでした（必要217件／受信213件、不足4件、対象外0件、重複0件、空欄0件、形式不正0件）。受信済みの訳文を保持しています。不足分だけ再翻訳できます"
+      },
+      "citationDiagnostics": [
+        {
+          "id": "p1-b7",
+          "page": 1,
+          "missing": [],
+          "extra": [
+            11
+          ]
+        },
+        {
+          "id": "p1-b34",
+          "page": 1,
+          "missing": [
+            11
+          ],
+          "extra": [
+            8,
+            9,
+            31,
+            36,
+            57,
+            59,
+            67,
+            68,
+            71
+          ]
+        },
+        {
+          "id": "p1-b35",
+          "page": 1,
+          "missing": [
+            8,
+            9,
+            31,
+            36,
+            57,
+            59,
+            67,
+            68,
+            71
+          ],
+          "extra": []
+        },
+        {
+          "id": "p2-b24",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            4
+          ]
+        },
+        {
+          "id": "p2-b25",
+          "page": 2,
+          "missing": [
+            4
+          ],
+          "extra": [
+            48
+          ]
+        },
+        {
+          "id": "p2-b26",
+          "page": 2,
+          "missing": [
+            48
+          ],
+          "extra": []
+        },
+        {
+          "id": "p2-b28",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            36
+          ]
+        },
+        {
+          "id": "p2-b29",
+          "page": 2,
+          "missing": [
+            36
+          ],
+          "extra": []
+        },
+        {
+          "id": "p2-b30",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            79
+          ]
+        },
+        {
+          "id": "p2-b32",
+          "page": 2,
+          "missing": [
+            79
+          ],
+          "extra": [
+            49
+          ]
+        },
+        {
+          "id": "p2-b33",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            20
+          ]
+        },
+        {
+          "id": "p2-b34",
+          "page": 2,
+          "missing": [
+            49
+          ],
+          "extra": [
+            4,
+            5,
+            8,
+            10,
+            15,
+            18,
+            24,
+            35,
+            37,
+            74
+          ]
+        },
+        {
+          "id": "p2-b35",
+          "page": 2,
+          "missing": [
+            20
+          ],
+          "extra": [
+            9,
+            38
+          ]
+        },
+        {
+          "id": "p2-b36",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            48
+          ]
+        },
+        {
+          "id": "p3-b0",
+          "page": 3,
+          "missing": [
+            4,
+            5,
+            8,
+            10,
+            15,
+            18,
+            24,
+            35,
+            37,
+            74
+          ],
+          "extra": []
+        },
+        {
+          "id": "p3-b1",
+          "page": 3,
+          "missing": [
+            9,
+            38
+          ],
+          "extra": []
+        },
+        {
+          "id": "p3-b2",
+          "page": 3,
+          "missing": [
+            48
+          ],
+          "extra": []
+        },
+        {
+          "id": "p3-b4",
+          "page": 3,
+          "missing": [],
+          "extra": [
+            29,
+            36,
+            63,
+            66
+          ]
+        },
+        {
+          "id": "p3-b5",
+          "page": 3,
+          "missing": [],
+          "extra": [
+            8
+          ]
+        },
+        {
+          "id": "p3-b20",
+          "page": 3,
+          "missing": [
+            29,
+            36,
+            63,
+            66
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b3",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            18,
+            25,
+            79
+          ]
+        },
+        {
+          "id": "p4-b4",
+          "page": 4,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b5",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            46,
+            47,
+            57,
+            67,
+            77
+          ]
+        },
+        {
+          "id": "p4-b6",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            9,
+            27,
+            29,
+            36,
+            58,
+            71
+          ]
+        },
+        {
+          "id": "p4-b7",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            7,
+            8,
+            25
+          ]
+        },
+        {
+          "id": "p4-b22",
+          "page": 4,
+          "missing": [
+            18,
+            25,
+            79
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b24",
+          "page": 4,
+          "missing": [
+            46,
+            47,
+            57,
+            67,
+            77
+          ],
+          "extra": [
+            8
+          ]
+        },
+        {
+          "id": "p4-b25",
+          "page": 4,
+          "missing": [
+            9,
+            27,
+            29,
+            58,
+            71
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b26",
+          "page": 4,
+          "missing": [
+            8,
+            25
+          ],
+          "extra": [
+            22
+          ]
+        },
+        {
+          "id": "p5-b1",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            21
+          ]
+        },
+        {
+          "id": "p5-b2",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            18
+          ]
+        },
+        {
+          "id": "p5-b3",
+          "page": 5,
+          "missing": [
+            8
+          ],
+          "extra": [
+            79
+          ]
+        },
+        {
+          "id": "p5-b25",
+          "page": 5,
+          "missing": [
+            21
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b35",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            4,
+            18,
+            79
+          ]
+        },
+        {
+          "id": "p5-b36",
+          "page": 5,
+          "missing": [
+            7
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b37",
+          "page": 5,
+          "missing": [
+            4,
+            18,
+            79
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b40",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            8
+          ]
+        },
+        {
+          "id": "p5-b41",
+          "page": 5,
+          "missing": [
+            8
+          ],
+          "extra": [
+            36
+          ]
+        },
+        {
+          "id": "p5-b78",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            60
+          ]
+        },
+        {
+          "id": "p5-b79",
+          "page": 5,
+          "missing": [
+            60
+          ],
+          "extra": [
+            8,
+            22,
+            36,
+            79
+          ]
+        },
+        {
+          "id": "p5-b80",
+          "page": 5,
+          "missing": [
+            8,
+            22,
+            36
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b2",
+          "page": 6,
+          "missing": [],
+          "extra": [
+            8
+          ]
+        },
+        {
+          "id": "p6-b3",
+          "page": 6,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b28",
+          "page": 6,
+          "missing": [],
+          "extra": [
+            4,
+            17
+          ]
+        },
+        {
+          "id": "p6-b29",
+          "page": 6,
+          "missing": [
+            4,
+            8,
+            17,
+            79
+          ],
+          "extra": [
+            18
+          ]
+        },
+        {
+          "id": "p6-b30",
+          "page": 6,
+          "missing": [
+            18
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b35",
+          "page": 6,
+          "missing": [],
+          "extra": [
+            8
+          ]
+        },
+        {
+          "id": "p6-b36",
+          "page": 6,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b56",
+          "page": 6,
+          "missing": [],
+          "extra": [
+            43
+          ]
+        },
+        {
+          "id": "p6-b57",
+          "page": 6,
+          "missing": [
+            43
+          ],
+          "extra": []
+        },
+        {
+          "id": "p7-b53",
+          "page": 7,
+          "missing": [],
+          "extra": [
+            13
+          ]
+        },
+        {
+          "id": "p7-b54",
+          "page": 7,
+          "missing": [
+            13
+          ],
+          "extra": []
+        }
+      ],
+      "rawResultSha256": "56c0ccc5c9e275a74ef12724c1518dcf655683300d39e5e0029ddbe893ff1c40",
+      "outputTextSha256": "8839c4f7b456877073cc8716e722f39a91c35d605f2b29c3d9b6dbb7cbedad32",
+      "observations": {
+        "invarianceScope": "Same full-scope merge and wire 13/14 substitution as R1.",
+        "laterScope": "wire 80/91 retain Table 3/4 caption topics, but wire 82 contains the next paragraph (Transfer learning), wire 84 contains body text, and wire 101 (GPU-hours label) contains Figure 5 caption."
+      }
+    },
+    {
+      "label": "R3",
+      "variant": "current-viewer-unchanged",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 42996,
+        "total_input_tokens": 23589,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 23589
+          }
+        ],
+        "total_cached_tokens": 20259,
+        "cached_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 20259
+          }
+        ],
+        "total_output_tokens": 19407,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 23703
+      },
+      "timing": {
+        "totalMs": 96974.41695900002,
+        "firstTextMs": 1410.767542000016,
+        "firstItemMs": 1559.8053340000042
+      },
+      "chunks": 730,
+      "outputChars": 44250,
+      "error": null,
+      "analysis": {
+        "valid": false,
+        "status": "completed",
+        "expected": 217,
+        "received": 207,
+        "missing": 10,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [
+          208,
+          209,
+          210,
+          211,
+          212,
+          213,
+          214,
+          215,
+          216,
+          217
+        ],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 8,
+          "17": 2
+        }
+      },
+      "productionValidation": {
+        "accepted": false,
+        "name": "MissingTranslationsError",
+        "message": "全文の翻訳を検証できませんでした（必要217件／受信207件、不足10件、対象外0件、重複0件、空欄0件、形式不正0件）。受信済みの訳文を保持しています。不足分だけ再翻訳できます"
+      },
+      "citationDiagnostics": [
+        {
+          "id": "p2-b36",
+          "page": 2,
+          "missing": [],
+          "extra": [
+            4,
+            5,
+            8,
+            10,
+            15,
+            18,
+            24,
+            35,
+            37,
+            74
+          ]
+        },
+        {
+          "id": "p3-b0",
+          "page": 3,
+          "missing": [
+            4,
+            5,
+            8,
+            10,
+            15,
+            18,
+            24,
+            35,
+            37,
+            74
+          ],
+          "extra": [
+            9,
+            38
+          ]
+        },
+        {
+          "id": "p3-b1",
+          "page": 3,
+          "missing": [
+            9,
+            38
+          ],
+          "extra": [
+            48
+          ]
+        },
+        {
+          "id": "p3-b2",
+          "page": 3,
+          "missing": [
+            48
+          ],
+          "extra": []
+        },
+        {
+          "id": "p3-b6",
+          "page": 3,
+          "missing": [],
+          "extra": [
+            29,
+            36,
+            63,
+            66
+          ]
+        },
+        {
+          "id": "p3-b19",
+          "page": 3,
+          "missing": [],
+          "extra": [
+            8
+          ]
+        },
+        {
+          "id": "p3-b20",
+          "page": 3,
+          "missing": [
+            29,
+            36,
+            63,
+            66
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b4",
+          "page": 4,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b6",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            18,
+            25,
+            79
+          ]
+        },
+        {
+          "id": "p4-b8",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            46,
+            47,
+            57,
+            67,
+            77
+          ]
+        },
+        {
+          "id": "p4-b21",
+          "page": 4,
+          "missing": [],
+          "extra": [
+            9,
+            27,
+            29,
+            36,
+            58,
+            71
+          ]
+        },
+        {
+          "id": "p4-b22",
+          "page": 4,
+          "missing": [
+            18,
+            79
+          ],
+          "extra": [
+            7,
+            8
+          ]
+        },
+        {
+          "id": "p4-b24",
+          "page": 4,
+          "missing": [
+            46,
+            47,
+            57,
+            67,
+            77
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b25",
+          "page": 4,
+          "missing": [
+            9,
+            27,
+            29,
+            36,
+            58,
+            71
+          ],
+          "extra": []
+        },
+        {
+          "id": "p4-b26",
+          "page": 4,
+          "missing": [
+            8,
+            25
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b1",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            4,
+            18,
+            79
+          ]
+        },
+        {
+          "id": "p5-b3",
+          "page": 5,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b25",
+          "page": 5,
+          "missing": [
+            21
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b36",
+          "page": 5,
+          "missing": [
+            7
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b37",
+          "page": 5,
+          "missing": [
+            4,
+            18,
+            79
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b38",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            60
+          ]
+        },
+        {
+          "id": "p5-b39",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            8,
+            22,
+            36,
+            79
+          ]
+        },
+        {
+          "id": "p5-b41",
+          "page": 5,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b57",
+          "page": 5,
+          "missing": [
+            79
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b76",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            4,
+            7,
+            17,
+            79
+          ]
+        },
+        {
+          "id": "p5-b77",
+          "page": 5,
+          "missing": [],
+          "extra": [
+            18
+          ]
+        },
+        {
+          "id": "p5-b79",
+          "page": 5,
+          "missing": [
+            60
+          ],
+          "extra": []
+        },
+        {
+          "id": "p5-b80",
+          "page": 5,
+          "missing": [
+            8,
+            22,
+            36
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b3",
+          "page": 6,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b17",
+          "page": 6,
+          "missing": [
+            18
+          ],
+          "extra": [
+            43
+          ]
+        },
+        {
+          "id": "p6-b28",
+          "page": 6,
+          "missing": [
+            79
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b29",
+          "page": 6,
+          "missing": [
+            4,
+            8,
+            17,
+            79
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b30",
+          "page": 6,
+          "missing": [
+            18
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b36",
+          "page": 6,
+          "missing": [
+            8
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b47",
+          "page": 6,
+          "missing": [
+            18
+          ],
+          "extra": []
+        },
+        {
+          "id": "p6-b55",
+          "page": 6,
+          "missing": [],
+          "extra": [
+            13
+          ]
+        },
+        {
+          "id": "p6-b57",
+          "page": 6,
+          "missing": [
+            43
+          ],
+          "extra": []
+        },
+        {
+          "id": "p7-b54",
+          "page": 7,
+          "missing": [
+            13
+          ],
+          "extra": []
+        },
+        {
+          "id": "p8-b4",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            1
+          ]
+        },
+        {
+          "id": "p8-b6",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            2
+          ]
+        },
+        {
+          "id": "p8-b7",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            3
+          ]
+        },
+        {
+          "id": "p8-b31",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            4
+          ]
+        },
+        {
+          "id": "p8-b32",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            5
+          ]
+        },
+        {
+          "id": "p8-b33",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            6
+          ]
+        },
+        {
+          "id": "p8-b34",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            7
+          ]
+        },
+        {
+          "id": "p8-b35",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            8
+          ]
+        },
+        {
+          "id": "p8-b41",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            9
+          ]
+        },
+        {
+          "id": "p8-b42",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            10
+          ]
+        },
+        {
+          "id": "p8-b44",
+          "page": 8,
+          "missing": [],
+          "extra": [
+            11
+          ]
+        }
+      ],
+      "rawResultSha256": "6068916b7fb1da0d109a2499d79cfdff16374a19348fcbccde90ff67d3566848",
+      "outputTextSha256": "c135122cce7f4a49814c2973b3cd8bcbe736f61f25bfb351362439263e66da67",
+      "observations": {
+        "invarianceScope": "Only the first sentence fragment of source wire 13 is pulled into wire 8; wire 13 retains its later sentences. Wires 14-20 do not show the R1/R2 one-item shift at this location.",
+        "laterScope": "wire 80 (Table 3 caption) contains the Scalability heading; wire 84 (Local Prediction Tasks heading) contains Table 5 caption; wire 91 (Table 4 caption) contains predictor-role body text."
+      }
+    }
+  ],
+  "scope": "Reproduction and feasibility research only; extension runtime files, installation and browser UI unchanged."
+}
