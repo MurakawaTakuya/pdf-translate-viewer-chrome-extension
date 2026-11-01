@@ -9,6 +9,7 @@ import { jsonMembers } from './json-members.js';
 const identifiers = () => /\b[A-Za-z][A-Za-z0-9]*(?:[-/][A-Za-z0-9]+)*\b/g;
 const namedNumber = (text) => [...text.matchAll(identifiers())].filter((m) => /\d/.test(m[0]));
 const identifierInventory = (text) => namedNumber(text.normalize('NFKC')).map(m=>m[0]).sort().join('\n');
+const decimals = text => text.normalize('NFKC').replaceAll('−','-').match(/[+-]?\d+\.\d+/g)||[];
 function identifierRanges(text) {
   let normalized='';const starts=[],ends=[];
   for(let i=0;i<text.length;){
@@ -88,6 +89,13 @@ export async function buildNodeTask(pages,ids,src,dst,signal) {
       if(/\p{L}{2}/u.test(ordinarySource) && !prose.trim())return {issue:'unchanged'};
     }
     if(identifierInventory(source.text)!==identifierInventory(expanded))return {issue:'node'};
+    // Registered decimal scalars can otherwise be copied into ordinary prose
+    // and inserted twice. Do not include integers: ordinary words such as
+    // "twice" may naturally become 2回 next to an unrelated original integer 2.
+    const originalNumbers=decimals(source.text),resultNumbers=decimals(expanded);
+    for(const value of new Set(atoms.filter(a=>a.kind==='math'&&/^[+-]?\d+\.\d+$/.test(a.source.normalize('NFKC').replaceAll('−','-'))).map(a=>a.source.normalize('NFKC').replaceAll('−','-')))){
+      if(originalNumbers.filter(n=>n===value).length!==resultNumbers.filter(n=>n===value).length)return {issue:'node'};
+    }
     // Numeric tuples can evade the identifier/Greek/operator guards. Count
     // their literal appearances as well as inserted originals so a copied
     // tuple cannot accompany the original image a second time.

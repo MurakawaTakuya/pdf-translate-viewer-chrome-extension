@@ -80,6 +80,33 @@ test('node prompt asks for a whole natural translation and never asks for tag co
   assert.match(prompt,/WHOLE/);assert.match(prompt,/unique Japanese occurrence rank/);assert.ok(!prompt.includes('as inline LaTeX'));
 });
 
+test('a numeric scalar copied into prose cannot be inserted again as original math',async()=>{
+  const text='We use a drop-path probability of 0.25 and weight decay of 0.04.',a=text.indexOf('0.25'),b=text.indexOf('0.04');
+  const source=[{page:1,blocks:[{id:'a',text,kind:'paragraph',mathSpans:[{start:a,end:a+4,text:'0.25'},{start:b,end:b+4,text:'0.04'}]}]}];
+  const task=await buildNodeTask(source,['a'],'English','Japanese'),[key]=task.byKey.keys();
+  const valid={a0:{o:0,t:'ドロップパス確率を'},a1:{o:1,t:'、重み減衰を'},tail:'とする。'};
+  assert.equal(task.decode(key,valid).issue,null);
+  for(const value of [{...valid,a0:{o:0,t:'0.25のドロップパス確率'}},{...valid,tail:'とし、0.04を使う。'}]){
+    const c=task.collector(()=>assert.fail('invalid scalar must not preview'));c.append(JSON.stringify({[key]:value}));c.finish();
+    assert.throws(()=>task.parse(body(JSON.stringify({[key]:value}))),MissingTranslationsError);
+  }
+  const repeated='We use 0.25 twice, at probability 0.25.';
+  const again=await buildNodeTask([{page:1,blocks:[{id:'b',text:repeated,kind:'paragraph'}]}],['b'],'English','Japanese'),[other]=again.byKey.keys();
+  // Do not compare all free-prose numbers: "twice" may naturally become 2回.
+  assert.equal(again.decode(other,'確率0.25で0.25を2回使用する。').issue,null);
+  assert.equal(again.decode(other,'確率0.25で0.25を二度使用する。').issue,null);
+});
+
+test('registered integer values do not collide with twice and decimal commas stay separators',async()=>{
+  const text='We repeat the operation twice using a tensor of rank 2.',at=text.indexOf('2');
+  const t=await buildNodeTask([{page:1,blocks:[{id:'a',text,kind:'paragraph',mathSpans:[{start:at,end:at+1,text:'2'}]}]}],['a'],'English','Japanese'),[key]=t.byKey.keys();
+  assert.equal(t.decode(key,{a0:{o:0,t:'階数'},tail:'のテンソルを用いて処理を2回繰り返す。'}).issue,null);
+  const scalar='We use 0.25 and 0.04.';
+  const s=await buildNodeTask([{page:1,blocks:[{id:'b',text:scalar,mathSpans:[{start:7,end:11,text:'0.25'},{start:16,end:20,text:'0.04'}]}]}],['b'],'English','Japanese'),[other]=s.byKey.keys();
+  assert.equal(s.decode(other,{a0:{o:0,t:'設定値は'},a1:{o:1,t:','},tail:'である。'}).issue,null);
+  assert.equal(s.decode(other,{a0:{o:0,t:'設定値は'},a1:{o:1,t:'、'},tail:'である。別の表記では0.25,0.04である。'}).issue,'node');
+});
+
 test('an atom-only name can remain unchanged but normalized extra identifiers are rejected',async()=>{
   const task=await buildNodeTask([{page:1,blocks:[{id:'name',text:'ImageNet-1K',kind:'other'}]}],['name'],'English','Japanese');
   const [key]=task.byKey.keys(),value={a0:{o:0,t:''},tail:''};
