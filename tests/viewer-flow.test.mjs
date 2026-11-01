@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { createGeminiTranslator } from '../gemini.js';
 import { createDocumentTranslator } from '../document-translator.js';
 import { disableNativeZoom } from '../native-zoom.js';
+import { createPdfLoadProgress } from '../pdf-load-progress.js';
 import { streamFixture, until } from './helpers/stream.mjs';
 
 const viewerSource = await readFile(new URL('../viewer.js', import.meta.url), 'utf8');
@@ -21,6 +22,7 @@ const element = () => {
     },
     setAttribute: (name, value) => attributes.set(name, value),
     getAttribute: (name) => attributes.get(name),
+    removeAttribute: (name) => attributes.delete(name),
     prepend(child) { child.parent = this; this.children.unshift(child); },
     replaceWith(next) {
       const index = this.parent.children.indexOf(this);
@@ -79,7 +81,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     AbortController, URL, setTimeout, clearTimeout, console: { error() {} },
     pdfjsLib: { GlobalWorkerOptions: {} },
     createGeminiTranslator, createDocumentTranslator,
-    disableNativeZoom,
+    disableNativeZoom, createPdfLoadProgress,
     createCitationDialog: () => ({ open() {}, position() {} }),
     loadSettings: async () => ({ engine, geminiKey: 'mock-key', geminiModel: 'gemini-3.5-flash-lite' }),
     openSettings: async () => nextSettings,

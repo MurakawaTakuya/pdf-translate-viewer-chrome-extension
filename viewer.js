@@ -3,6 +3,7 @@ import { loadSettings, openSettings } from './settings.js';
 import { createGeminiTranslator } from './gemini.js';
 import { createDocumentTranslator } from './document-translator.js';
 import { extractBlocks } from './pdf-layout.js';
+import { createPdfLoadProgress } from './pdf-load-progress.js';
 import { toRuns } from './math.js';
 import { disableNativeZoom } from './native-zoom.js';
 import { createCitationDialog } from './citation-ui.js';
@@ -11,6 +12,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./lib/pdf.worker.min.mjs', imp
 
 const $ = (s) => document.querySelector(s);
 const pagesEl = $('#pages');
+const pdfLoadProgress = createPdfLoadProgress($('#pdfLoadProgress'), $('#pdfLoadProgressFill'));
 const srcSel = $('#src');
 const dstSel = $('#dst');
 const viewSel = $('#view');
@@ -352,9 +354,19 @@ async function load() {
   document.title = name + ' - PDF翻訳ビューア';
 
   setStatus('PDFを読み込み中…');
+  pdfLoadProgress.start();
   try {
-    state.pdf = await pdfjsLib.getDocument({ url: fileUrl }).promise;
+    const task = pdfjsLib.getDocument({ url: fileUrl });
+    task.onProgress = (progress) => pdfLoadProgress.update(progress);
+    state.pdf = await task.promise;
+    pdfLoadProgress.prepare();
+    await buildRows();
+    // 受信だけで完了扱いにせず、最初のページが見えるまで表示を残す。
+    if (state.rows[0]) await renderPage(state.rows[0]);
+    pdfLoadProgress.complete();
+    setStatus('');
   } catch (e) {
+    pdfLoadProgress.fail();
     console.error(e);
     const hint = fileUrl.startsWith('file:')
       ? '（ローカルファイルは、拡張機能の詳細で「ファイルのURLへのアクセスを許可する」をオンにしてください）'
@@ -362,8 +374,6 @@ async function load() {
     setStatus('PDFを開けませんでした ' + hint);
     return;
   }
-  await buildRows();
-  setStatus('');
 }
 
 async function buildRows() {
