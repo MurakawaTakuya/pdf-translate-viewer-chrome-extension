@@ -125,3 +125,30 @@ test('source offsets explicitly retain the trimmed glyph slice and ordinary line
     assert.ok(part.start >= 0 && part.end <= blocks[0].text.length);
   }
 });
+
+test('a detached overbar follows its mathematical base despite an intervening caption baseline in the other column', async () => {
+  const blocks = await extract([
+    item('Parameters are learned through optimization,', 308, 250, 236),
+    item('while the target encoder uses', 308, 262, 128),
+    item('Caption in the other column with words', 50, 268, 236, 'regular', 9),
+    item('¯', 440.5, 272, 5, 'roman'),
+    item('parameters of the target encoder', 308, 274.6, 128),
+    item('θ', 439.7, 274.6, 4.7, 'math'), item('are updated by averaging.', 447, 274.6, 98),
+  ].reverse());
+  const paragraph = blocks.find((b) => b.text.startsWith('Parameters'));
+  assert.equal(paragraph.lines.length, 3);
+  const formula = paragraph.mathSpans.find((span) => span.text.includes('θ'));
+  assert.match(formula.text, /θ¯/);
+  assert.ok(formula.top < 264.1);
+  assert.ok(formula.x1 > 445.4);
+  assert.equal(paragraph.parts.find((p) => p.str === '¯').base, 272);
+  assert.equal(paragraph.mathUncertain, false);
+  assert.equal(blocks.length, 2);
+});
+
+test('an accent with no unambiguous math base is kept and flagged instead of silently discarded', async () => {
+  const blocks = await extract([item('A complete paragraph with an orphan ',50,100,220),item('¯',272,100,5,'roman')]);
+  assert.equal(blocks.length,1);
+  assert.match(blocks[0].text,/¯/);
+  assert.equal(blocks[0].mathUncertain,true);
+});

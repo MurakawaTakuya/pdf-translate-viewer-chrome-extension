@@ -151,15 +151,27 @@ function shouldTranslate(b, body) {
 
 // 座標を使った行再構成。PDF内部で列や書体の描画順が変わっても行を壊さない。
 function makeLines(items) {
+  // A detached accent must follow its base glyph's band, even when a nearby
+  // caption in the other column is closer to the accent's painted baseline.
+  // Keep all painted coordinates intact for cropping; this changes grouping only.
+  const bandBase = new Map();
+  for (const accent of items.filter((it) => it.fi.mathRoman && /^[ˆˇ˘˙˚˜¯]$/.test(it.str.trim()))) {
+    const bases = items.filter((base) => base !== accent && base.fi.math && [...base.str.trim()].length === 1
+      && accent.h / base.h >= 0.7 && accent.h / base.h <= 1.3
+      && accent.base <= base.base + base.h * 0.15 && accent.base >= base.base - base.h * 0.5
+      && Math.min(accent.x1, base.x1) - Math.max(accent.x0, base.x0) >= Math.min(accent.x1 - accent.x0, base.x1 - base.x0) * 0.5);
+    if (bases.length === 1) bandBase.set(accent, bases[0].base);
+  }
+  const groupingBase = (it) => bandBase.get(it) ?? it.base;
   const bands = [];
-  for (const it of [...items].sort((a, b) => a.base - b.base || a.x0 - b.x0)) {
+  for (const it of [...items].sort((a, b) => groupingBase(a) - groupingBase(b) || a.x0 - b.x0)) {
     let band = bands.at(-1);
-    if (!band || Math.abs(it.base - band.base) >= Math.max(it.h, band.h) * 0.5) {
-      band = { base: it.base, h: it.h, main: it.str.length, items: [] };
+    if (!band || Math.abs(groupingBase(it) - band.base) >= Math.max(it.h, band.h) * 0.5) {
+      band = { base: groupingBase(it), h: it.h, main: it.str.length, items: [] };
       bands.push(band);
     }
     band.items.push(it);
-    if (it.str.length > band.main) { band.base = it.base; band.h = it.h; band.main = it.str.length; }
+    if (it.str.length > band.main) { band.base = groupingBase(it); band.h = it.h; band.main = it.str.length; }
   }
   const lines = [];
   for (const band of bands) {

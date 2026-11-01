@@ -27,7 +27,7 @@ export function sourceMathSpans(block) {
   });
   // A mixed prose/formula glyph run cannot safely be split using an estimated
   // character width. Keep such a paragraph in the original PDF instead.
-  let uncertain = (block.parts || []).some((part) => /[\p{Script=Greek}\p{Sm}]/u.test(part.str)
+  let uncertain = (block.parts || []).some((part) => /[\p{Script=Greek}\p{Sm}ˆˇ˘˙˚˜¯]/u.test(part.str)
     && !spans.some((span) => span.start <= part.start && span.end >= part.end));
   for (let i = 1; i < spans.length; i++) {
     const a = spans[i - 1], b = spans[i];
