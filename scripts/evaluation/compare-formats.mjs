@@ -145,7 +145,9 @@ function objectCollector(onItem) {
 
 export async function generate(variant, apiKey, label, directory, analyzeOutput = analyze) {
   const started = performance.now(), expected = new Set(variant.targets.map((b) => b.wire));
-  let firstTextMs = null, firstItemMs = null, text = '', terminal = {}, http, error = null, chunks = 0;
+  let firstTextMs = null, firstItemMs = null, text = '', terminal = {}, http, error = null, chunks = 0, contentType = '';
+  const eventCounts = new Map(), transportHash = createHash('sha256');
+  let transportBytes = 0;
   const steps = new Map();
   const collector = objectCollector((item) => { if (firstItemMs === null && expected.has(item.id) && item.text.trim()) firstItemMs = performance.now() - started; });
   const append = (value) => {
@@ -157,23 +159,28 @@ export async function generate(variant, apiKey, label, directory, analyzeOutput 
     const data = frame.split(/\r?\n/).filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trimStart()).join('\n');
     if (!data || data === '[DONE]') return;
     const value = JSON.parse(data);
-    if (value.event_type === 'step.start') {
+    const type = value.event_type || frame.split(/\r?\n/).find(l => l.startsWith('event:'))?.slice(6).trim();
+    eventCounts.set(type || 'unknown', (eventCounts.get(type || 'unknown') || 0) + 1);
+    if (type === 'step.start') {
       steps.set(value.index, value.step.type);
       if (value.step.type === 'model_output') for (const c of value.step.content || []) if (c.type === 'text') append(c.text);
     }
-    if (value.event_type === 'step.delta' && steps.get(value.index) === 'model_output' && value.delta.type === 'text') append(value.delta.text);
-    if (value.event_type === 'step.stop') steps.delete(value.index);
-    if (value.event_type === 'interaction.completed') terminal = value.interaction;
-    if (value.event_type === 'error') error = { code: value.error?.code, message: value.error?.message };
+    if (type === 'step.delta' && steps.get(value.index) === 'model_output' && value.delta.type === 'text') append(value.delta.text);
+    if (type === 'step.stop') steps.delete(value.index);
+    if (type === 'interaction.completed') terminal = value.interaction;
+    if (type === 'interaction.status_update' && ['failed','cancelled','incomplete'].includes(value.status)) error = { code: value.status, message: `Interaction ended with ${value.status}` };
+    if (type === 'error') error = { code: value.error?.code, message: value.error?.message };
   }
   const progress = setInterval(() => console.log(JSON.stringify({ label, elapsedSeconds: Math.round((performance.now() - started) / 1000), outputChars: text.length })), 15000);
   try {
-    const response = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(variant.request), signal: AbortSignal.timeout(600000) });
+    const response = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(variant.request), signal: AbortSignal.timeout(variant.timeoutMs || 600000) });
     http = response.status;
+    contentType = response.headers.get('content-type') || '';
     if (!response.ok) error = await readApiError(response);
     else if (/text\/event-stream/i.test(response.headers.get('content-type') || '')) {
       let buffer = ''; const decoder = new TextDecoder();
       for await (const chunk of response.body) {
+        transportHash.update(chunk); transportBytes += chunk.byteLength;
         buffer += decoder.decode(chunk, { stream: true });
         let boundary;
         while ((boundary = /\r?\n\r?\n/.exec(buffer))) { event(buffer.slice(0, boundary.index)); buffer = buffer.slice(boundary.index + boundary[0].length); }
@@ -186,9 +193,11 @@ export async function generate(variant, apiKey, label, directory, analyzeOutput 
     }
   } catch (failure) { error = { name: failure.name, message: failure.message }; }
   finally { clearInterval(progress); }
+  if (http >= 200 && http < 300 && !terminal.status && !error) error = { code: 'no-completion', message: 'Response ended without a terminal interaction status' };
   const result = {
     label, variant: variant.name, model: variant.request.model, http, status: terminal.status || 'no-completion', usage: terminal.usage || null,
     timing: { totalMs: performance.now() - started, firstTextMs, firstItemMs }, chunks, outputChars: text.length,
+    transport: { contentType, bytes: transportBytes, sha256: transportBytes ? transportHash.digest('hex') : null, eventCounts: Object.fromEntries(eventCounts) },
     error: error ? redactApiError({ code: error.code, status: error.status, message: String(error.message || ''),
       ...(error.details ? { details: error.details } : {}) }, apiKey) : null,
     analysis: analyzeOutput(variant, text, terminal.status), outputText: text,
