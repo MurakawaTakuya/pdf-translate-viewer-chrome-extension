@@ -174,14 +174,15 @@ async function openOriginal(tabId, url, reload = false, handoff = false, onAccep
     } finally { address?.cancel(); }
     return { handoff };
   }
-  const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Network rules see no fragment, even when the tab URL has #gsr=0.
+  const escaped = url.split('#')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   await chrome.declarativeNetRequest.updateSessionRules({
     removeRuleIds: [BYPASS_RULE_ID],
     addRules: [{
       id: BYPASS_RULE_ID,
       priority: 2, // 差し替えの規則より優先
       action: { type: 'allow' },
-      condition: { regexFilter: `^${escaped}$`, resourceTypes: ['main_frame'] },
+      condition: { regexFilter: `^${escaped}$`, tabIds: [tabId], resourceTypes: ['main_frame'] },
     }],
   });
   await chrome.storage.session.set({ bypassTab: tabId, ...(url.startsWith('file:') ? { bypass: url } : {}) });

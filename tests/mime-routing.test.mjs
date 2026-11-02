@@ -314,3 +314,15 @@ test('a MIME menu handoff forces a reload even if the current address cannot be 
   await f.api.openOriginal(42, 'file:///papers/local.pdf#gsr=1', true);
   assert.deepEqual(f.calls.at(-1), ['navigate', 42, { reload: true }]);
 });
+
+test('legacy native switch bypasses the fragment-free request only in the selected tab',async()=>{
+ const f=fixture(false),base='https://arxiv.org/pdf/2609.34178?download=1';
+ await f.api.openOriginal(42,base+'#gsr=0',true);
+ const rule=f.calls.find(([kind,options])=>kind==='sessionRules'&&options.addRules?.some(r=>r.id===1000))[1].addRules[0];
+ assert.equal(new RegExp(rule.condition.regexFilter).test(base),true);
+ assert.equal(new RegExp(rule.condition.regexFilter).test(base+'x'),false);
+ assert.deepEqual(rule.condition.tabIds,[42]);
+ assert.equal(f.calls.at(-1)[2].url,base+'#gsr=0');
+ await f.events.committed({tabId:42,frameId:0,url:base+'#gsr=0'});
+ assert.deepEqual(f.calls.at(-1),['sessionRules',{removeRuleIds:[1000]}]);
+});
