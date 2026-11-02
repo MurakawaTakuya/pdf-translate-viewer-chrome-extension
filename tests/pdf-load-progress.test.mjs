@@ -270,6 +270,19 @@ test("paper titles update the tab and header while preserving the original downl
   assert.equal(f.label.title, "Original Paper Title");
 });
 
+test("malformed filename escapes never expose URL query or fragment in a filename fallback", async () => {
+  const f = loader({
+    fileUrl: "https://example.test/paper%ZZ.pdf?download=1#page=3",
+  });
+  f.network.resolve({});
+  f.rows.resolve();
+  f.paint.resolve();
+  await f.load();
+  assert.equal(f.state.name, "paper%ZZ.pdf");
+  assert.equal(f.document.title, "paper%ZZ.pdf");
+  assert.equal(f.label.textContent, "paper%ZZ.pdf");
+});
+
 test("automatic local translation starts only after PDF preparation and the first paint finish", async () => {
   const f = loader({ autoTranslate: true }),
     pending = f.load();

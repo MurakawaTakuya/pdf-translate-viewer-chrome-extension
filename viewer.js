@@ -582,10 +582,14 @@ async function load() {
     setStatus("PDFのURLが指定されていません");
     return;
   }
-  let name = fileUrl;
+  let name = "document.pdf";
   try {
-    name =
-      decodeURIComponent(new URL(fileUrl).pathname.split("/").pop()) || fileUrl;
+    name = new URL(fileUrl).pathname.split("/").pop() || name;
+  } catch {
+    /* A URL without a usable filename keeps the default download name. */
+  }
+  try {
+    name = decodeURIComponent(name);
   } catch {
     /* Optional metadata/parsing can be unavailable; keep the existing fallback. */
   }

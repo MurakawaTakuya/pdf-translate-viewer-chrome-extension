@@ -208,3 +208,7 @@ Chrome実機で2609.36598v2のmetadataからBeyond Legibility...、metadataが�
 追加要望によりpaper-title controllerでタブ名とヘッダー#filenameを同時更新し、tooltipにも全文を設定。タイトル未取得・取得失敗時は両方とも元ファイル名のみを表示し、従来のアプリ名suffixは外した。保存名state.nameは元ファイル名で保持し、URL.pathnameから抽出してquery/fragmentを混ぜない。既存のellipsis表示を使うためツールバー配置の変更はない。
 
 実loadの回帰で、metadataがUntitledのPDFはdecoded filenameを表示すること、query/fragmentを除外すること、正常な原文titleでも保存名は元filenameのままであることを確認。npm run checkはlint・整形確認・358tests成功。今回のヘッダー追加分はオフライン確認、前段の元URL/タブ名反映は2論文の実機で確認済み。
+
+追記日時: 2026-11-02 21:59:04 JST
+
+ヘッダー追加分の独立レビューで不正percentを含むファイル名のdecode失敗時にURL全体が残る境界を指摘。URLからファイル名を取り出す処理とdecodeを分離し、失敗時もencoded basenameを保持するよう修正。URLにファイル名がなければdocument.pdf。追加回帰を含むnpm run checkで359tests成功、lint・整形確認も成功。
