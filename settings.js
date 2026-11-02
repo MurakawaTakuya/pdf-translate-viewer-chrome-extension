@@ -27,12 +27,23 @@ export function openSettings(current) {
   const autoInput = $('#autoTranslate');
   const keyInput = $('#apiKey');
   const modelInput = $('#model');
+  const modelPreset = $('#modelPreset');
   const testOut = $('#testResult');
 
   autoInput.checked = current.autoTranslate !== false;
   keyInput.value = current.geminiKey;
   keyInput.type = 'password';
   modelInput.value = current.geminiModel;
+  modelPreset.value = [...modelPreset.options].some(option=>option.value===current.geminiModel) ? current.geminiModel : 'custom';
+  modelInput.hidden = modelPreset.value !== 'custom';
+  let customModel = modelInput.hidden ? '' : current.geminiModel;
+  let previousPreset = modelPreset.value;
+  modelPreset.onchange = () => {
+    if(previousPreset==='custom')customModel=modelInput.value;
+    modelInput.hidden = modelPreset.value !== 'custom';
+    modelInput.value=modelInput.hidden?modelPreset.value:customModel;
+    previousPreset=modelPreset.value;
+  };
   testOut.textContent = '';
 
   $('#toggleKey').onclick = () => { keyInput.type = keyInput.type === 'password' ? 'text' : 'password'; };

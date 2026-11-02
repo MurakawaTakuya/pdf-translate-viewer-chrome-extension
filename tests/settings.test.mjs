@@ -11,7 +11,7 @@ function fixture(save = async () => {}, saved = {}) {
   const elements = new Map();
   const $ = (id) => {
     if (!elements.has(id)) elements.set(id, {
-      value: '', textContent: '', handlers: new Map(),
+      value: '', textContent: '', handlers: new Map(), options: [{value:'gemini-3.5-flash-lite'},{value:'gemini-3.8-flash'},{value:'custom'}],
       getBoundingClientRect: () => ({ left: 100, right: 400, top: 100, bottom: 300 }),
       addEventListener(type, fn) { this.handlers.set(type, fn); },
       querySelector: $,
@@ -71,4 +71,23 @@ test('automatic translation can be disabled and enabled persistently without los
     assert.equal(saved.geminiKey,'mock-key');
     assert.equal(saved.geminiModel,'mock-model');
   }
+});
+
+ test('model selector switches presets and preserves saved custom IDs',async()=>{
+  const f=fixture();const pending=f.openSettings({geminiKey:'key',geminiModel:'custom-model'});
+  assert.equal(f.$('#modelPreset').value,'custom');assert.equal(f.$('#model').hidden,false);
+  assert.equal(f.$('#model').value,'custom-model');
+  f.$('#modelPreset').value='gemini-3.8-flash';f.$('#modelPreset').onchange();
+  assert.equal(f.$('#model').hidden,true);
+  await f.$('form').onsubmit({submitter:{value:'save'}});
+  assert.equal((await pending).geminiModel,'gemini-3.8-flash');
+ });
+
+test('switching away from and back to custom retains the custom model draft',async()=>{
+ const f=fixture();const pending=f.openSettings({geminiKey:'key',geminiModel:'my-model'});
+ f.$('#modelPreset').value='gemini-3.8-flash';f.$('#modelPreset').onchange();
+ f.$('#modelPreset').value='custom';f.$('#modelPreset').onchange();
+ assert.equal(f.$('#model').value,'my-model');
+ await f.$('form').onsubmit({submitter:{value:'save'}});
+ assert.equal((await pending).geminiModel,'my-model');
 });

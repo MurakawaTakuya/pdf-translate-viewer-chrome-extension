@@ -166,7 +166,7 @@ button:disabled { opacity: .5; cursor: progress; }
 #settings .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
 #settings .field .name { font-weight: 600; font-size: 13px; }
 #settings .row-input { display: flex; gap: 6px; }
-#settings input[type="password"], #settings input[type="text"], #settings #model {
+#settings input[type="password"], #settings input[type="text"], #settings #model, #settings #modelPreset {
   flex: 1; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
   background: var(--bg); color: var(--fg);
 }
