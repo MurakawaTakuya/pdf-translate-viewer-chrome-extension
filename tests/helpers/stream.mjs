@@ -48,9 +48,12 @@ export function streamFixture() {
 }
 
 export async function until(predicate) {
-  for (let i = 0; i < 200; i++) {
+  // A fixed number of immediate turns can elapse before WebCrypto or I/O
+  // finishes on a busy CI runner. Bound elapsed time while yielding to work.
+  const deadline = performance.now() + 5000;
+  while (performance.now() < deadline) {
     if (predicate()) return;
-    await new Promise(setImmediate);
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
   throw new Error("Expected streaming state did not arrive");
 }
