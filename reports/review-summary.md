@@ -170,3 +170,23 @@ PR #1をmainへmergeした後、chore/lint-formatを作成。個人のreact-next
 2担当の独立レビューで必須指摘なし。設定/依存/CI担当はnpm check（lint/format/346tests）を独立実行。整形担当は74JS/MJSのAST一致と説明済み6ファイルだけの構造差、manifest値同一、複数行import除去で実処理を保持することを確認。UMD fontkitのglobal/default対応後も実PDF生成/再抽出のアサーションを維持。関連108tests成功、lib/fonts/reports/LICENSESに既存差分なし。
 
 GitHub Actionsのクリーンnpm ci・lint・format:check・全346testsが成功。[CI実行](https://github.com/MurakawaTakuya/pdf-translate-viewer-chrome-extension/actions/runs/41411018733/job/125163849051)。PR #2は自身のforkのmain宛てdraftで、ユーザーのmerge許可待ち。Chrome操作・実API生成・Release公開は行っていない。
+
+## 通常ビューアはScholarを優先
+
+追記日時: 2026-11-02 18:08:50 JST
+
+ユーザー依頼により通常ビューアボタンをChrome指定（gsr=0）からScholar許可（gsr=1）へ変更。Scholarが有効で対象PDFへアクセスできれば重ね表示、未導入ならChrome標準へ戻す。インストール一覧への権限は追加しない。popupのMIME/旧URLの両経路を統一し、既存openChromeViewer互換メッセージとエラー時のbuffer fallbackは維持。fragment確定後の再読み込みと同一タブ・PDFの選択保持、翻訳ビューアへの明示復帰は既存処理を利用する。
+
+独立レビューでScholar配布0.5.2がtoolbar=0も起動抑止条件に使う点を指摘。normal指定に限りtoolbar=0を解除し、page/zoomとChrome指定時のtoolbarは保持するよう修正。新popupメッセージのテストfixture公開名を修正し、旧Chromeメッセージの回帰も追加した。最終npm run checkはlint・整形確認・348testsすべて成功。
+
+Chromeでは新規検証タブに最新の通常ビューアラベルを確認したが、切替完了は未確認。操作競合通知を受けて追加操作を停止した。Scholar未導入の実環境も未確認。GeminiのAPI生成なし。mainへのmergeと配布ZIP差し替えは行っていない。公開済みv0.8.0の本文はfork元v0.7.0との差分説明へ更新済みで、この追加修正を配布済みと記載していない。
+
+## Scholar自身のChrome切り替えとの競合を解消
+
+追記日時: 2026-11-02 18:40:36 JST
+
+ユーザーがScholarへ移れたことを確認した後、Scholar自身の「Chromeビューアで開く」がScholarへ戻ると報告。公式配布Scholar0.5.2のreader-compiled.jsを確認したところ、既存hashに文字列として&gsr=0を追記していた。こちらが付けたgsr=1が先頭に残り、ScholarのURLSearchParams.getが先頭1を返すため重ね表示が再起動していた。実機でもgsr=1&page=1.00&gsr=0&gsr=0&gsr=0という重複URLを確認。
+
+normal指定ではgsrをすべて削除する方式へ変更。Scholarはgsrなしでも標準で起動する。toolbar=0解除、Chrome互換指定でgsr=0を設定する処理、ページ番号と倍率は保持。自拡張の回避はnativePdfセッションの同一タブ・同一PDF指定で継続し、他拡張のフラグをオン指定として残さない。popup旧URL経路も同様に修正した。
+
+npm run checkはlint・整形確認・350testsすべて成功。独立レビューでは関連114tests成功、追加必須指摘なし。Chrome実機で元URLから新規に開く→本拡張→通常ビューアボタン→Scholar→ScholarメニューのChromeビューアで開く→Chrome内蔵（mhjfbmdgcfjbbpaeojofohoefgiehjai）を確認。再読み込み後も内蔵を維持。今回の検証タブを閉じ、既にループしていたユーザーの2609.36598v2タブも重複hashの整理・再読み込みでChrome内蔵へ復旧した。Gemini追加生成なし。merge・配布ZIP差し替えは未実施。

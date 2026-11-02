@@ -243,9 +243,9 @@ async function openOriginal(
         } else newDocument = true;
       }
       if (handoff) onAccepted({ handoff });
-      // Scholar reads #gsr=0 only at DOMContentLoaded. A fragment change plus
+      // Scholar reads its gsr opt-in/opt-out at DOMContentLoaded. A fragment change plus
       // buffered fallback cannot remove an overlay already in the parent PDF
-      // document. A fresh top-level document must see the opt-out from the start.
+      // document. A fresh top-level document must see the choice from the start.
       if (!handoff && !newDocument && (reload || samePdf))
         await chrome.tabs.reload(tabId);
     } catch (error) {

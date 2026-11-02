@@ -159,7 +159,7 @@ test("viewer destinations preserve the paper URL, query and page anchor while op
     normal.origin + normal.pathname + normal.search,
     url.split("#")[0]
   );
-  assert.equal(new URLSearchParams(normal.hash.slice(1)).get("gsr"), "1");
+  assert.equal(new URLSearchParams(normal.hash.slice(1)).has("gsr"), false);
   assert.equal(new URLSearchParams(native.hash.slice(1)).get("gsr"), "0");
   assert.equal(new URLSearchParams(native.hash.slice(1)).get("page"), "3");
   assert.throws(() => viewerDestinationUrl("javascript:alert(1)", "chrome"));
@@ -198,6 +198,36 @@ test("both normal and Chrome viewer choices are honored when Chrome strips the s
       ).nativeFallback,
       false
     );
+  }
+});
+
+test("explicit normal selection clears Scholar's hidden-toolbar opt-out without losing the page", () => {
+  const url = originalUrl + "#page=3&toolbar=0&zoom=150&gsr=0";
+  const normal = new URL(viewerDestinationUrl(url, "normal"));
+  const hash = new URLSearchParams(normal.hash.slice(1));
+  assert.equal(hash.has("toolbar"), false);
+  assert.equal(hash.get("page"), "3");
+  assert.equal(hash.get("zoom"), "150");
+  assert.equal(hash.has("gsr"), false);
+  assert.match(viewerDestinationUrl(url, "chrome"), /toolbar=0/);
+});
+
+test("Scholar can append its Chrome opt-out after a normal switch without an earlier gsr shadowing it", () => {
+  for (const initial of [
+    originalUrl,
+    originalUrl + "#gsr=0",
+    originalUrl + "#page=3&gsr=1&gsr=0",
+    originalUrl + "#page=3&toolbar=0&gsr=0&gsr=1",
+  ]) {
+    const scholar = new URL(viewerDestinationUrl(initial, "normal"));
+    const progress = new URLSearchParams(scholar.hash.slice(1));
+    progress.set("page", "3.00");
+    // Scholar 0.5.2 appends its native-viewer flag after the saved PDF fragment.
+    scholar.hash = progress.toString() + "&gsr=0";
+    const result = new URLSearchParams(scholar.hash.slice(1));
+    assert.deepEqual(result.getAll("gsr"), ["0"]);
+    assert.equal(result.get("gsr"), "0");
+    assert.equal(result.get("page"), "3.00");
   }
 });
 

@@ -38,16 +38,17 @@ if (viewerState?.fileUrl || url.startsWith(VIEWER)) {
     viewerState?.fileUrl ||
     (m && (/^[a-z]+%3A/i.test(m[1]) ? decodeURIComponent(m[1]) : m[1]));
   if (file) {
-    actionBtn.textContent = "このPDFをChrome内蔵ビューアで開く";
+    actionBtn.textContent = "このPDFを通常のビューアで開く";
     actionBtn.classList.add("sub");
     actionBtn.hidden = false;
     actionBtn.onclick = async () => {
       if (viewerState?.mime)
-        await chrome.tabs.sendMessage(tab.id, { type: "openChromeViewer" });
+        await chrome.tabs.sendMessage(tab.id, { type: "openDefaultViewer" });
       else {
         const target = new URL(file),
           hash = new URLSearchParams(target.hash.slice(1));
-        hash.set("gsr", "0");
+        if (hash.get("toolbar") === "0") hash.delete("toolbar");
+        hash.delete("gsr");
         target.hash = hash.toString();
         await chrome.runtime.sendMessage({
           type: "openOriginal",

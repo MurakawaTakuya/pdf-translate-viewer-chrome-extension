@@ -2099,7 +2099,7 @@ if (fileUrl && self.chrome?.tabs) {
   $("#openOriginal").hidden = false;
   $("#openOriginal").onclick = () => {
     closeDownloadMenu();
-    return openViewerDestination("chrome");
+    return openViewerDestination("normal");
   };
 }
 self.chrome?.runtime?.onMessage?.addListener((message, _sender, reply) => {
@@ -2108,15 +2108,18 @@ self.chrome?.runtime?.onMessage?.addListener((message, _sender, reply) => {
   if (message.type === "viewerSwitchFailed")
     setStatus("ビューアへの切り替えに失敗しました: " + message.error);
   if (
+    message.type === "openDefaultViewer" ||
     message.type === "openNativeViewer" ||
     message.type === "openChromeViewer"
   ) {
     // A successful handoff destroys this frame. Acknowledge acceptance first,
     // otherwise the popup waits on a message port that can no longer reply.
     reply({ ok: true });
-    (message.type === "openChromeViewer"
-      ? openViewerDestination("chrome")
-      : openNativeViewer()
+    (message.type === "openNativeViewer"
+      ? openNativeViewer()
+      : openViewerDestination(
+          message.type === "openChromeViewer" ? "chrome" : "normal"
+        )
     ).catch((error) => {
       console.error(error);
       setStatus("通常のビューアへの切り替えに失敗しました: " + error.message);
