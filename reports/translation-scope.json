@@ -1,0 +1,202 @@
+{
+  "recordedAt": "2026-11-02T11:48:08+0900",
+  "source": "https://arxiv.org/pdf/2301.08243",
+  "pdfSha256": "eddbdc093eb4d48662bcf4fbd1c6735ccd606205cc9070977ce317d68aff3941",
+  "priorTargets": 212,
+  "newTargets": 124,
+  "excludedPriorTargetsByReason": {
+    "figure": 10,
+    "table": 52,
+    "references": 27
+  },
+  "excludedIds": [
+    "p1-b9",
+    "p1-b32",
+    "p2-b17",
+    "p2-b20",
+    "p2-b23",
+    "p4-b0",
+    "p4-b1",
+    "p4-b2",
+    "p5-b0",
+    "p5-b1",
+    "p5-b2",
+    "p5-b3",
+    "p5-b25",
+    "p5-b38",
+    "p5-b39",
+    "p5-b40",
+    "p5-b41",
+    "p5-b57",
+    "p6-b0",
+    "p6-b1",
+    "p6-b2",
+    "p6-b3",
+    "p6-b17",
+    "p6-b33",
+    "p6-b34",
+    "p6-b35",
+    "p6-b36",
+    "p6-b47",
+    "p7-b0",
+    "p7-b1",
+    "p7-b24",
+    "p7-b49",
+    "p8-b1",
+    "p8-b2",
+    "p8-b4",
+    "p8-b6",
+    "p8-b7",
+    "p8-b30",
+    "p8-b32",
+    "p8-b33",
+    "p8-b34",
+    "p8-b35",
+    "p9-b0",
+    "p9-b1",
+    "p9-b2",
+    "p9-b3",
+    "p9-b4",
+    "p9-b6",
+    "p9-b7",
+    "p9-b8",
+    "p9-b10",
+    "p9-b11",
+    "p9-b12",
+    "p9-b13",
+    "p10-b0",
+    "p10-b2",
+    "p10-b3",
+    "p10-b4",
+    "p10-b5",
+    "p10-b6",
+    "p10-b9",
+    "p10-b12",
+    "p10-b14",
+    "p10-b16",
+    "p11-b0",
+    "p11-b1",
+    "p11-b2",
+    "p11-b3",
+    "p11-b4",
+    "p14-b0",
+    "p14-b1",
+    "p14-b4",
+    "p14-b15",
+    "p14-b16",
+    "p14-b19",
+    "p14-b23",
+    "p14-b24",
+    "p14-b27",
+    "p15-b0",
+    "p15-b1",
+    "p15-b9",
+    "p15-b10",
+    "p15-b19",
+    "p15-b20",
+    "p15-b33",
+    "p15-b34",
+    "p16-b2",
+    "p16-b3",
+    "p16-b4"
+  ],
+  "newlyIncludedIds": [
+    "p5-b74"
+  ],
+  "captions": 24,
+  "captionTargets": 24,
+  "pages": [
+    {
+      "page": 1,
+      "targets": 12,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 2,
+      "targets": 13,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 3,
+      "targets": 10,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 4,
+      "targets": 11,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 5,
+      "targets": 10,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 6,
+      "targets": 12,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 7,
+      "targets": 9,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 8,
+      "targets": 7,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 9,
+      "targets": 0,
+      "referenceBlocks": 14
+    },
+    {
+      "page": 10,
+      "targets": 0,
+      "referenceBlocks": 17
+    },
+    {
+      "page": 11,
+      "targets": 0,
+      "referenceBlocks": 5
+    },
+    {
+      "page": 12,
+      "targets": 7,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 13,
+      "targets": 6,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 14,
+      "targets": 7,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 15,
+      "targets": 9,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 16,
+      "targets": 9,
+      "referenceBlocks": 0
+    },
+    {
+      "page": 17,
+      "targets": 2,
+      "referenceBlocks": 0
+    }
+  ],
+  "apiRequests": 0,
+  "chromeOperated": false,
+  "testsPassed": 302,
+  "independentReviews": {
+    "figuresAndTables": "reported issues fixed and independently rechecked",
+    "referenceSections": "reported issues fixed and independently rechecked"
+  }
+}

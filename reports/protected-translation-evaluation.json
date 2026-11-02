@@ -1,0 +1,149 @@
+{
+  "recordedAt": "2026-11-02T00:00:56+0900",
+  "source": "https://arxiv.org/pdf/2301.08243",
+  "sourcePdfSha256": "eddbdc093eb4d48662bcf4fbd1c6735ccd606205cc9070977ce317d68aff3941",
+  "inputSha256": "1d8b1a25bd8ef3a8157feab3b1ee1c457d7b68aacd0849a22ca907defaf952a1",
+  "implementationSha256": "91341572ff0af24395132ff6f9674bdb317f387ef2e5b3b1cf7e38efa2d2b619",
+  "requestSha256": "ba26243ef7112068a4afb7dff21e2f67a2689b7a3b756e7dc89ab793cad5a0b8",
+  "model": "gemini-3.5-flash-lite",
+  "project": "gen-lang-client-0097090168",
+  "generationRequests": 1,
+  "maximumGenerationRequests": 3,
+  "confirmationRequests": 0,
+  "retries": 0,
+  "automaticRepairs": 0,
+  "productionFactoryChanged": false,
+  "decision": "rejected",
+  "offlineTests": {
+    "pass": 243,
+    "fail": 0
+  },
+  "review": {
+    "kind": "independent assistant agents; not human scoring or additional Gemini judge calls",
+    "fixedPanelTargets": 72,
+    "generatedPanelTargets": 70,
+    "originalPanelTargets": 2,
+    "acceptedGeneratedPanelTargets": 67,
+    "extraAdjacentContext": [
+      "p7-b51",
+      "p6-b28"
+    ],
+    "gate": "fail"
+  },
+  "coverage": {
+    "targets": 213,
+    "generatedReceived": 211,
+    "generatedAccepted": 208,
+    "generatedWithheld": 3,
+    "retainedOriginal": 2,
+    "originalIds": [
+      "p3-b21",
+      "p4-b6"
+    ],
+    "originalChars": 1079,
+    "totalTargetChars": 70788,
+    "mathSpansTotal": 127,
+    "mathSpansInGeneratedTargets": 105,
+    "mathSpansInOriginalTargets": 22
+  },
+  "runs": [
+    {
+      "label": "G1",
+      "requestSha256": "ba26243ef7112068a4afb7dff21e2f67a2689b7a3b756e7dc89ab793cad5a0b8",
+      "rawSha256": "2acde729fef2398679f3b42c83ec5c4cd06361935a63f2c43202b142b2ab8b15",
+      "http": 200,
+      "status": "completed",
+      "timing": {
+        "totalMs": 113765.625375,
+        "firstTextMs": 4980.648625,
+        "firstItemMs": null
+      },
+      "usage": {
+        "total_tokens": 56439,
+        "total_input_tokens": 34137,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 34137
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 22302,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 73733
+      },
+      "structuralPass": true,
+      "protectedPass": false,
+      "coverage": false,
+      "originalIds": [
+        "p3-b21",
+        "p4-b6"
+      ],
+      "issues": [
+        {
+          "id": "p3-b0",
+          "reason": "protected"
+        },
+        {
+          "id": "p3-b3",
+          "reason": "protected"
+        },
+        {
+          "id": "p16-b12",
+          "reason": "protected"
+        }
+      ],
+      "gate": false
+    }
+  ],
+  "protocolFailures": [
+    {
+      "id": "p3-b0",
+      "reason": "missing reference tag",
+      "missingSource": "[4, 5, 18]",
+      "expectedTag": "<r_797a/>"
+    },
+    {
+      "id": "p3-b3",
+      "reason": "math tag kind rewritten to reference kind",
+      "expectedTag": "<m_f3db/>",
+      "receivedTag": "<r_f3db/>"
+    },
+    {
+      "id": "p16-b12",
+      "reason": "missing source math tag",
+      "missingSource": "sy",
+      "expectedTag": "<m_987b/>"
+    }
+  ],
+  "acceptedSemanticFailures": [
+    {
+      "id": "p5-b25",
+      "reason": "model identifier changed",
+      "source": "RN152",
+      "translated": "RN151"
+    },
+    {
+      "id": "p15-b31",
+      "reason": "asserted performance drop weakened to possibility"
+    },
+    {
+      "id": "p2-b25",
+      "reason": "incorrect technical translation of off-the-shelf evaluations"
+    }
+  ],
+  "sourceGeometryIssue": {
+    "id": "p4-b20 -> p4-b21",
+    "reason": "detached overbar assigned to preceding block and excluded from protected theta crop",
+    "barBaseline": 272.0350000000001,
+    "thetaBaseline": 274.6640000000001,
+    "protectedCrop": [
+      439.408,
+      267.44995560000007,
+      444.68444444000005,
+      276.8967444000001
+    ],
+    "diagnosis": "Same-coordinate Poppler crop lacks the bar visible in the original. No Chrome UI verification."
+  }
+}

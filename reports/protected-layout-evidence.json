@@ -1,0 +1,37 @@
+{
+  "recordedAt": "2026-11-01T23:24:02+0900",
+  "source": "https://arxiv.org/pdf/2301.08243",
+  "beforeSha256": "32f7c1a02556cf65aca6fe92eec43fc64e6ae6eaba25d74ae5a9ea449602703d",
+  "afterSha256": "1d8b1a25bd8ef3a8157feab3b1ee1c457d7b68aacd0849a22ca907defaf952a1",
+  "beforeTargets": 217,
+  "afterTargets": 213,
+  "changedPages": [
+    {
+      "page": 4,
+      "beforeBlocks": 27,
+      "afterBlocks": 26
+    },
+    {
+      "page": 16,
+      "beforeBlocks": 21,
+      "afterBlocks": 17
+    }
+  ],
+  "unchangedTextPages": 15,
+  "cause": {
+    "page": 16,
+    "accentItemFont": "CMR10",
+    "accentX": 325.273,
+    "accentWidth": 9.9663,
+    "baseGlyphFont": "CMMIB10",
+    "baseGlyphX": 329.147,
+    "overlap": 6.0923,
+    "previousOverlapLimit": 4.9813
+  },
+  "retainedMathSpans": 127,
+  "uncertainOriginalBlocks": [
+    "p3-b21",
+    "p4-b6"
+  ],
+  "productionTranslatorSwitched": false
+}

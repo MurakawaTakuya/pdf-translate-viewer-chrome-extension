@@ -1,0 +1,37 @@
+{
+  "recordedAt": "2026-11-02T15:11:18+0900",
+  "source": "https://arxiv.org/pdf/2609.36598v2",
+  "model": "gemini-3.5-flash-lite",
+  "project": "gen-lang-client-0097090168",
+  "inputSha256": "91cfaf00e95eaf8efd8c0a9e16e55094e03829af23d6fe8b2d830acc3eb76c58",
+  "implementationSha256": "e690eaf1ade136d0ed19cf25625778591a013a75f2f56260b5769d79940431f5",
+  "implementationFiles": [
+    "gemini.js",
+    "translation-batches.js",
+    "keyed-translations.js",
+    "api-error.js",
+    "translation-stream.js",
+    "document-translator.js",
+    "viewer.js",
+    "pdf-layout.js",
+    "translation-scope.js",
+    "figure-regions.js",
+    "scripts/evaluation/batched-document.mjs"
+  ],
+  "requestHashes": [
+    "1fde312987f8f62f6c25cb9a65ab1c68e5e3ec13cf7a7a577a6fa2ddd307cfed"
+  ],
+  "maximumGenerationRequests": 1,
+  "targets": 1,
+  "batches": [
+    {
+      "targets": 1,
+      "schemaBytes": 382
+    }
+  ],
+  "deadlineMs": 480000,
+  "retries": 0,
+  "automaticRepairs": 0,
+  "primary": "Every planned batch HTTP 200 and completed; source binding, required IDs and existing content checks remain unchanged. Decoder coverage and API acceptance are separate; semantic fidelity is not guaranteed. Report withheld values without rescue.",
+  "stopping": "Send only the exact frozen requests once, in order. Refuse additional or changed requests before network access, including automatic retry/schema fallback. Preserve validated partial results on failure. No API judge or Chrome operation."
+}

@@ -1,0 +1,50 @@
+{
+  "C1": {
+    "label": "C1",
+    "requestSha256": "358734b68e782f9671fb09b30caba5e07e5ee372c7f87ce8ed1cffe93ed27b1a",
+    "rawSha256": "c90bf3739025a36e6bc7a0de5601868d748fc93213de9395637f0c50778f0828",
+    "http": 200,
+    "status": "no-completion",
+    "timing": {
+      "totalMs": 16103.944459,
+      "firstTextMs": null,
+      "firstItemMs": null
+    },
+    "usage": null,
+    "structuralPass": false,
+    "nodePass": false,
+    "coverage": false,
+    "originalIds": [],
+    "issues": [],
+    "error": "\u5168\u6587\u306e\u7ffb\u8a33\u304c\u5b8c\u4e86\u3057\u307e\u305b\u3093\u3067\u3057\u305f",
+    "gate": false
+  },
+  "D2": {
+    "purpose": "Single raw-transport diagnostic of the unchanged C1 request, not C2 or a passing confirmation",
+    "http": 200,
+    "status": "completed",
+    "totalMs": 53796.35875,
+    "sanitizedTransportSha256": "908dc2414c471714194812b7e96d82c8085daacd105e2f8e4d68345903370638",
+    "rootFields": 210,
+    "acceptedGenerated": 79,
+    "withheldGenerated": 131,
+    "originals": 2,
+    "guardFailures": {
+      "recordCount": 112,
+      "proseOrOriginalInventory": 18,
+      "rankSyntax": 1
+    },
+    "assistantPanel": {
+      "total": 73,
+      "accepted": 15,
+      "withheld": 56,
+      "originals": 2,
+      "acceptedFailures": [
+        "p17-b0",
+        "p8-b7"
+      ],
+      "gate": "fail"
+    },
+    "gate": false
+  }
+}

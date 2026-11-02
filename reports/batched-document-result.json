@@ -1,0 +1,108 @@
+{
+  "recordedAt": "2026-11-02T15:14:32+0900",
+  "initial": {
+    "recordedAt": "2026-11-02T15:09:15+0900",
+    "source": "https://arxiv.org/pdf/2609.36598v2",
+    "model": "gemini-3.5-flash-lite",
+    "project": "gen-lang-client-0097090168",
+    "inputSha256": "5d2526e33f1a1f687eab073f061025e4cf7e066975b5601486446bbf1796bbce",
+    "requestHashes": [
+      "6f2d831e506e1fb3f65b33b19fc192592fb2f451909abaa3b17dfed2eff751ac",
+      "28fd43042df3ca037114e5e472cd566e9f611bdd368d7fec8c9070691d0097a7",
+      "f5b8c907945c2f6c156d6cc6cd7399bee5452a51764e0504c98d78f28ccc7fa1"
+    ],
+    "actualRequests": 3,
+    "targets": 280,
+    "accepted": 279,
+    "missing": 1,
+    "totalMs": 95322.37625,
+    "apiAcceptance": true,
+    "allDecoded": false,
+    "batches": [
+      {
+        "index": 1,
+        "requestSha256": "6f2d831e506e1fb3f65b33b19fc192592fb2f451909abaa3b17dfed2eff751ac",
+        "targets": 128,
+        "http": 200,
+        "status": "completed",
+        "outputSha256": "60ac46f4b975d63e72ce7d9a2bd5bad60d55e4bfbb8ecc69b2d20ef7541912a9",
+        "totalMs": 51266.189750000005
+      },
+      {
+        "index": 2,
+        "requestSha256": "28fd43042df3ca037114e5e472cd566e9f611bdd368d7fec8c9070691d0097a7",
+        "targets": 128,
+        "http": 200,
+        "status": "completed",
+        "outputSha256": "52831c886fd6c8c69559809179c4c08f2ddf5679fc1dd1bbcf70a7e4362cc74f",
+        "totalMs": 34289.898375000004
+      },
+      {
+        "index": 3,
+        "requestSha256": "f5b8c907945c2f6c156d6cc6cd7399bee5452a51764e0504c98d78f28ccc7fa1",
+        "targets": 24,
+        "http": 200,
+        "status": "completed",
+        "outputSha256": "f83c24cf09bf53656102141459fe209a195cc4ea593a99d308ea495270a9dd1d",
+        "totalMs": 9724.768125000002
+      }
+    ],
+    "error": {
+      "name": "MissingTranslationsError",
+      "message": "\u5168\u6587\u306e\u7ffb\u8a33\u3092\u691c\u8a3c\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\uff08\u5fc5\u8981280\u4ef6\uff0f\u5b8c\u4e86279\u4ef6\u3001\u88dc\u5b8c\u5bfe\u8c611\u4ef6\uff09\u3002\u6709\u52b9\u306a\u8a33\u6587\u3092\u4fdd\u6301\u3057\u3066\u3044\u307e\u3059\u3002\u5bfe\u8c61\u3060\u3051\u518d\u7ffb\u8a33\u3067\u304d\u307e\u3059",
+      "issues": [
+        {
+          "id": "p27-b0",
+          "reason": "unchanged"
+        }
+      ]
+    }
+  },
+  "manualRepair": {
+    "recordedAt": "2026-11-02T15:11:29+0900",
+    "source": "https://arxiv.org/pdf/2609.36598v2",
+    "model": "gemini-3.5-flash-lite",
+    "project": "gen-lang-client-0097090168",
+    "inputSha256": "91cfaf00e95eaf8efd8c0a9e16e55094e03829af23d6fe8b2d830acc3eb76c58",
+    "requestHashes": [
+      "1fde312987f8f62f6c25cb9a65ab1c68e5e3ec13cf7a7a577a6fa2ddd307cfed"
+    ],
+    "actualRequests": 1,
+    "targets": 1,
+    "accepted": 1,
+    "missing": 0,
+    "totalMs": 5050.668792,
+    "apiAcceptance": true,
+    "allDecoded": true,
+    "batches": [
+      {
+        "index": 1,
+        "requestSha256": "1fde312987f8f62f6c25cb9a65ab1c68e5e3ec13cf7a7a577a6fa2ddd307cfed",
+        "targets": 1,
+        "http": 200,
+        "status": "completed",
+        "outputSha256": "b25704a6937094cb7970275859a889de106949a446e4bcf0e624f1230f355d3f",
+        "totalMs": 5044.303291
+      }
+    ]
+  },
+  "offlineRepairFlowReplay": {
+    "callsReplayed": 4,
+    "requestsExactlyMatched": true,
+    "completed": true,
+    "accepted": 280,
+    "missing": 0
+  },
+  "semanticSmoke": {
+    "items": 21,
+    "withTranslation": 20,
+    "withheld": 1,
+    "grossUnrelatedBlockSubstitutionFound": false,
+    "scope": "Independent assistant spot check, not full-paper semantic verification; repaired caption checked separately."
+  },
+  "actualTotalRequests": 4,
+  "finalAccepted": 280,
+  "finalMissing": 0,
+  "testsPassed": 314,
+  "chromeOperated": false
+}

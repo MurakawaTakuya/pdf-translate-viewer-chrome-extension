@@ -21,16 +21,24 @@ autoBox.onchange = async () => {
 // 今のタブに合わせて、ボタンを1つ出す
 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 const url = tab?.url || '';
-if (url.startsWith(VIEWER)) {
+let viewerState = null;
+if (tab?.id !== undefined) {
+  try { viewerState = await chrome.tabs.sendMessage(tab.id, { type: 'getViewerState' }); } catch {}
+}
+if (viewerState?.fileUrl || url.startsWith(VIEWER)) {
   // 翻訳ビューアで見ている → 通常のビューアに切り替える
   const m = /[?&]file=(.*)$/s.exec(new URL(url).search);
-  const file = m && (/^[a-z]+%3A/i.test(m[1]) ? decodeURIComponent(m[1]) : m[1]);
+  const file = viewerState?.fileUrl || (m && (/^[a-z]+%3A/i.test(m[1]) ? decodeURIComponent(m[1]) : m[1]));
   if (file) {
-    actionBtn.textContent = 'このPDFを通常のビューアで開く';
+    actionBtn.textContent = 'このPDFをChrome内蔵ビューアで開く';
     actionBtn.classList.add('sub');
     actionBtn.hidden = false;
     actionBtn.onclick = async () => {
-      await chrome.runtime.sendMessage({ type: 'openOriginal', tabId: tab.id, url: file });
+      if (viewerState?.mime) await chrome.tabs.sendMessage(tab.id, { type: 'openChromeViewer' });
+      else {
+        const target=new URL(file),hash=new URLSearchParams(target.hash.slice(1));hash.set('gsr','0');target.hash=hash.toString();
+        await chrome.runtime.sendMessage({ type: 'openOriginal', tabId: tab.id, url: target.href, reload:true });
+      }
       window.close();
     };
   }

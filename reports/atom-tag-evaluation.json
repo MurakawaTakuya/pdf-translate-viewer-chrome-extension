@@ -1,0 +1,146 @@
+{
+  "requestSha256": "5153265d3d3e0eb086d26ecaaf7c408d8be407593dd313f42a6a6213f5bd7d30",
+  "rawSha256": "1e96937b51b00245cc506626cce608fea128203ee56a9fb2f28bbe1b2a5edee2",
+  "http": 200,
+  "status": "completed",
+  "timing": {
+    "totalMs": 88880.23425,
+    "firstTextMs": 3157.524958,
+    "firstItemMs": null
+  },
+  "usage": {
+    "total_tokens": 59544,
+    "total_input_tokens": 36912,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 36912
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 22632,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 0,
+    "initial_input_tokens": 70680
+  },
+  "structuralPass": true,
+  "nodePass": false,
+  "retained": 191,
+  "originalIds": [
+    "p3-b21",
+    "p4-b6"
+  ],
+  "issues": [
+    {
+      "id": "p2-b24",
+      "reason": "node"
+    },
+    {
+      "id": "p2-b32",
+      "reason": "node"
+    },
+    {
+      "id": "p5-b35",
+      "reason": "node"
+    },
+    {
+      "id": "p5-b77",
+      "reason": "node"
+    },
+    {
+      "id": "p5-b80",
+      "reason": "node"
+    },
+    {
+      "id": "p6-b29",
+      "reason": "node"
+    },
+    {
+      "id": "p7-b23",
+      "reason": "node"
+    },
+    {
+      "id": "p7-b50",
+      "reason": "node"
+    },
+    {
+      "id": "p8-b31",
+      "reason": "node"
+    },
+    {
+      "id": "p14-b14",
+      "reason": "node"
+    },
+    {
+      "id": "p14-b22",
+      "reason": "node"
+    },
+    {
+      "id": "p14-b32",
+      "reason": "node"
+    },
+    {
+      "id": "p14-b35",
+      "reason": "node"
+    },
+    {
+      "id": "p14-b36",
+      "reason": "node"
+    },
+    {
+      "id": "p15-b7",
+      "reason": "node"
+    },
+    {
+      "id": "p15-b8",
+      "reason": "node"
+    },
+    {
+      "id": "p15-b17",
+      "reason": "node"
+    },
+    {
+      "id": "p15-b40",
+      "reason": "node"
+    },
+    {
+      "id": "p15-b42",
+      "reason": "node"
+    },
+    {
+      "id": "p16-b15",
+      "reason": "node"
+    },
+    {
+      "id": "p16-b16",
+      "reason": "node"
+    }
+  ],
+  "mechanicalGate": false,
+  "semanticReview": {
+    "reviewers": 3,
+    "panel": 73,
+    "acceptedGenerated": 64,
+    "withheld": 7,
+    "originals": 2,
+    "gate": "fail",
+    "definiteAcceptedFailures": {
+      "p2-b25": "off-the-shelf evaluations rendered as an incorrect technical term",
+      "p3-b3": "z detached from additional information and appended to sentence end",
+      "p12-b5": "center-crop and horizontal-flip-only sentence omitted",
+      "p16-b0": "0.25, 0.04, 0.75 copied in prose as well as original math",
+      "p17-b0": "two explanatory claims omitted"
+    },
+    "concerns": {
+      "p1-b35": "less prior knowledge not clearly expressed as an amount comparison",
+      "p13-b5": "CPC prediction direction ambiguous; source itself is awkward"
+    },
+    "sourceBoundary": "p1-b7/p1-b34 predicate duplication was absent in T1. No unrelated-paragraph cascade was found in accepted panel items; this is not a paper-wide guarantee."
+  },
+  "decoderDiagnosisCounts": {
+    "tag-inventory": 2,
+    "restored-inventory-or-format": 5,
+    "free-identifier": 14
+  },
+  "gate": false
+}

@@ -1,0 +1,376 @@
+{
+  "recordedAt": "2026-11-01T01:13:42+0900",
+  "plan": {
+    "recordedAt": "2026-11-01T01:00:21+0900",
+    "model": "gemini-3.5-flash-lite",
+    "inputSha256": "1c26dac8961ae5a423a7b461a215f24b8e94200f7d086772d54e057e474ae0a6",
+    "targets": 282,
+    "pages": 17,
+    "order": [
+      "A1",
+      "B1",
+      "B2",
+      "A2"
+    ],
+    "maximumGenerationRequests": 4,
+    "retries": 0,
+    "semanticPanel": [
+      "p1-b0",
+      "p1-b12",
+      "p1-b13",
+      "p1-b14",
+      "p1-b39",
+      "p1-b41",
+      "p2-b7",
+      "p2-b15",
+      "p2-b25",
+      "p2-b26",
+      "p2-b27",
+      "p2-b28",
+      "p2-b35",
+      "p2-b36",
+      "p6-b30",
+      "p6-b33",
+      "p6-b38",
+      "p6-b64",
+      "p6-b70",
+      "p7-b52"
+    ],
+    "primary": "ID coverage, duplicates, unknown IDs, wrong-page assignment; manual semantic checks on fixed source blocks are also required.",
+    "secondary": "Time to first complete paragraph, total latency, output/total/thought tokens.",
+    "stopping": "Stop on HTTP errors or missing completion; no key creation, model changes, API enabling or billing changes.",
+    "requests": {
+      "A": {
+        "sha256": "82e8565db7def4e23af4c1d2789e46f2188c632bb72c6e7fb556b559c6aa1ddf",
+        "protocol": "sequential-flat",
+        "inputChars": 87106
+      },
+      "B": {
+        "sha256": "6f0627771efc78d19a443541f2c425f4b09778fb1283b2d4ccff67b345bd44d9",
+        "protocol": "opaque-page-grouped",
+        "inputChars": 88978
+      }
+    }
+  },
+  "runs": [
+    {
+      "label": "A1",
+      "variant": "sequential-flat",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 45984,
+        "total_input_tokens": 24237,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 24237
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 21747,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 24351
+      },
+      "timing": {
+        "totalMs": 83244.95204199999,
+        "firstTextMs": 1279.0999169999998,
+        "firstItemMs": 1334.8966670000002
+      },
+      "chunks": 849,
+      "outputChars": 52149,
+      "error": null,
+      "analysis": {
+        "valid": true,
+        "status": "completed",
+        "expected": 282,
+        "received": 282,
+        "missing": 0,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 0,
+          "17": 0
+        }
+      }
+    },
+    {
+      "label": "B1",
+      "variant": "opaque-page-grouped",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 51903,
+        "total_input_tokens": 25128,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 25128
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 26775,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 25313
+      },
+      "timing": {
+        "totalMs": 114596.581625,
+        "firstTextMs": 1385.687791000004,
+        "firstItemMs": 1436.3358750000043
+      },
+      "chunks": 1018,
+      "outputChars": 62773,
+      "error": null,
+      "analysis": {
+        "valid": false,
+        "status": "completed",
+        "expected": 282,
+        "received": 274,
+        "missing": 8,
+        "duplicate": 0,
+        "unknown": 0,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [
+          17,
+          70,
+          81,
+          82,
+          83,
+          84,
+          85,
+          187
+        ],
+        "missingByPage": {
+          "1": 1,
+          "2": 0,
+          "3": 0,
+          "4": 1,
+          "5": 5,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 1,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 0,
+          "17": 0
+        }
+      }
+    },
+    {
+      "label": "B2",
+      "variant": "opaque-page-grouped",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 52149,
+        "total_input_tokens": 25128,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 25128
+          }
+        ],
+        "total_cached_tokens": 22237,
+        "cached_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 22237
+          }
+        ],
+        "total_output_tokens": 27021,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 25313
+      },
+      "timing": {
+        "totalMs": 195646.68191600003,
+        "firstTextMs": 2340.602416000009,
+        "firstItemMs": 2398.0149580000143
+      },
+      "chunks": 1011,
+      "outputChars": 63982,
+      "error": null,
+      "analysis": {
+        "valid": false,
+        "status": "completed",
+        "expected": 282,
+        "received": 273,
+        "missing": 10,
+        "duplicate": 0,
+        "unknown": 1,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [
+          70,
+          81,
+          82,
+          83,
+          84,
+          85,
+          143,
+          170,
+          193,
+          200
+        ],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 1,
+          "5": 5,
+          "6": 0,
+          "7": 1,
+          "8": 0,
+          "9": 1,
+          "10": 1,
+          "11": 1,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 0,
+          "17": 0
+        }
+      }
+    },
+    {
+      "label": "A2",
+      "variant": "sequential-flat",
+      "model": "gemini-3.5-flash-lite",
+      "http": 200,
+      "status": "completed",
+      "usage": {
+        "total_tokens": 36996,
+        "total_input_tokens": 24237,
+        "input_tokens_by_modality": [
+          {
+            "modality": "text",
+            "tokens": 24237
+          }
+        ],
+        "total_cached_tokens": 0,
+        "total_output_tokens": 12759,
+        "total_tool_use_tokens": 0,
+        "total_thought_tokens": 0,
+        "initial_input_tokens": 24351
+      },
+      "timing": {
+        "totalMs": 40687.165749999986,
+        "firstTextMs": 1132.4429169999785,
+        "firstItemMs": 1187.0421670000069
+      },
+      "chunks": 502,
+      "outputChars": 23823,
+      "error": null,
+      "analysis": {
+        "valid": false,
+        "status": "completed",
+        "expected": 282,
+        "received": 284,
+        "missing": 0,
+        "duplicate": 1,
+        "unknown": 1,
+        "empty": 0,
+        "invalid": 0,
+        "wrongPage": 0,
+        "duplicatePages": 0,
+        "missingPositions": [],
+        "missingByPage": {
+          "1": 0,
+          "2": 0,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 0,
+          "7": 0,
+          "8": 0,
+          "9": 0,
+          "10": 0,
+          "11": 0,
+          "12": 0,
+          "13": 0,
+          "14": 0,
+          "15": 0,
+          "16": 0,
+          "17": 0
+        }
+      }
+    }
+  ],
+  "rawResultSha256": {
+    "A1": "4e6c5baf517dfe87bc3dea2fff5f570546ea575ba8b5d58d4eb5d0512ff5f8a9",
+    "B1": "7a8f49ec1f565b18d3ed4e5d555ad58f80745a1b69f93c6cb302930aa5b1660b",
+    "B2": "87222e50d8b3e78d7ab43aa776a356c0df53659485134de45bb869af225396c4",
+    "A2": "b27e310c776c105458dc3b3ac50033580d472a1acbb74c7d7bccc3eac5f8ec43"
+  },
+  "extractionAudit": {
+    "page": 6,
+    "beforeBlocks": 72,
+    "afterBlocks": 70,
+    "details": [
+      {
+        "block": 30,
+        "sourceChars": 64,
+        "nextChars": 289,
+        "bold": true,
+        "nextBold": false,
+        "boldChars": 42,
+        "totalChars": 57,
+        "canJoin": false,
+        "canJoinWithoutMixedStyleBreak": true,
+        "originalHeight": 8.123558400000007,
+        "mergedHeight": 62.91855839999974,
+        "mergedChars": 352
+      },
+      {
+        "block": 64,
+        "sourceChars": 59,
+        "nextChars": 301,
+        "bold": true,
+        "nextBold": false,
+        "boldChars": 37,
+        "totalChars": 52,
+        "canJoin": false,
+        "canJoinWithoutMixedStyleBreak": true,
+        "originalHeight": 8.123558400000007,
+        "mergedHeight": 62.91855839999974,
+        "mergedChars": 359
+      }
+    ]
+  }
+}

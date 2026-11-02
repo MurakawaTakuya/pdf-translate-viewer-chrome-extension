@@ -1,0 +1,539 @@
+{
+  "recordedAt": "2026-11-01T17:53:21+0900",
+  "status": "INCOMPLETE_DO_NOT_MERGE",
+  "source": "https://arxiv.org/pdf/2301.08243",
+  "experiments": [
+    {
+      "label": "K1",
+      "plan": {
+        "recordedAt": "2026-11-01T17:18:17+0900",
+        "model": "gemini-3.5-flash-lite",
+        "inputSha256": "32f7c1a02556cf65aca6fe92eec43fc64e6ae6eaba25d74ae5a9ea449602703d",
+        "requestSha256": "3007c3769bb5b99f2322efebec6e83262b93ffd53b67ccde92a43da1234acdf9",
+        "source": "https://arxiv.org/pdf/2301.08243",
+        "pages": 17,
+        "targets": 217,
+        "semanticPanel": [
+          "p1-b0",
+          "p1-b3",
+          "p1-b4",
+          "p1-b5",
+          "p1-b6",
+          "p1-b7",
+          "p1-b9",
+          "p1-b32",
+          "p1-b33",
+          "p1-b34",
+          "p1-b35",
+          "p2-b17",
+          "p2-b20",
+          "p2-b23",
+          "p2-b24",
+          "p2-b25",
+          "p2-b26",
+          "p2-b33",
+          "p2-b34",
+          "p6-b27",
+          "p6-b29",
+          "p6-b31",
+          "p6-b55",
+          "p6-b60",
+          "p7-b49",
+          "p16-b20",
+          "p17-b0",
+          "p17-b1"
+        ],
+        "order": [
+          "K1",
+          "K2",
+          "K3"
+        ],
+        "maximumGenerationRequests": 3,
+        "retries": 0,
+        "hypothesis": "Required opaque translation properties avoid sequential renumbering/omission while retaining one full-document request.",
+        "gate": "Every run must complete and have exact key coverage; manually compare the fixed source/translation panel, including cross-column sentence scope and Table 3/4 captions. Any confirmed scope merge, substitution or untranslated ordinary text fails promotion. Citation flags require inspection and are not a semantic score.",
+        "stopping": "Stop on HTTP/transport/coverage failure or a failed semantic gate. Do not tune this candidate after results. Only a recorded passing semantic review permits the next call."
+      },
+      "result": {
+        "label": "K1",
+        "variant": "required-opaque-property",
+        "model": "gemini-3.5-flash-lite",
+        "http": 200,
+        "status": "completed",
+        "usage": {
+          "total_tokens": 47376,
+          "total_input_tokens": 24174,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 24174
+            }
+          ],
+          "total_cached_tokens": 0,
+          "total_output_tokens": 23202,
+          "total_tool_use_tokens": 0,
+          "total_thought_tokens": 0,
+          "initial_input_tokens": 30477
+        },
+        "timing": {
+          "totalMs": 93081.795292,
+          "firstTextMs": 3406.0168750000003,
+          "firstItemMs": null
+        },
+        "chunks": 896,
+        "outputChars": 47378,
+        "error": null,
+        "analysis": {
+          "valid": true,
+          "status": "completed",
+          "expected": 217,
+          "received": 217,
+          "missing": 0,
+          "duplicate": 0,
+          "unknown": 0,
+          "empty": 0,
+          "invalid": 0,
+          "wrongPage": 0,
+          "duplicatePages": 0,
+          "missingPositions": [],
+          "missingByPage": {
+            "1": 0,
+            "2": 0,
+            "3": 0,
+            "4": 0,
+            "5": 0,
+            "6": 0,
+            "7": 0,
+            "8": 0,
+            "9": 0,
+            "10": 0,
+            "11": 0,
+            "12": 0,
+            "13": 0,
+            "14": 0,
+            "15": 0,
+            "16": 0,
+            "17": 0
+          }
+        },
+        "citationDiagnostics": [
+          {
+            "id": "p5-b3",
+            "page": 5,
+            "missing": [],
+            "extra": [
+              22,
+              36
+            ]
+          },
+          {
+            "id": "p5-b25",
+            "page": 5,
+            "missing": [],
+            "extra": [
+              18,
+              79
+            ]
+          },
+          {
+            "id": "p5-b41",
+            "page": 5,
+            "missing": [],
+            "extra": [
+              36
+            ]
+          },
+          {
+            "id": "p5-b57",
+            "page": 5,
+            "missing": [],
+            "extra": [
+              4,
+              18,
+              35
+            ]
+          },
+          {
+            "id": "p6-b3",
+            "page": 6,
+            "missing": [],
+            "extra": [
+              36
+            ]
+          },
+          {
+            "id": "p6-b17",
+            "page": 6,
+            "missing": [],
+            "extra": [
+              79
+            ]
+          },
+          {
+            "id": "p6-b36",
+            "page": 6,
+            "missing": [],
+            "extra": [
+              36
+            ]
+          },
+          {
+            "id": "p6-b47",
+            "page": 6,
+            "missing": [],
+            "extra": [
+              79
+            ]
+          }
+        ]
+      },
+      "review": {
+        "recordedAt": "2026-11-01T17:23:47+0900",
+        "gate": "fail",
+        "requestSha256": "3007c3769bb5b99f2322efebec6e83262b93ffd53b67ccde92a43da1234acdf9",
+        "rawResultSha256": "9c9ec681a0044fa3b9953b6ea5a1731ba29a5cbaefe1fcd38c95fc4c02305cc8",
+        "reason": "Exact 217-key coverage and the fixed panel show improved placement, but eight table-heading targets include entire reference-only table rows. Reject this candidate; do not run K2/K3.",
+        "confirmedScopeExpansion": [
+          "p5-b3",
+          "p5-b25",
+          "p5-b41",
+          "p5-b57",
+          "p6-b3",
+          "p6-b17",
+          "p6-b36",
+          "p6-b47"
+        ],
+        "boundaryObservation": "p1-b7 hands unclear into p1-b34 while preserving the split sentence; not a separate paragraph ID cascade."
+      },
+      "rawSha256": "9c9ec681a0044fa3b9953b6ea5a1731ba29a5cbaefe1fcd38c95fc4c02305cc8"
+    },
+    {
+      "label": "S1",
+      "plan": {
+        "recordedAt": "2026-11-01T17:23:47+0900",
+        "model": "gemini-3.5-flash-lite",
+        "inputSha256": "32f7c1a02556cf65aca6fe92eec43fc64e6ae6eaba25d74ae5a9ea449602703d",
+        "requestSha256": "5fc36968b9bd60f66651e5b14504c3b8cf754768996888f295e9a206c5ff2aef",
+        "source": "https://arxiv.org/pdf/2301.08243",
+        "pages": 17,
+        "targets": 217,
+        "semanticPanel": [
+          "p1-b0",
+          "p1-b3",
+          "p1-b4",
+          "p1-b5",
+          "p1-b6",
+          "p1-b7",
+          "p1-b9",
+          "p1-b32",
+          "p1-b33",
+          "p1-b34",
+          "p1-b35",
+          "p2-b17",
+          "p2-b20",
+          "p2-b23",
+          "p2-b24",
+          "p2-b25",
+          "p2-b26",
+          "p2-b33",
+          "p2-b34",
+          "p6-b27",
+          "p6-b29",
+          "p6-b31",
+          "p6-b55",
+          "p6-b60",
+          "p7-b49",
+          "p16-b20",
+          "p17-b0",
+          "p17-b1"
+        ],
+        "order": [
+          "S1",
+          "S2",
+          "S3"
+        ],
+        "maximumGenerationRequests": 3,
+        "retries": 0,
+        "variant": "source-bound-required-property",
+        "sourceBound": true,
+        "hypothesis": "Required opaque translation properties avoid sequential renumbering/omission while retaining one full-document request.",
+        "gate": "Every run must complete and have exact key coverage; manually compare the fixed source/translation panel, including cross-column sentence scope and Table 3/4 captions. Any confirmed scope merge, substitution or untranslated ordinary text fails promotion. Citation flags require inspection and are not a semantic score.",
+        "stopping": "Stop on HTTP/transport/coverage failure or a failed semantic gate. Do not tune this candidate after results. Only a recorded passing semantic review permits the next call."
+      },
+      "result": {
+        "label": "S1",
+        "variant": "source-bound-required-property",
+        "model": "gemini-3.5-flash-lite",
+        "http": 200,
+        "status": "completed",
+        "usage": {
+          "total_tokens": 46539,
+          "total_input_tokens": 24174,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 24174
+            }
+          ],
+          "total_cached_tokens": 0,
+          "total_output_tokens": 22365,
+          "total_tool_use_tokens": 0,
+          "total_thought_tokens": 0,
+          "initial_input_tokens": 52805
+        },
+        "timing": {
+          "totalMs": 87563.131834,
+          "firstTextMs": 6297.34675,
+          "firstItemMs": null
+        },
+        "chunks": 863,
+        "outputChars": 47328,
+        "error": null,
+        "analysis": {
+          "valid": true,
+          "status": "completed",
+          "expected": 217,
+          "received": 217,
+          "missing": 0,
+          "duplicate": 0,
+          "unknown": 0,
+          "empty": 0,
+          "invalid": 0,
+          "wrongPage": 0,
+          "duplicatePages": 0,
+          "missingPositions": [],
+          "missingByPage": {
+            "1": 0,
+            "2": 0,
+            "3": 0,
+            "4": 0,
+            "5": 0,
+            "6": 0,
+            "7": 0,
+            "8": 0,
+            "9": 0,
+            "10": 0,
+            "11": 0,
+            "12": 0,
+            "13": 0,
+            "14": 0,
+            "15": 0,
+            "16": 0,
+            "17": 0
+          }
+        },
+        "citationDiagnostics": []
+      },
+      "review": {
+        "recordedAt": "2026-11-01T17:27:37+0900",
+        "gate": "fail",
+        "requestSha256": "5fc36968b9bd60f66651e5b14504c3b8cf754768996888f295e9a206c5ff2aef",
+        "rawResultSha256": "a247212719ab535c1f3de96870e8956eb2d1e482655a03e7d0ff5f2f37bd3f22",
+        "reason": "The ordinary-language paper title p1-b0 is unchanged English. Exact coverage, zero citation flags and corrected table headings do not meet the full frozen gate. Stop S2/S3.",
+        "untranslated": [
+          "p1-b0"
+        ],
+        "knownPanelScope": "No unrelated paragraph substitution seen in the checked panel; split-sentence predicate moves into its continuation in Japanese word order."
+      },
+      "rawSha256": "a247212719ab535c1f3de96870e8956eb2d1e482655a03e7d0ff5f2f37bd3f22"
+    },
+    {
+      "label": "T1",
+      "plan": {
+        "recordedAt": "2026-11-01T17:27:37+0900",
+        "model": "gemini-3.5-flash-lite",
+        "inputSha256": "32f7c1a02556cf65aca6fe92eec43fc64e6ae6eaba25d74ae5a9ea449602703d",
+        "requestSha256": "2b1024288219162adde4915f407b3d270a7fdfd0b064679005e6eddbf3b8ed33",
+        "source": "https://arxiv.org/pdf/2301.08243",
+        "pages": 17,
+        "targets": 217,
+        "semanticPanel": [
+          "p1-b0",
+          "p1-b3",
+          "p1-b4",
+          "p1-b5",
+          "p1-b6",
+          "p1-b7",
+          "p1-b9",
+          "p1-b32",
+          "p1-b33",
+          "p1-b34",
+          "p1-b35",
+          "p2-b17",
+          "p2-b20",
+          "p2-b23",
+          "p2-b24",
+          "p2-b25",
+          "p2-b26",
+          "p2-b33",
+          "p2-b34",
+          "p6-b27",
+          "p6-b29",
+          "p6-b31",
+          "p6-b55",
+          "p6-b60",
+          "p7-b49",
+          "p16-b20",
+          "p17-b0",
+          "p17-b1"
+        ],
+        "order": [
+          "T1",
+          "T2",
+          "T3"
+        ],
+        "maximumGenerationRequests": 3,
+        "retries": 0,
+        "variant": "task-bound-required-property",
+        "sourceBound": true,
+        "taskBound": true,
+        "hypothesis": "Required opaque translation properties avoid sequential renumbering/omission while retaining one full-document request.",
+        "gate": "Every run must complete and have exact key coverage; manually compare the fixed source/translation panel, including cross-column sentence scope and Table 3/4 captions. Any confirmed scope merge, substitution or untranslated ordinary text fails promotion. Citation flags require inspection and are not a semantic score.",
+        "stopping": "Stop on HTTP/transport/coverage failure or a failed semantic gate. Do not tune this candidate after results. Only a recorded passing semantic review permits the next call."
+      },
+      "result": {
+        "label": "T1",
+        "variant": "task-bound-required-property",
+        "model": "gemini-3.5-flash-lite",
+        "http": 200,
+        "status": "completed",
+        "usage": {
+          "total_tokens": 46384,
+          "total_input_tokens": 24174,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 24174
+            }
+          ],
+          "total_cached_tokens": 0,
+          "total_output_tokens": 22210,
+          "total_tool_use_tokens": 0,
+          "total_thought_tokens": 0,
+          "initial_input_tokens": 54429
+        },
+        "timing": {
+          "totalMs": 99793.04916600001,
+          "firstTextMs": 4161.179125,
+          "firstItemMs": null
+        },
+        "chunks": 857,
+        "outputChars": 47105,
+        "error": null,
+        "analysis": {
+          "valid": true,
+          "status": "completed",
+          "expected": 217,
+          "received": 217,
+          "missing": 0,
+          "duplicate": 0,
+          "unknown": 0,
+          "empty": 0,
+          "invalid": 0,
+          "wrongPage": 0,
+          "duplicatePages": 0,
+          "missingPositions": [],
+          "missingByPage": {
+            "1": 0,
+            "2": 0,
+            "3": 0,
+            "4": 0,
+            "5": 0,
+            "6": 0,
+            "7": 0,
+            "8": 0,
+            "9": 0,
+            "10": 0,
+            "11": 0,
+            "12": 0,
+            "13": 0,
+            "14": 0,
+            "15": 0,
+            "16": 0,
+            "17": 0
+          }
+        },
+        "citationDiagnostics": [
+          {
+            "id": "p3-b0",
+            "page": 3,
+            "missing": [
+              4,
+              5,
+              18
+            ],
+            "extra": []
+          }
+        ]
+      },
+      "review": {
+        "recordedAt": "2026-11-01T17:44:56+0900",
+        "gate": "fail",
+        "scopeGate": "pass-on-fixed-36",
+        "requestSha256": "2b1024288219162adde4915f407b3d270a7fdfd0b064679005e6eddbf3b8ed33",
+        "rawResultSha256": "43ad2475a85975068eff4ed7c34718495eb89b7b4d823c00f49cb88668ba97ff",
+        "reason": "Fixed panel shows no unrelated block substitution, but numeric references are genuinely omitted in p3-b0 and p13-b5. Do not promote the raw candidate or run T2/T3. A separately implemented deterministic guard withholds these blocks.",
+        "citationOmissions": [
+          "p3-b0",
+          "p13-b5"
+        ]
+      },
+      "rawSha256": "43ad2475a85975068eff4ed7c34718495eb89b7b4d823c00f49cb88668ba97ff"
+    }
+  ],
+  "guardReplay": {
+    "offline": true,
+    "requestSha256": "2b1024288219162adde4915f407b3d270a7fdfd0b064679005e6eddbf3b8ed33",
+    "evaluatedSha256": "2b1024288219162adde4915f407b3d270a7fdfd0b064679005e6eddbf3b8ed33",
+    "identicalRequest": true,
+    "validation": {
+      "accepted": false,
+      "name": "MissingTranslationsError",
+      "message": "全文の翻訳を検証できませんでした（必要217件／受信217件、補完対象2件、参照番号不一致2件、未翻訳0件）。有効な訳文を保持しています。対象だけ再翻訳できます",
+      "partial": 215,
+      "missing": [
+        "p3-b0",
+        "p13-b5"
+      ]
+    }
+  },
+  "manualRepair": {
+    "recordedAt": "2026-11-01T17:40:25+0900",
+    "offlineFullReplay": true,
+    "initial": {
+      "missing": [
+        "p3-b0",
+        "p13-b5"
+      ],
+      "partial": 215,
+      "message": "全文の翻訳を検証できませんでした（必要217件／受信217件、補完対象2件、参照番号不一致2件、未翻訳0件）。有効な訳文を保持しています。対象だけ再翻訳できます"
+    },
+    "remoteRequests": 1,
+    "repairTargets": 2,
+    "repairRequestSha256": "c7d72e62175fe2b41c27bc65bbf83fc77cef5faf94aca716d0acde4f51a4fbf7",
+    "elapsedMs": 4253.392667,
+    "usage": {
+      "total_tokens": 22490,
+      "total_input_tokens": 21921,
+      "input_tokens_by_modality": [
+        {
+          "modality": "text",
+          "tokens": 21921
+        }
+      ],
+      "total_cached_tokens": 0,
+      "total_output_tokens": 569,
+      "total_tool_use_tokens": 0,
+      "total_thought_tokens": 0,
+      "initial_input_tokens": 22496
+    },
+    "completion": {
+      "accepted": false,
+      "name": "MissingTranslationsError",
+      "message": "全文の翻訳を検証できませんでした（必要2件／受信2件、補完対象1件、参照番号不一致1件、未翻訳0件）。有効な訳文を保持しています。対象だけ再翻訳できます"
+    }
+  },
+  "newRemoteCalls": 4,
+  "automaticRepairs": 0,
+  "rawTextStoredInGit": false
+}
