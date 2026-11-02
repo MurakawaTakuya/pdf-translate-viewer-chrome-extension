@@ -160,3 +160,13 @@ ba4bd54と直近変更を2担当で独立レビューした。ビューア切替
 旧Chromeのpopupから内蔵へ戻る経路で、fragment込みのDNR完全一致規則がfragmentを含まないHTTPリクエストに一致しないP2回帰を発見。転送回避規則をfragment除外URLへ変更し対象tabだけに限定した。切替後の解除を含む追加回帰を作成し、独立再確認で22test成功・既報P2解消・追加必須指摘なし。
 
 全346tests成功、失敗0件。最終独立レビューは完了。Chrome実機の最後の切替修正後の往復確認とユーザーのmerge許可は別途残る。3.8 Flashの追加調査はユーザー指示により終了しており、原因未確定のまま。実API/Chrome操作/mergeは今回行っていない。
+
+## lint・formatter導入（PR #2）
+
+追記日時: 2026-11-02 17:10:55 JST
+
+PR #1をmainへmergeした後、chore/lint-formatを作成。個人のreact-nextjs-environment-setting-templateを参照し、ESLint推奨設定とPrettier（2スペース/セミコロン/ダブルクォート/80文字）を導入した。ブラウザ拡張とNode.jsのglobalsを分け、第三者資産/過去実験記録/Markdownを整形対象から除外。Node24、固定dev依存とlockfile、npm check、main向けPR/main pushのCIを追加した。推移依存minimatchは既知DoS修正版11.0.1へoverrideし、npm auditは0件。
+
+2担当の独立レビューで必須指摘なし。設定/依存/CI担当はnpm check（lint/format/346tests）を独立実行。整形担当は74JS/MJSのAST一致と説明済み6ファイルだけの構造差、manifest値同一、複数行import除去で実処理を保持することを確認。UMD fontkitのglobal/default対応後も実PDF生成/再抽出のアサーションを維持。関連108tests成功、lib/fonts/reports/LICENSESに既存差分なし。
+
+GitHub Actionsのクリーンnpm ci・lint・format:check・全346testsが成功。[CI実行](https://github.com/MurakawaTakuya/pdf-translate-viewer-chrome-extension/actions/runs/41411018733/job/125163849051)。PR #2は自身のforkのmain宛てdraftで、ユーザーのmerge許可待ち。Chrome操作・実API生成・Release公開は行っていない。
