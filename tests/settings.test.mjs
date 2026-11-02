@@ -7,7 +7,7 @@ import { dismissOnOutsideClick } from '../dialog.js';
 const source = (await readFile(new URL('../settings.js', import.meta.url), 'utf8'))
   .replace(/^import .*;\n/gm, '').replace(/export /g, '');
 
-function fixture(save = async () => {}, saved = {}) {
+function fixture(save = async () => {}, saved = {}, extra = {}) {
   const elements = new Map();
   const $ = (id) => {
     if (!elements.has(id)) elements.set(id, {
@@ -21,7 +21,7 @@ function fixture(save = async () => {}, saved = {}) {
   };
   const { openSettings, loadSettings } = vm.runInNewContext(`(function(){${source}; return { openSettings, loadSettings };})()`, {
     self: { chrome: { storage: { local: { get: async (defaults) => ({...defaults,...saved}), set: async (next) => { Object.assign(saved,next);await save(next); } } } } },
-    document: { querySelector: $ }, dismissOnOutsideClick, DEFAULT_MODEL: 'mock-model',
+    document: { querySelector: $ }, dismissOnOutsideClick, DEFAULT_MODEL: 'mock-model', AbortController, setTimeout, clearTimeout, ...extra,
   });
   return { $, openSettings, loadSettings };
 }
@@ -90,4 +90,13 @@ test('switching away from and back to custom retains the custom model draft',asy
  assert.equal(f.$('#model').value,'my-model');
  await f.$('form').onsubmit({submitter:{value:'save'}});
  assert.equal((await pending).geminiModel,'my-model');
+});
+
+test('connection test times out, aborts the request and ignores late results',async()=>{
+ let timeout,signal,done,send;
+ const f=fixture(async()=>{},{},{setTimeout:fn=>{timeout=fn;return 1;},clearTimeout(){},createGeminiTranslator:options=>{signal=options.signal;return {translateBatch:async(_,callback)=>{send=callback;await new Promise(r=>done=r);callback(0,'late');}};}});
+ f.openSettings({geminiKey:'key',geminiModel:'gemini-3.8-flash'});
+ const pending=f.$('#testKey').onclick();timeout();
+ assert.equal(signal.aborted,true);assert.match(f.$('#testResult').textContent,/30秒/);
+ done();await pending;assert.match(f.$('#testResult').textContent,/30秒/);assert.equal(f.$('#testKey').textContent,'接続テスト');
 });

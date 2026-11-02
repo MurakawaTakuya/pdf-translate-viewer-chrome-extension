@@ -29,6 +29,15 @@ export function openSettings(current) {
   const modelInput = $('#model');
   const modelPreset = $('#modelPreset');
   const testOut = $('#testResult');
+  const testButton = $('#testKey');
+  let testJob = null;
+  function stopTest(message) {
+    const job=testJob;testJob=null;
+    if(job){clearTimeout(job.timer);job.controller.abort();}
+    testButton.textContent='接続テスト';
+    if(message!==undefined)testOut.textContent=message;
+  }
+  stopTest();
 
   autoInput.checked = current.autoTranslate !== false;
   keyInput.value = current.geminiKey;
@@ -39,6 +48,7 @@ export function openSettings(current) {
   let customModel = modelInput.hidden ? '' : current.geminiModel;
   let previousPreset = modelPreset.value;
   modelPreset.onchange = () => {
+    stopTest('');
     if(previousPreset==='custom')customModel=modelInput.value;
     modelInput.hidden = modelPreset.value !== 'custom';
     modelInput.value=modelInput.hidden?modelPreset.value:customModel;
@@ -47,28 +57,35 @@ export function openSettings(current) {
   testOut.textContent = '';
 
   $('#toggleKey').onclick = () => { keyInput.type = keyInput.type === 'password' ? 'text' : 'password'; };
-  $('#clearKey').onclick = () => { keyInput.value = ''; testOut.textContent = ''; };
+  $('#clearKey').onclick = () => { stopTest('');keyInput.value = ''; };
+  keyInput.oninput = modelInput.oninput = () => stopTest('');
   $('#testKey').onclick = async () => {
+    if(testJob){stopTest('接続テストを中断しました');return;}
     if (!keyInput.value.trim()) { testOut.textContent = 'APIキーを入力してください'; return; }
-    testOut.textContent = '接続テスト中…';
+    const job={controller:new AbortController()};testJob=job;
+    const model=modelInput.value.trim()||DEFAULT_MODEL;
+    testButton.textContent='テストを中断';
+    testOut.textContent = `${model}：接続テスト中…`;
+    job.timer=setTimeout(()=>{if(testJob===job)stopTest('NG：30秒以内に接続テストが完了しませんでした。モデル側の混雑・利用可否や通信状態を確認してください');},30000);
     try {
       const tr = createGeminiTranslator({
-        apiKey: keyInput.value.trim(), model: modelInput.value.trim(),
-        sourceLanguage: 'en', targetLanguage: 'ja', onWait: (m) => { testOut.textContent = m; },
+        apiKey: keyInput.value.trim(), model, signal:job.controller.signal,
+        sourceLanguage: 'en', targetLanguage: 'ja', onWait: (m) => { if(testJob===job)testOut.textContent = m; },
       });
-      await tr.translateBatch(['Hello, world.'], (_, t) => { testOut.textContent = `OK：「${t}」`; });
+      await tr.translateBatch(['Hello, world.'], (_, t) => { if(testJob===job)testOut.textContent = `OK（${model}）：「${t}」`; });
     } catch (e) {
-      testOut.textContent = 'NG：' + e.message;
-    }
+      if(testJob===job)testOut.textContent = 'NG：' + e.message;
+    } finally { if(testJob===job)stopTest(); }
   };
 
   dlg.showModal();
   return new Promise((resolve) => {
     let saving = false;
-    dlg.oncancel = () => resolve(null); // Esc
-    dlg.onclose = () => { if (!saving) resolve(null); }; // 外側クリックもキャンセル扱い
+    dlg.oncancel = () => {stopTest();resolve(null);}; // Esc
+    dlg.onclose = () => { stopTest();if (!saving) resolve(null); }; // 外側クリックもキャンセル扱い
     // close イベントは描画のタイミングまで遅れることがあるので、ボタンの submit で判定する
     form.onsubmit = async (e) => {
+      stopTest();
       if (e.submitter?.value !== 'save') { resolve(null); return; }
       saving = true;
       const next = {
