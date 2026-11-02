@@ -28,6 +28,12 @@ test('a regular bibliography heading followed by a numbered entry is recognized'
   }
 });
 
+test('all-capitals REFERENCES marks an unnumbered bibliography even in a regular font',async()=>{
+  const blocks=await extract([item('We present the final results.',50,88,280),item('REFERENCES',50,100,65),item('Author, Firstname. An original publication title.',50,124,240),item('A DATASET DETAILS',50,160,120),item('We describe the dataset in this appendix.',50,184,250)]);
+  assert.equal(blocks.find(b=>b.text==='REFERENCES')?.kind,'heading');
+  assert.equal(excludeReferences(blocks),false);assert.equal(blocks[0].translate,true);assert.ok(blocks.slice(1,3).every(b=>!b.translate));assert.ok(blocks.slice(3).every(b=>b.translate));
+});
+
 test('mixed bold caption lead-in joins its continuation and keeps the full display rectangle', async () => {
   const blocks = await extract([
     item('Table 3. Transfer performance.', 50, 100, 160, 'bold'),

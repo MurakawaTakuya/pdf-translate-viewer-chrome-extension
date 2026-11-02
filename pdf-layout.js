@@ -3,6 +3,9 @@ import { sourceMathSpans } from './protected-spans.js';
 import { isReferenceHeading } from './translation-scope.js';
 import { drawingGeometry,excludeFigureText } from './figure-regions.js';
 
+const allCaps = text => text===text.toUpperCase()&&/[A-Z]/.test(text);
+const capsSection = text => allCaps(text)&&/^(?:[A-Z](?:\.\d+)*[.]?|\d+(?:\.\d+)*[.)]?)\s+[A-Z]/.test(text);
+
 function fontInfo(page, styles, fontName) {
   let f = null;
   try { if (page.commonObjs.has(fontName)) f = page.commonObjs.get(fontName); } catch {}
@@ -78,7 +81,7 @@ export async function extractBlocks(r, operators) {
     b.align = alignOf(b, r.vp.width);
     b.translate = shouldTranslate(b, body);
     b.kind = blockKind(b, body, blocks[index+1]);
-    if(b.kind==='caption')b.translate=true;
+    if(b.kind==='caption'||capsSection(b.text))b.translate=true;
     const math = sourceMathSpans(b);
     b.mathSpans = math.spans;
     b.mathUncertain = math.uncertain;
@@ -90,8 +93,9 @@ export async function extractBlocks(r, operators) {
 
 function canJoin(bk, l, next) {
   const prev = bk.lines.at(-1);
-  if (isReferenceHeading(l.text)&&(l.bold||/^\[\d+\]/.test(next?.text||'')) || isReferenceHeading(bk.lines[0].text)
-    &&(bk.lines[0].bold||/^\[\d+\]/.test(l.text))) return false;
+  if(capsSection(l.text)||capsSection(bk.lines[0].text))return false;
+  if (isReferenceHeading(l.text)&&(l.bold||allCaps(l.text)||/^\[\d+\]/.test(next?.text||'')) || isReferenceHeading(bk.lines[0].text)
+    &&(bk.lines[0].bold||allCaps(bk.lines[0].text)||/^\[\d+\]/.test(l.text))) return false;
   if (Math.abs(l.h - bk.h) > bk.h * 0.2) return false;          // 文字サイズが違う
   // 太字タイトルと通常書体の本文が同じキャプション内に混在する。
   // 書体が変わっても、キャプションの続きか混在行なら幾何条件で判断する。
@@ -258,7 +262,8 @@ function orderLines(lines, depth = 0) {
 }
 
 function blockKind(b, body, next) {
-  if (isReferenceHeading(b.text)&&(b.bold||b.align==='center'||b.h>body*1.05||/^\[\d+\]/.test(next?.lines[0].text||''))) return 'heading';
+  if(capsSection(b.text)&&b.lines.length<=2&&b.text.length<160)return 'heading';
+  if (isReferenceHeading(b.text)&&(b.bold||allCaps(b.text)||b.align==='center'||b.h>body*1.05||/^\[\d+\]/.test(next?.lines[0].text||''))) return 'heading';
   if (/^(?:Fig(?:ure)?\.?|Table)\s*\d+[.:]/i.test(b.text)) return 'caption';
   if (b.h > body * 1.3 && b.align === 'center') return 'title';
   if (b.lines.length <= 2 && b.bold && b.text.length < 160) return 'heading';
