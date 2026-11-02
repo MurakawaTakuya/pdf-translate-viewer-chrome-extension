@@ -122,6 +122,8 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     placeBlock = (r, b) => {
       const el = elementStub();
       el._b = b;
+      el.parentNode = r.dstLayer;
+      el._hot = on => el.classList.toggle('hot',on);
       el.classList.add('pending');
       el.remove = () => { el.removed = true; };
       placedBlocks.push({ row: r, block: b, el });
@@ -129,7 +131,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
     };
     fillBlock = (el, b, text) => { b.ja = text; el.textContent = text; el.classList.remove('pending'); };
     saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
-    return { state, buildRows, autoTranslateOnOpen, start, enqueue, enqueueVisiblePages, translateAll, redoBlock, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
+    return { state, buildRows, autoTranslateOnOpen, start, enqueue, enqueueVisiblePages, translateAll, redoBlock, translateBlockWithGemini, cancelBlockGemini, showTools, blockGeminiButton:blockGeminiBtn, tools, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
   `);
   context.elementStub = element;
   const api = await vm.runInNewContext('(async () => {' + source + '})()', context);
@@ -1549,4 +1551,96 @@ test('a canceled block redo cannot clear the pending flag of a new redo on the r
   releaseNew(); await newRedo;
   assert.ok(!el.classList.contains('pending'));
   assert.equal(block.ja, '新しい確定訳');
+});
+
+test('a source-only block exposes Gemini when configured and translates that block without enabling whole-document translation',async(t)=>{
+  const requests=[];t.mock.method(globalThis,'fetch',async(_url,init)=>{const r=JSON.parse(init.body);requests.push(r);return Response.json({status:'completed',steps:[{type:'model_output',content:[{type:'text',text:JSON.stringify({[r.response_format.schema.required[0]]:'単体の訳文'})}]}]});});
+  const api=await viewer('chrome',{},null,1,null,createKeyedGeminiTranslator),row=api.state.rows[0],b=row.blocks[0],el=element();el._b=b;el._row=row;el.parentNode=row.dstLayer;row.blockEls=new Map([[b,el]]);
+  api.state.engine=null;api.showTools(el);assert.equal(api.blockGeminiButton.hidden,false);
+  api.state.settings.geminiKey='';api.showTools(el);assert.equal(api.blockGeminiButton.hidden,true);api.state.settings.geminiKey='mock-key';api.showTools(el);
+  await api.blockGeminiButton.onclick();assert.equal(requests.length,1);assert.equal(b.ja,'単体の訳文');assert.equal(el.textContent,'単体の訳文');
+  const input=JSON.parse(requests[0].input);assert.equal(input.pages.length,3);assert.equal(input.pages.flatMap(p=>p.blocks).filter(b=>b.translate_id).length,1);
+  assert.equal(api.state.engine,null);assert.equal(api.state.translator,null);assert.equal(api.state.rows[1].blocks[0].ja,undefined);
+  assert.equal(api.blockGeminiButton.textContent,'Geminiで訳し直す');
+});
+
+test('an in-flight local translation cannot overwrite the selected Gemini result while other pages continue locally',async(t)=>{
+  let releaseLocal,releaseGemini;const localGate=new Promise(r=>releaseLocal=r),geminiGate=new Promise(r=>releaseGemini=r),requests=[];
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{const r=JSON.parse(init.body);requests.push(r);await geminiGate;return Response.json({status:'completed',steps:[{type:'model_output',content:[{type:'text',text:JSON.stringify({[r.response_format.schema.required[0]]:'優先するGemini訳'})}]}]});});
+  const api=await viewer('chrome',{create:async()=>({translate:async text=>{if(text.endsWith('1'))await localGate;return 'ローカル訳 '+text;}})},null,1,null,createKeyedGeminiTranslator);
+  await api.localButton.onclick();await until(()=>api.state.rows[0].blockEls?.size===1);
+  const row=api.state.rows[0],b=row.blocks[0],el=row.blockEls.get(b),local=api.state.translator;
+  const pending=api.translateBlockWithGemini(el);await until(()=>requests.length===1);releaseGemini();await pending;
+  assert.equal(b.ja,'優先するGemini訳');releaseLocal();await idle(api);
+  assert.equal(b.ja,'優先するGemini訳');assert.equal(el.textContent,'優先するGemini訳');assert.equal(api.state.translator,local);assert.equal(api.state.engine,'chrome');
+  assert.match(api.state.rows[1].blocks[0].ja,/ローカル訳/);
+});
+
+test('canceling selected Gemini rejects late output and keeps the previous local translation',async(t)=>{
+  let release,signal;const gate=new Promise(r=>release=r);
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{signal=init.signal;const r=JSON.parse(init.body);await gate;return Response.json({status:'completed',steps:[{type:'model_output',content:[{type:'text',text:JSON.stringify({[r.response_format.schema.required[0]]:'破棄する訳'})}]}]});});
+  const api=await viewer('chrome',{},null,1,null,createKeyedGeminiTranslator);await api.localButton.onclick();await idle(api);
+  const row=api.state.rows[0],b=row.blocks[0],el=row.blockEls.get(b),old=b.ja;api.showTools(el);
+  const pending=api.blockGeminiButton.onclick();await until(()=>!!signal);assert.equal(api.blockGeminiButton.getAttribute('aria-busy'),'true');
+  api.blockGeminiButton.onclick();assert.equal(signal.aborted,true);release();await pending;
+  assert.equal(b.ja,old);assert.equal(el.textContent,old);assert.equal(b.geminiTranslation,undefined);
+});
+
+test('selected Gemini completed during local model preparation survives local initialization',async(t)=>{
+  let releaseLocal;const localGate=new Promise(r=>releaseLocal=r);
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{const r=JSON.parse(init.body);return Response.json({status:'completed',steps:[{type:'model_output',content:[{type:'text',text:JSON.stringify({[r.response_format.schema.required[0]]:'準備中のGemini訳'})}]}]});});
+  const api=await viewer('chrome',{create:async()=>{await localGate;return {translate:async text=>'local '+text};}},null,1,null,createKeyedGeminiTranslator);
+  const starting=api.localButton.onclick();await until(()=>api.state.preparingAbort);
+  const row=api.state.rows[0],b=row.blocks[0],el=element();el._b=b;el._row=row;el.parentNode=row.dstLayer;row.blockEls=new Map([[b,el]]);
+  await api.translateBlockWithGemini(el);assert.equal(b.ja,'準備中のGemini訳');
+  releaseLocal();await starting;await idle(api);
+  assert.equal(b.ja,'準備中のGemini訳');assert.equal(row.blockEls.get(b).textContent,'準備中のGemini訳');
+  assert.match(api.state.rows[1].blocks[0].ja,/local/);
+});
+
+for(const outcome of ['cancel','failure'])test(`selected Gemini ${outcome} restores deferred local output even when it started during model preparation`,async(t)=>{
+  let releaseLocal,releaseGemini;const localGate=new Promise(r=>releaseLocal=r),geminiGate=new Promise(r=>releaseGemini=r);let requested=false;
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{requested=true;const r=JSON.parse(init.body);await geminiGate;if(outcome==='failure')return Response.json({error:{message:'test failure'}},{status:400});return Response.json({status:'completed',steps:[{type:'model_output',content:[{type:'text',text:JSON.stringify({[r.response_format.schema.required[0]]:'late'})}]}]});});
+  const api=await viewer('chrome',{create:async()=>{await localGate;return {translate:async text=>'restored local '+text};}},null,1,null,createKeyedGeminiTranslator);
+  const starting=api.localButton.onclick();await until(()=>api.state.preparingAbort);
+  const row=api.state.rows[0],b=row.blocks[0],el=element();el._b=b;el._row=row;el.parentNode=row.dstLayer;row.blockEls=new Map([[b,el]]);
+  const selected=api.translateBlockWithGemini(el);await until(()=>requested);
+  releaseLocal();await starting;await idle(api);
+  assert.notEqual(b.ja,'restored local '+b.text);
+  if(outcome==='cancel')api.cancelBlockGemini();releaseGemini();await selected;await new Promise(setImmediate);
+  assert.equal(b.ja,'restored local '+b.text);assert.equal(row.blockEls.get(b).textContent,b.ja);assert.equal(b.geminiTranslation,undefined);
+});
+
+test('hovering an untranslated original exposes the block action on the original side without generating',async(t)=>{
+  t.mock.method(globalThis,'fetch',()=>assert.fail('hover must not call Gemini'));
+  const api=await viewer('chrome',{},null,1,null,createKeyedGeminiTranslator),row=api.state.rows[0],b=row.blocks[0];
+  row.left=element();row.right=element();row.vp={width:500,height:700};
+  b.x0=10;b.x1=100;b.top=20;b.bottom=80;
+  row.left.getBoundingClientRect=()=>({left:0,top:0,width:500,height:700});
+  let anchor;row.srcLayer.appendChild=child=>{anchor=child;};
+  api.state.engine=null;api.rendering.trackSourceHover(row);
+  row.left.onpointermove({clientX:30,clientY:40});
+  assert.equal(anchor,api.tools);assert.equal(api.blockGeminiButton.hidden,false);
+  assert.equal(b.ja,undefined);assert.ok(row.blockEls.get(b).classList.contains('untranslated'));
+});
+
+test('changing languages cancels selected translation before whole-document translation starts',async(t)=>{
+  let release,signal;const gate=new Promise(r=>release=r);
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{signal=init.signal;const r=JSON.parse(init.body);await gate;return Response.json({status:'completed',steps:[{type:'model_output',content:[{type:'text',text:JSON.stringify({[r.response_format.schema.required[0]]:'古い言語の訳'})}]}]});});
+  const api=await viewer('chrome',{},null,1,null,createKeyedGeminiTranslator),row=api.state.rows[0],b=row.blocks[0],el=element();el._b=b;el._row=row;el.parentNode=row.dstLayer;row.blockEls=new Map([[b,el]]);api.state.engine=null;
+  const pending=api.translateBlockWithGemini(el);await until(()=>signal);
+  api.element('#dst').value='fr';api.element('#dst').onchange();assert.equal(signal.aborted,true);
+  release();await pending;assert.equal(b.ja,undefined);assert.equal(b.geminiTranslation,undefined);
+});
+
+test('changing languages during local preparation invalidates both the old model and selected Gemini override',async(t)=>{
+  let release;const gate=new Promise(r=>release=r),created=[];
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{const r=JSON.parse(init.body);return Response.json({status:'completed',steps:[{type:'model_output',content:[{type:'text',text:JSON.stringify({[r.response_format.schema.required[0]]:'旧日本語訳'})}]}]});});
+  const api=await viewer('chrome',{create:async({targetLanguage})=>{created.push(targetLanguage);if(targetLanguage==='ja')await gate;return {translate:async text=>targetLanguage+' '+text};}},null,1,null,createKeyedGeminiTranslator);
+  const old=api.localButton.onclick();await until(()=>created.length===1);
+  const row=api.state.rows[0],b=row.blocks[0],el=element();el._b=b;el._row=row;el.parentNode=row.dstLayer;row.blockEls=new Map([[b,el]]);
+  await api.translateBlockWithGemini(el);assert.equal(b.ja,'旧日本語訳');
+  api.element('#dst').value='ko';api.element('#dst').onchange();
+  await until(()=>api.state.translationPair==='en:ko');release();await old;await idle(api);
+  assert.deepEqual(created,['ja','ko']);assert.match(b.ja,/^ko /);assert.match(api.state.rows[1].blocks[0].ja,/^ko /);
 });

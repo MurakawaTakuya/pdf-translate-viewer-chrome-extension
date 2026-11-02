@@ -135,10 +135,25 @@ export function createDocumentTranslator({ rows, translator, getBlocks, getCache
     return new Map([...result].map(([key, text]) => [blocksById.get(key), text]));
   }
 
+  // Read reference context without ready(): only the selected block's citation
+  // group is an output target, never the remaining document.
+  async function translateSelectedBlocks(b,onTargets=()=>{},{force=false}={}){
+    const {pages,ids}=await prepare();signal?.throwIfAborted();
+    const id=idsByBlock.get(b);
+    if(!id||!ids.includes(id))throw new Error('このブロックは翻訳対象ではありません');
+    const related=translator.relatedTargets?await translator.relatedTargets(pages,ids,id):[id];
+    signal?.throwIfAborted();onTargets(related.map(id=>blocksById.get(id)));
+    const result=!force&&related.every(id=>partial.has(id))?new Map(related.map(id=>[id,partial.get(id)])):
+      await translator.translateDocument(pages,related);
+    signal?.throwIfAborted();
+    return new Map([...result].map(([id,text])=>[blocksById.get(id),text]));
+  }
+
   return {
     ready,
     repairMissing,
     retranslateBlocks,
+    translateSelectedBlocks,
     get completed() { return completed; },
     get originalCount() { return originalCount; },
     previewPage(r) {

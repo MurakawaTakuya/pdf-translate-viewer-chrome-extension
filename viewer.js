@@ -76,6 +76,7 @@ const setStatus = (t) => {
 // 古い翻訳の終了で、新しい翻訳のローディングを消さないよう世代ごとに管理する。
 const translationActivities = new Set();
 const repairingTranslators = new WeakSet();
+let blockGeminiJob=null;
 function beginTranslation() {
   const activity = { version: state.translationVersion };
   translationActivities.add(activity);
@@ -581,6 +582,7 @@ function renderPage(r) {
     r.sourceText ??= createSourceTextLayer(r, pdfjsLib.TextLayer, document);
     // Text extraction failure must not hide an otherwise readable PDF.
     try { await r.sourceText.render(); } catch (error) { console.error('原文の選択用テキストを読み込めませんでした', error); }
+    if(state.settings.geminiKey)getPageBlocks(r).catch(console.error);
   })();
   return r.renderP;
 }
@@ -688,22 +690,33 @@ function placeBlock(r, b) {
 
 // 原文の選択レイヤーがマウスを受け取り、下の枠は選択を遮らず強調表示だけ行う。
 function trackSourceHover(r) {
-  let hovered = null;
-  const set = (next) => {
-    if (next === hovered) return;
+  let hovered = null,point=null;
+  const set = (next,source) => {
+    if (next === hovered){if(next?._b&&source!==toolsOnSource)showTools(next,source);return;}
     hovered?._hot(false);
     hovered = next;
     hovered?._hot(true);
+    if(next?._b)showTools(next,source);else if(!next)hideToolsSoon();
   };
-  r.left.onpointermove = (event) => {
-    const rect = r.left.getBoundingClientRect();
+  const move=(box,source)=>(event)=>{
+    if(event.target?.closest?.('.blk-tools'))return;
+    const rect = box.getBoundingClientRect();
     const x = (event.clientX - rect.left) * r.vp.width / rect.width;
     const y = (event.clientY - rect.top) * r.vp.height / rect.height;
-    const match = [...(r.blockEls || [])].find(([b]) =>
-      x >= b.x0 - 1.5 && x <= b.x1 + 1.5 && y >= b.top - 1.5 && y <= b.bottom + 1.5);
-    set(match?.[1] || null);
+    const current=point={x,y,source};
+    const pick=()=>{
+      if(point!==current)return;
+      const block=(r.blocks||[...(r.blockEls?.keys()||[])]).find(b=>b.translate!==false&&x>=b.x0-1.5&&x<=b.x1+1.5&&y>=b.top-1.5&&y<=b.bottom+1.5);
+      let el=block&&r.blockEls?.get(block);
+      if(block&&!el&&state.settings.geminiKey){el=blockElement(r,block);el.classList.remove('pending');el.classList.add('untranslated');}
+      set(el||null,source);
+    };
+    if(r.blocks||r.blockEls?.size||!state.settings.geminiKey)pick();else getPageBlocks(r).then(pick).catch(console.error);
   };
-  r.left.onpointerleave = () => set(null);
+  r.left.onpointermove=move(r.left,true);
+  if(r.right)r.right.onpointermove=move(r.right,false);
+  r.left.onpointerleave=()=>{point=null;set(null);};
+  if(r.right)r.right.onpointerleave=()=>{point=null;set(null);};
 }
 
 function blockElement(r, b) {
@@ -718,6 +731,7 @@ function fillBlock(el, b, text) {
   b.ja = text; // PDF保存用に覚えておく
   el.title = '';
   el.classList.remove('pending');
+  el.classList.remove('untranslated');
   el.classList.add(b.bold ? 'bold' : b.sans ? 'sans' : 'serif');
   el.style.textAlign = b.align;
   el.style.background = `rgb(${b.colors.bg})`;
@@ -765,25 +779,38 @@ const redoBtn = document.createElement('button');
 redoBtn.textContent = '↻ 訳し直す';
 redoBtn.title = 'この段落だけ、もう一度翻訳します';
 const toggleBtn = document.createElement('button');
-tools.append(redoBtn, toggleBtn);
+const blockGeminiBtn=document.createElement('button');
+blockGeminiBtn.textContent='Geminiで翻訳';
+tools.append(redoBtn,blockGeminiBtn,toggleBtn);
 let toolsFor = null;
+let toolsOnSource=false;
 let hideTimer = 0;
 
-function showTools(el) {
+function showTools(el,onSource=false) {
   clearTimeout(hideTimer);
-  if (el.classList.contains('pending')) { tools.remove(); return; }
-  toolsFor = el;
   const b = el._b;
+  const canGemini=!!state.settings.geminiKey?.trim()&&b.translate!==false&&state.engine!=='gemini';
+  if (el.classList.contains('pending')&&!canGemini) { tools.remove(); return; }
+  toolsFor = el;
+  toolsOnSource=onSource;
+  const key=JSON.stringify([state.settings.geminiModel||'',srcSel.value,dstSel.value]);
+  const cached=b.geminiTranslation?.key===key&&b.ja===b.geminiTranslation.text;
+  const active=blockGeminiJob?.blocks.has(b);
+  blockGeminiBtn.hidden=!canGemini;
+  blockGeminiBtn.disabled=state.exporting||srcSel.value===dstSel.value||!!blockGeminiJob&&!active;
+  blockGeminiBtn.textContent=active?'Geminiを中断':cached?'Geminiで訳し直す':'Geminiで翻訳';
+  blockGeminiBtn.setAttribute('aria-busy',String(!!active));
+  blockGeminiBtn.title=active?'この段落のGemini翻訳を中断します':'全文を文脈として添え、この段落だけをGeminiで翻訳します';
   // Chrome内蔵は何度訳しても同じ結果になるので、訳し直しは Gemini のときだけ
   redoBtn.hidden = (b.hidden && !b.failed) || state.engine !== 'gemini' || (state.translator?.ready && !state.translator.completed);
-  toggleBtn.hidden = !!b.failed; // まだ訳がない段落は、表示の切り替えもできない
+  toggleBtn.hidden = !!b.failed||typeof b.ja!=='string'||el.classList.contains('pending');
   toggleBtn.textContent = b.hidden ? '訳を表示' : '原文を表示';
   toggleBtn.title = b.hidden ? 'この段落の訳を元に戻します' : 'この段落の訳を消して、原文が見えるようにします';
   // 段落の右上（枠のすぐ外）に置く。ページの上端に近いときは枠の内側
   const top = parseFloat(el.style.top);
   tools.style.top = (top >= 20 ? top - 20 : top) + 'px';
   tools.style.left = parseFloat(el.style.left) + parseFloat(el.style.width) + 'px';
-  el.parentNode.appendChild(tools);
+  (onSource?el._row.srcLayer:el.parentNode).appendChild(tools);
 }
 
 function hideToolsSoon() {
@@ -800,9 +827,60 @@ toggleBtn.onclick = () => {
   b.hidden = !b.hidden; // PDF保存でもこの段落は訳さず原文のままになる
   el.classList.toggle('off', b.hidden);
   if (b.hidden) setStatus('この段落の訳を消しました（もう一度マウスを乗せて「訳を表示」で戻せます）');
-  showTools(el);
+  showTools(el,toolsOnSource);
 };
 redoBtn.onclick = () => { if (toolsFor) redoBlock(toolsFor); };
+blockGeminiBtn.onclick=()=>{
+  if(blockGeminiJob?.blocks.has(toolsFor?._b)){cancelBlockGemini();setStatus('この段落のGemini翻訳を中断しました');return;}
+  if(toolsFor)return translateBlockWithGemini(toolsFor);
+};
+
+function cancelBlockGemini(){
+  const job=blockGeminiJob;if(!job)return;
+  blockGeminiJob=null;job.controller.abort();
+  if(job.version===state.translationVersion){
+    const entries=[];
+    for(const [block,text]of job.localResults){block.ja=text;entries.push({block,row:state.rows.find(r=>r.blocks?.includes(block)),text});}
+    displayCommittedTranslations(entries).catch(console.error);
+  }
+  if(toolsFor)showTools(toolsFor,toolsOnSource);
+}
+
+async function translateBlockWithGemini(el){
+  const b=el._b,{geminiKey,geminiModel}=state.settings,sourceLanguage=srcSel.value,targetLanguage=dstSel.value;
+  if(!geminiKey?.trim()||state.exporting||blockGeminiJob||state.engine==='gemini'||b.translate===false||sourceLanguage===targetLanguage)return;
+  const cacheKey=JSON.stringify([geminiModel||'',sourceLanguage,targetLanguage]);
+  const force=b.geminiTranslation?.key===cacheKey&&b.ja===b.geminiTranslation.text;
+  const job={controller:new AbortController(),version:state.translationVersion,blocks:new Set([b]),localResults:new Map(),hidden:b.hidden};
+  blockGeminiJob=job;if(toolsFor)showTools(toolsFor,toolsOnSource);
+  const active=()=>blockGeminiJob===job&&job.version===state.translationVersion&&!job.controller.signal.aborted
+    &&srcSel.value===sourceLanguage&&dstSel.value===targetLanguage&&state.settings.geminiKey===geminiKey&&state.settings.geminiModel===geminiModel;
+  try{
+    const scope=createDocumentTranslator({rows:state.rows,getBlocks:getPageBlocks,signal:job.controller.signal,
+      getCached:block=>block.geminiTranslation?.key===cacheKey?block.geminiTranslation.text:undefined,
+      onProgress:message=>{if(active())setStatus('この段落のGemini翻訳: '+message);},
+      translator:createGeminiTranslator({apiKey:geminiKey,model:geminiModel,sourceLanguage,targetLanguage,signal:job.controller.signal,
+        onWait:message=>{if(active())setStatus(message);}})});
+    const updates=await scope.translateSelectedBlocks(b,blocks=>{job.blocks=new Set(blocks);},{force});
+    if(!active())return;
+    const entries=[];
+    for(const [block,text]of updates){
+      if(typeof text!=='string')continue;
+      block.geminiTranslation={key:cacheKey,text};block.geminiOverrideVersion=job.version;block.ja=text;block.failed=false;
+      if(block===b&&block.hidden===job.hidden)block.hidden=false;
+      const row=state.rows.find(r=>r.blocks?.includes(block));(row.previousTranslations??=new Map()).set(block,text);
+      entries.push({block,row,text});
+    }
+    await displayCommittedTranslations(entries);
+    if(active())setStatus('この段落のGemini翻訳が完了しました');
+  }catch(error){
+    if(active()){
+      cancelBlockGemini();setStatus('この段落のGemini翻訳に失敗しました: '+error.message);
+    }
+  }finally{
+    if(blockGeminiJob===job){blockGeminiJob=null;if(toolsFor)showTools(toolsFor,toolsOnSource);}
+  }
+}
 
 async function redoBlock(el) {
   const b = el._b, tr = state.translator;
@@ -835,6 +913,7 @@ function translationBusy() {
 }
 
 function stopTranslation(announce = true) {
+  cancelBlockGemini();
   ++state.translationVersion;
   state.enabled = false;
   state.queue = [];
@@ -894,6 +973,7 @@ async function start(engine = state.engine) {
   }
 
   const previousEngine = state.engine;
+  cancelBlockGemini();
   const version = ++state.translationVersion;
   const controller = new AbortController();
   state.preparingAbort?.abort();
@@ -956,10 +1036,17 @@ async function start(engine = state.engine) {
         ? new Map((r.blocks || []).filter((b) => typeof b.ja === 'string').map((b) => [b, b.ja]))
         : null;
       if (!preserve) {
-        for (const b of r.blocks || []) b.ja = null;
-        r.blockEls = new Map();
-        r.srcLayer.replaceChildren();
-        r.dstLayer.replaceChildren();
+        // A selected Gemini request can finish while the local model prepares.
+        // Keep only results produced for this run; older language pairs reset.
+        const selected=new Set((r.blocks||[]).filter(b=>b.geminiOverrideVersion===version&&typeof b.ja==='string'));
+        for (const b of r.blocks || []) if(!selected.has(b)) b.ja = null;
+        if(selected.size){
+          for(const [b,el]of r.blockEls||[])if(!selected.has(b)){el._src?.remove();el.remove();r.blockEls.delete(b);}
+        }else{
+          r.blockEls = new Map();
+          r.srcLayer.replaceChildren();
+          r.dstLayer.replaceChildren();
+        }
       }
       for (const el of r.dstLayer.querySelectorAll('.page-msg')) el.remove();
     }
@@ -1079,6 +1166,7 @@ async function pump() {
   }
   if (state.working !== job) return;
   state.working = false;
+  if(blockGeminiJob)return;
   if (error && errorTranslator === state.translator && state.rows.some((r) => r.failed)) setStatus('翻訳エラー: ' + error.message);
   else if (!state.exporting) setStatus(state.translator.ready
     ? completionMessage(state.translator) : '先読み範囲の翻訳が完了しました');
@@ -1253,6 +1341,14 @@ async function translatePageInner(r, translator) {
   const els = targets.map((b) => blockElement(r, b));
   const onEach = (i, text, detail) => {
     if (translator !== state.translator) return false; // 言語や設定を切り替えられた
+    if(state.engine==='chrome'){
+      const block=targets[i];
+      if(block.geminiOverrideVersion===state.translationVersion)return;
+      if(blockGeminiJob?.version===state.translationVersion&&blockGeminiJob.blocks.has(block)){
+        if(typeof text==='string')blockGeminiJob.localResults.set(block,text);
+        return;
+      }
+    }
     if (detail?.original) {
       targets[i].ja = null;
       markFailed(els[i], targets[i]);
@@ -1275,7 +1371,7 @@ async function translatePageInner(r, translator) {
 
 // ---------- PDFとして保存 ----------
 function canExportTranslation() {
-  return state.enabled && !state.translator?.missingCount
+  return !blockGeminiJob&&state.enabled && !state.translator?.missingCount
     && (!state.translator?.ready || state.translator.completed)
     && state.rows.some((r) => r.translated && r.blocks?.some((b) => b.ja));
 }
@@ -1361,7 +1457,9 @@ function saveFile(bytes, filename, type = 'application/pdf') {
 async function showSettings() {
   const next = await openSettings(state.settings);
   if (!next) return;
+  cancelBlockGemini();
   state.settings = next;
+  if(toolsFor)showTools(toolsFor,toolsOnSource);
 }
 
 // 翻訳はいらないとき：このPDFだけ、いつものビューアで開き直す
@@ -1436,7 +1534,14 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { closeDownloadMenu(); closeViewerMenu(); }
   handleZoomKey(e);
 });
-srcSel.onchange = dstSel.onchange = () => { if (state.enabled) start(); };
+srcSel.onchange = dstSel.onchange = () => {
+  cancelBlockGemini();
+  if(state.enabled||state.preparingAbort){
+    const engine=state.engine;
+    stopTranslation(false);
+    start(engine);
+  }
+};
 
 if (!pdfSource.nativeFallback) disableNativeZoom(self.chrome?.tabs, pdfSource.tabId).catch(() => {});
 
