@@ -147,15 +147,23 @@ URLからarXiv／DOIを特定できる公開PDFは、読み込み後に書誌情
 
 ## 開発時の確認
 
-ビルド不要のJavaScript ES modules構成です。テストはNode.js 24で確認しています。
+ビルド不要のJavaScript ES modules構成です。開発用ツールとテストはNode.js 24を使います（`.nvmrc`）。Chromeでの利用にNode.jsは不要です。
 
 ```sh
-node --test tests/*.test.mjs
+npm ci
+npm run check         # lint・整形確認・オフラインテスト
+npm run format        # 整形を適用
+npm run lint:fix      # 自動修正できるlint指摘を修正
+npm test              # オフラインテストだけ実行
 ```
+
+ESLintは推奨ルールを使い、拡張機能のブラウザAPIとNode.jsのテスト・検証スクリプトを分けて検査します。Prettierは個人テンプレートと同じ2スペース・セミコロンあり・ダブルクォート・80文字幅です。第三者の `lib/`・フォント・ライセンスと、過去の実験記録 `reports/` は対象外です。Markdownは既存の書式を保持します。
+
+GitHub Actionsはmainへのpushとmain向けPRで `npm ci`・lint・整形確認・テストを実行します。開発依存はlockfileと固定バージョンで管理しています。minimatchは開発ツールの推移依存に既知のDoS問題（GHSA-g3hv-75wg-m249）があるため、修正版11.0.1をoverrideしています。上流の対応後にこのoverrideを見直してください。
 
 翻訳ストリーム・取消・不足補完・エンジン切り替え・描画制御・URLルーティング・原文選択レイヤー・引用・設定をオフラインでテストします。テストコマンドは実際のAPIキーや無料枠を使いません。Chrome上の実描画やTranslator APIの動作は別途確認が必要です。
 
-実APIでの検証ツールは [scripts/evaluation/README.md](scripts/evaluation/README.md) を参照してください。これらも既定は送信せず、明示した実行オプションでのみ生成します。lint・formatterは現時点では未導入です。
+実APIでの検証ツールは [scripts/evaluation/README.md](scripts/evaluation/README.md) を参照してください。これらも既定は送信せず、明示した実行オプションでのみ生成します。評価ツールの明示的な実API実行は通常のlint・CIには含めません。
 
 ## ライセンス
 
