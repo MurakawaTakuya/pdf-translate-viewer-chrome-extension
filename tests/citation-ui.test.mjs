@@ -9,7 +9,11 @@ const deferred = () => {
   });
   return { promise, resolve };
 };
-function fixture(fileUrl = "https://doi.org/10.1234/paper", overrides = {}) {
+function fixture(
+  fileUrl = "https://doi.org/10.1234/paper",
+  overrides = {},
+  onPaperTitle = () => {}
+) {
   const elements = new Map(),
     copied = [],
     downloads = [],
@@ -59,6 +63,7 @@ function fixture(fileUrl = "https://doi.org/10.1234/paper", overrides = {}) {
     fileUrl,
     getPdf: () => ({}),
     service,
+    onPaperTitle,
     clipboard: {
       writeText: async (text) => {
         copied.push(text);
@@ -236,4 +241,15 @@ test("prefetch does not inspect local or unidentified PDF metadata or send it ex
     await f.controller.prefetch();
     assert.equal(f.calls.length, 0);
   }
+});
+
+test("only original-URL prefetch supplies a tab title; manually selected citations never rename the PDF", async () => {
+  const titles = [];
+  const f = fixture(undefined, {}, (title) => titles.push(title));
+  await f.controller.prefetch();
+  assert.deepEqual(titles, ["Paper title"]);
+  await f.controller.open();
+  f.$("#citationIdentifier").value = "10.1234/other";
+  await f.$("#citationLookup").onsubmit({ preventDefault() {} });
+  assert.deepEqual(titles, ["Paper title"]);
 });

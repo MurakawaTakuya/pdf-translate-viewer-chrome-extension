@@ -12,6 +12,7 @@ import { createCitationDialog } from "./citation-ui.js";
 import { createSourceTextLayer } from "./source-text.js";
 import { resolvePdfSource, viewerDestinationUrl } from "./pdf-source.js";
 import { protectedRuns, mathImage } from "./protected-spans.js";
+import { createPaperTitle } from "./paper-title.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "./lib/pdf.worker.min.mjs",
@@ -37,6 +38,13 @@ const pdfSource = await resolvePdfSource({
     : undefined,
 });
 const fileUrl = pdfSource.originalUrl;
+const tabTitle = createPaperTitle({
+  document,
+  fileUrl,
+  tabId: pdfSource.fallback ? pdfSource.tabId : undefined,
+  tabs: self.chrome?.tabs,
+  label: $("#filename"),
+});
 // 他のサイトに埋め込まれて使われないようにする（ビューアはWebから開ける資源として登録しているため）
 // Chrome自身がトップレベルPDFのために作る内部フレームだけは認証済みストリームで許可する。
 if (window.top !== window && !pdfSource.fallback)
@@ -574,17 +582,19 @@ async function load() {
     setStatus("PDFのURLが指定されていません");
     return;
   }
-  let name = fileUrl;
+  let name = "document.pdf";
   try {
-    name =
-      decodeURIComponent(fileUrl.split("?")[0].split("/").pop()) || fileUrl;
+    name = new URL(fileUrl).pathname.split("/").pop() || name;
+  } catch {
+    /* A URL without a usable filename keeps the default download name. */
+  }
+  try {
+    name = decodeURIComponent(name);
   } catch {
     /* Optional metadata/parsing can be unavailable; keep the existing fallback. */
   }
   state.name = name;
-  $("#filename").textContent = name;
-  $("#filename").title = name;
-  document.title = name + " - PDF翻訳ビューア";
+  tabTitle.fallback(name);
 
   setStatus("PDFを読み込み中…");
   pdfLoadProgress.start();
@@ -595,6 +605,7 @@ async function load() {
     const task = pdfjsLib.getDocument(parameters);
     task.onProgress = (progress) => pdfLoadProgress.update(progress);
     state.pdf = await task.promise;
+    tabTitle.fromPdf(state.pdf);
     pdfLoadProgress.prepare();
     await buildRows();
     // 受信だけで完了扱いにせず、最初のページが見えるまで表示を残す。
@@ -2138,6 +2149,7 @@ citationDialog = createCitationDialog({
   document,
   fileUrl,
   getPdf: () => state.pdf,
+  onPaperTitle: (title) => tabTitle.fromCitation(title),
   download: (text, filename) =>
     saveFile(
       new TextEncoder().encode(text),

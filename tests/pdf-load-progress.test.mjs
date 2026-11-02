@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import { createPdfLoadProgress } from "../pdf-load-progress.js";
+import { createPaperTitle } from "../paper-title.js";
 const source = await readFile(new URL("../viewer.js", import.meta.url), "utf8");
 const loadSource = source.slice(
   source.indexOf("async function load()"),
@@ -105,6 +106,7 @@ test("completion briefly reaches the right edge; restart cancels hiding and fail
 
 function loader({
   failureStage,
+  fileUrl = "https://example.test/paper.pdf",
   autoTranslate = false,
   pdfSource = {
     parameters: async () => ({ url: "https://example.test/paper.pdf" }),
@@ -123,14 +125,18 @@ function loader({
     painted = false;
   const parameters = [],
     nativeCalls = [];
+  const document = {},
+    label = {};
   const load = vm.runInNewContext(
     `(function(){${loadSource};return load;})()`,
     {
-      fileUrl: "https://example.test/paper.pdf",
+      fileUrl,
+      URL,
       pdfSource,
       state,
       autoTranslatePending: true,
-      document: {},
+      document,
+      tabTitle: createPaperTitle({ document, label }),
       console: { error() {} },
       citationDialog: { prefetch() {} },
       openNativeViewer: async () => {
@@ -176,6 +182,8 @@ function loader({
     translations,
     parameters,
     nativeCalls,
+    document,
+    label,
     status: () => status,
     built: () => built,
     painted: () => painted,
@@ -230,6 +238,49 @@ test("cached loads with no progress notifications still finish and hide the bar"
   f.flush();
   assert.equal(f.bar.hidden, true);
   assert.equal(f.status(), "");
+});
+
+test("titleless PDFs show a decoded filename without URL query or fragment in both title locations", async () => {
+  const f = loader({
+    fileUrl: "https://example.test/paper%20name.pdf?download=1#page=3",
+  });
+  f.network.resolve({
+    getMetadata: async () => ({ info: { Title: "Untitled" } }),
+  });
+  f.rows.resolve();
+  f.paint.resolve();
+  await f.load();
+  assert.equal(f.state.name, "paper name.pdf");
+  assert.equal(f.document.title, "paper name.pdf");
+  assert.equal(f.label.textContent, "paper name.pdf");
+  assert.equal(f.label.title, "paper name.pdf");
+});
+
+test("paper titles update the tab and header while preserving the original download name", async () => {
+  const f = loader();
+  f.network.resolve({
+    getMetadata: async () => ({ info: { Title: "Original Paper Title" } }),
+  });
+  f.rows.resolve();
+  f.paint.resolve();
+  await f.load();
+  assert.equal(f.state.name, "paper.pdf");
+  assert.equal(f.document.title, "Original Paper Title");
+  assert.equal(f.label.textContent, "Original Paper Title");
+  assert.equal(f.label.title, "Original Paper Title");
+});
+
+test("malformed filename escapes never expose URL query or fragment in a filename fallback", async () => {
+  const f = loader({
+    fileUrl: "https://example.test/paper%ZZ.pdf?download=1#page=3",
+  });
+  f.network.resolve({});
+  f.rows.resolve();
+  f.paint.resolve();
+  await f.load();
+  assert.equal(f.state.name, "paper%ZZ.pdf");
+  assert.equal(f.document.title, "paper%ZZ.pdf");
+  assert.equal(f.label.textContent, "paper%ZZ.pdf");
 });
 
 test("automatic local translation starts only after PDF preparation and the first paint finish", async () => {

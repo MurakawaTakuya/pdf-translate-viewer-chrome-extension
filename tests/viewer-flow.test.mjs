@@ -11,6 +11,7 @@ import { disableNativeZoom } from "../native-zoom.js";
 import { createPdfLoadProgress } from "../pdf-load-progress.js";
 import { horizontalZoomShift, verticalZoomShift } from "../zoom-anchor.js";
 import { resolvePdfSource, viewerDestinationUrl } from "../pdf-source.js";
+import { createPaperTitle } from "../paper-title.js";
 import { streamFixture, until } from "./helpers/stream.mjs";
 import { protectedRuns, mathImage } from "../protected-spans.js";
 import { toRuns } from "../math.js";
@@ -199,6 +200,7 @@ async function viewer(
       ? async () => sourceOverride
       : resolvePdfSource,
     viewerDestinationUrl,
+    createPaperTitle,
     disableNativeZoom,
     createPdfLoadProgress,
     horizontalZoomShift,

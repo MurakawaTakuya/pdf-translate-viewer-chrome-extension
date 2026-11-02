@@ -14,6 +14,7 @@ export function createCitationDialog({
   download,
   clipboard = globalThis.navigator?.clipboard,
   service = createCitationService(),
+  onPaperTitle = () => {},
 }) {
   const $ = (s) => document.querySelector(s);
   const dialog = $("#citations");
@@ -196,6 +197,7 @@ export function createCitationDialog({
       return (prefetching ??= (async () => {
         try {
           const result = await service.resolve(id);
+          onPaperTitle(result.title);
           await Promise.allSettled(
             CITATION_STYLES.map((entry) =>
               service.formatted(result.doi, entry.id)
