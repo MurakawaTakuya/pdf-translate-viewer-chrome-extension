@@ -1,175 +1,472 @@
 <!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <title>PDF翻訳ビューア</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="icons/icon32.png">
-  <link rel="stylesheet" href="viewer.css">
-</head>
-<body>
-  <header class="viewer-toolbar">
-    <div class="toolbar-row">
-      <div class="toolbar-file">
-        <svg class="toolbar-icon file-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5M8 13h8M8 17h6"/></svg>
-        <span id="filename"></span>
-        <span class="viewer-choice-control">
-        <button id="openOriginal" class="icon-button" title="Chrome内蔵ビューアで開く" aria-label="Chrome内蔵ビューアで開く" hidden>
-          <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M10 5H5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-5"/></svg>
-        </button>
-        </span>
-      </div>
+  <head>
+    <meta charset="utf-8" />
+    <title>PDF翻訳ビューア</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="icons/icon32.png" />
+    <link rel="stylesheet" href="viewer.css" />
+  </head>
+  <body>
+    <header class="viewer-toolbar">
+      <div class="toolbar-row">
+        <div class="toolbar-file">
+          <svg
+            class="toolbar-icon file-mark"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5M8 13h8M8 17h6"
+            />
+          </svg>
+          <span id="filename"></span>
+          <span class="viewer-choice-control">
+            <button
+              id="openOriginal"
+              class="icon-button"
+              title="Chrome内蔵ビューアで開く"
+              aria-label="Chrome内蔵ビューアで開く"
+              hidden
+            >
+              <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M14 4h6v6M20 4l-9 9M10 5H5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-5"
+                />
+              </svg>
+            </button>
+          </span>
+        </div>
 
-      <div class="toolbar-reading" role="group" aria-label="PDFの表示">
-        <select id="view" aria-label="表示方法" title="表示方法">
-          <option value="orig">原文のみ</option>
-          <option value="both" selected>両方</option>
-          <option value="ja">翻訳後のみ</option>
-        </select>
-        <span class="toolbar-separator" aria-hidden="true"></span>
-        <span class="page-navigation" role="group" aria-label="ページ移動">
-          <button id="prevPage" class="icon-button" title="前のページ" aria-label="前のページ" disabled><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button>
-          <input id="pageNumber" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" spellcheck="false" aria-label="現在のページ" title="ページ番号を入力してEnterで移動" disabled>
-          <span class="page-count">/ <span id="pageTotal">0</span></span>
-          <button id="nextPage" class="icon-button" title="次のページ" aria-label="次のページ" disabled><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button>
-        </span>
-        <span class="toolbar-separator" aria-hidden="true"></span>
-        <span class="zoom-controls" role="group" aria-label="表示倍率">
-          <span class="zoom">
-            <button id="zoomOut" class="icon-button" title="縮小" aria-label="縮小"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
-            <button id="zoomReset" title="100%に戻す" aria-label="倍率を100%に戻す"><span id="zoomLabel">100%</span></button>
-            <button id="zoomIn" class="icon-button" title="拡大" aria-label="拡大"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button>
+        <div class="toolbar-reading" role="group" aria-label="PDFの表示">
+          <select id="view" aria-label="表示方法" title="表示方法">
+            <option value="orig">原文のみ</option>
+            <option value="both" selected>両方</option>
+            <option value="ja">翻訳後のみ</option>
+          </select>
+          <span class="toolbar-separator" aria-hidden="true"></span>
+          <span class="page-navigation" role="group" aria-label="ページ移動">
+            <button
+              id="prevPage"
+              class="icon-button"
+              title="前のページ"
+              aria-label="前のページ"
+              disabled
+            >
+              <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m14 6-6 6 6 6" />
+              </svg>
+            </button>
+            <input
+              id="pageNumber"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              autocomplete="off"
+              spellcheck="false"
+              aria-label="現在のページ"
+              title="ページ番号を入力してEnterで移動"
+              disabled
+            />
+            <span class="page-count">/ <span id="pageTotal">0</span></span>
+            <button
+              id="nextPage"
+              class="icon-button"
+              title="次のページ"
+              aria-label="次のページ"
+              disabled
+            >
+              <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m10 6 6 6-6 6" />
+              </svg>
+            </button>
           </span>
-          <span class="zoom-fit">
-            <button id="fitWidth" class="icon-button" title="幅に合わせる（対訳では左右2ページ）" aria-label="幅に合わせる" aria-pressed="false"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16M20 4v16M6 12h12M9 9l-3 3 3 3M15 9l3 3-3 3"/></svg></button>
-            <button id="fitHeight" class="icon-button" title="現在のページを高さに合わせる" aria-label="高さに合わせる" aria-pressed="false"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16M4 20h16M12 6v12M9 9l3-3 3 3M9 15l3 3 3-3"/></svg></button>
-          </span>
-        </span>
-        <span class="toolbar-separator" aria-hidden="true"></span>
-        <span class="document-actions" role="group" aria-label="PDFの保存と引用">
-          <span class="download-control">
-            <button id="download" class="icon-button" title="保存するPDFを選ぶ" aria-label="PDFで保存" aria-haspopup="menu" aria-expanded="false"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 16v4h16v-4"/></svg></button>
-            <span id="downloadMenu" class="download-menu" role="menu" aria-label="保存するPDF" hidden>
-              <button id="downloadOriginal" role="menuitem">翻訳前の原文</button>
-              <button id="downloadTranslated" role="menuitem" disabled>翻訳後</button>
-              <button id="downloadBoth" role="menuitem" disabled>原文・訳文を交互</button>
+          <span class="toolbar-separator" aria-hidden="true"></span>
+          <span class="zoom-controls" role="group" aria-label="表示倍率">
+            <span class="zoom">
+              <button
+                id="zoomOut"
+                class="icon-button"
+                title="縮小"
+                aria-label="縮小"
+              >
+                <svg
+                  class="toolbar-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
+              <button
+                id="zoomReset"
+                title="100%に戻す"
+                aria-label="倍率を100%に戻す"
+              >
+                <span id="zoomLabel">100%</span>
+              </button>
+              <button
+                id="zoomIn"
+                class="icon-button"
+                title="拡大"
+                aria-label="拡大"
+              >
+                <svg
+                  class="toolbar-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12h14M12 5v14" />
+                </svg>
+              </button>
+            </span>
+            <span class="zoom-fit">
+              <button
+                id="fitWidth"
+                class="icon-button"
+                title="幅に合わせる（対訳では左右2ページ）"
+                aria-label="幅に合わせる"
+                aria-pressed="false"
+              >
+                <svg
+                  class="toolbar-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M4 4v16M20 4v16M6 12h12M9 9l-3 3 3 3M15 9l3 3-3 3" />
+                </svg>
+              </button>
+              <button
+                id="fitHeight"
+                class="icon-button"
+                title="現在のページを高さに合わせる"
+                aria-label="高さに合わせる"
+                aria-pressed="false"
+              >
+                <svg
+                  class="toolbar-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M4 4h16M4 20h16M12 6v12M9 9l3-3 3 3M9 15l3 3 3-3" />
+                </svg>
+              </button>
             </span>
           </span>
-          <button id="cite" class="icon-button" title="引用を表示" aria-label="引用を表示" aria-haspopup="dialog" aria-expanded="false"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h6v7l-3 5H4l3-5H4zM14 6h6v7l-3 5h-3l3-5h-3z"/></svg></button>
-        </span>
+          <span class="toolbar-separator" aria-hidden="true"></span>
+          <span
+            class="document-actions"
+            role="group"
+            aria-label="PDFの保存と引用"
+          >
+            <span class="download-control">
+              <button
+                id="download"
+                class="icon-button"
+                title="保存するPDFを選ぶ"
+                aria-label="PDFで保存"
+                aria-haspopup="menu"
+                aria-expanded="false"
+              >
+                <svg
+                  class="toolbar-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3v12M7 10l5 5 5-5M4 16v4h16v-4" />
+                </svg>
+              </button>
+              <span
+                id="downloadMenu"
+                class="download-menu"
+                role="menu"
+                aria-label="保存するPDF"
+                hidden
+              >
+                <button id="downloadOriginal" role="menuitem">
+                  翻訳前の原文
+                </button>
+                <button id="downloadTranslated" role="menuitem" disabled>
+                  翻訳後
+                </button>
+                <button id="downloadBoth" role="menuitem" disabled>
+                  原文・訳文を交互
+                </button>
+              </span>
+            </span>
+            <button
+              id="cite"
+              class="icon-button"
+              title="引用を表示"
+              aria-label="引用を表示"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+            >
+              <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 6h6v7l-3 5H4l3-5H4zM14 6h6v7l-3 5h-3l3-5h-3z" />
+              </svg>
+            </button>
+          </span>
+        </div>
+
+        <div class="toolbar-translation" role="group" aria-label="翻訳">
+          <span class="language-pair">
+            <select id="src" aria-label="原文の言語" title="原文の言語">
+              <option value="en">英語</option>
+              <option value="zh">中国語</option>
+              <option value="ko">韓国語</option>
+              <option value="fr">フランス語</option>
+              <option value="de">ドイツ語</option>
+              <option value="es">スペイン語</option>
+              <option value="ru">ロシア語</option>
+              <option value="ja">日本語</option>
+            </select>
+            <svg
+              class="toolbar-icon language-arrow"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14M14 7l5 5-5 5" />
+            </svg>
+            <select id="dst" aria-label="訳文の言語" title="訳文の言語">
+              <option value="ja">日本語</option>
+              <option value="en">英語</option>
+              <option value="zh">中国語</option>
+              <option value="ko">韓国語</option>
+            </select>
+          </span>
+          <button
+            id="startLocal"
+            class="translate-button"
+            aria-label="ローカルAIで翻訳"
+            aria-busy="false"
+            title="ローカルAIで翻訳。Chrome内蔵AIを使い、文章は外部に送られません。"
+          >
+            ローカルAI
+          </button>
+          <button
+            id="startGemini"
+            class="translate-button"
+            aria-label="Geminiで翻訳"
+            aria-busy="false"
+            title="Geminiで翻訳。PDF全文をGoogleへ送信します。APIキーが必要です。"
+          >
+            Gemini
+          </button>
+          <button
+            id="openSettings"
+            class="icon-button"
+            title="翻訳の設定"
+            aria-label="翻訳の設定"
+          >
+            <svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="m9.5 3-.7 2-2 .9-2-.4-2 3.4 1.4 1.6v2.4L2.8 14l2 3.5 2-.4 2 .9.7 2h4l.7-2 2-.9 2 .4 2-3.5-1.4-1.1v-2.4l1.4-1.6-2-3.4-2 .4-2-.9-.7-2z"
+              />
+              <circle cx="11.5" cy="11.5" r="3" />
+            </svg>
+          </button>
+        </div>
       </div>
-
-      <div class="toolbar-translation" role="group" aria-label="翻訳">
-        <span class="language-pair">
-          <select id="src" aria-label="原文の言語" title="原文の言語">
-            <option value="en">英語</option>
-            <option value="zh">中国語</option>
-            <option value="ko">韓国語</option>
-            <option value="fr">フランス語</option>
-            <option value="de">ドイツ語</option>
-            <option value="es">スペイン語</option>
-            <option value="ru">ロシア語</option>
-            <option value="ja">日本語</option>
-          </select>
-          <svg class="toolbar-icon language-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg>
-          <select id="dst" aria-label="訳文の言語" title="訳文の言語">
-            <option value="ja">日本語</option>
-            <option value="en">英語</option>
-            <option value="zh">中国語</option>
-            <option value="ko">韓国語</option>
-          </select>
-        </span>
-        <button id="startLocal" class="translate-button" aria-label="ローカルAIで翻訳" aria-busy="false" title="ローカルAIで翻訳。Chrome内蔵AIを使い、文章は外部に送られません。">ローカルAI</button>
-        <button id="startGemini" class="translate-button" aria-label="Geminiで翻訳" aria-busy="false" title="Geminiで翻訳。PDF全文をGoogleへ送信します。APIキーが必要です。">Gemini</button>
-        <button id="openSettings" class="icon-button" title="翻訳の設定" aria-label="翻訳の設定"><svg class="toolbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 3-.7 2-2 .9-2-.4-2 3.4 1.4 1.6v2.4L2.8 14l2 3.5 2-.4 2 .9.7 2h4l.7-2 2-.9 2 .4 2-3.5-1.4-1.1v-2.4l1.4-1.6-2-3.4-2 .4-2-.9-.7-2z"/><circle cx="11.5" cy="11.5" r="3"/></svg></button>
+      <div
+        id="pdfLoadProgress"
+        class="pdf-load-progress"
+        role="progressbar"
+        aria-label="PDFの読み込み"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        hidden
+      >
+        <div id="pdfLoadProgressFill" class="pdf-load-progress-fill"></div>
       </div>
-    </div>
-    <div id="pdfLoadProgress" class="pdf-load-progress" role="progressbar" aria-label="PDFの読み込み" aria-valuemin="0" aria-valuemax="100" hidden>
-      <div id="pdfLoadProgressFill" class="pdf-load-progress-fill"></div>
-    </div>
-    <div id="status" role="status" aria-live="polite" hidden></div>
-  </header>
+      <div id="status" role="status" aria-live="polite" hidden></div>
+    </header>
 
-  <dialog id="settings">
-    <form method="dialog">
-      <h2>翻訳の設定</h2>
-      <label class="auto-translate-setting" for="autoTranslate">
-        <span>PDFを開いたときに自動翻訳</span>
-        <input id="autoTranslate" type="checkbox" role="switch" aria-describedby="autoTranslateHelp">
-      </label>
-      <p id="autoTranslateHelp" class="note">ローカルAIで日本語に翻訳します。変更は次にPDFを開いたときから適用されます。</p>
-      <h3>Gemini API</h3>
+    <dialog id="settings">
+      <form method="dialog">
+        <h2>翻訳の設定</h2>
+        <label class="auto-translate-setting" for="autoTranslate">
+          <span>PDFを開いたときに自動翻訳</span>
+          <input
+            id="autoTranslate"
+            type="checkbox"
+            role="switch"
+            aria-describedby="autoTranslateHelp"
+          />
+        </label>
+        <p id="autoTranslateHelp" class="note">
+          ローカルAIで日本語に翻訳します。変更は次にPDFを開いたときから適用されます。
+        </p>
+        <h3>Gemini API</h3>
 
-      <div class="gemini-only">
-        <div class="field">
-          <span class="name">APIキー</span>
-          <div class="row-input">
-            <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…">
-            <button type="button" id="toggleKey">表示</button>
-            <button type="button" id="clearKey">削除</button>
+        <div class="gemini-only">
+          <div class="field">
+            <span class="name">APIキー</span>
+            <div class="row-input">
+              <input
+                id="apiKey"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="AIza…"
+              />
+              <button type="button" id="toggleKey">表示</button>
+              <button type="button" id="clearKey">削除</button>
+            </div>
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              >APIキーを取得する（Google AI Studio）</a
+            >
           </div>
-          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">APIキーを取得する（Google AI Studio）</a>
+          <div class="field">
+            <span class="name">モデル</span>
+            <select id="modelPreset" aria-label="Geminiモデル">
+              <option value="gemini-3.5-flash-lite">
+                Gemini 3.5 Flash-Lite（標準） — 入力 $0.30 / 出力 $2.50
+              </option>
+              <option value="gemini-3.8-flash">
+                Gemini 3.8 Flash — 入力 $0.75 / 出力 $3.75（2026年末まで）
+              </option>
+              <option value="gemini-3.6-flash">
+                Gemini 3.6 Flash — 入力 $0.75 / 出力 $3.75（2026年末まで）
+              </option>
+              <option value="gemini-3.1-flash-lite">
+                Gemini 3.1 Flash-Lite — 入力 $0.25 / 出力 $1.50
+              </option>
+              <option value="gemini-3.1-pro-preview">
+                Gemini 3.1 Pro（プレビュー） — 入力 $2〜4 / 出力 $12〜18
+              </option>
+              <option value="gemini-3-flash-preview">
+                Gemini 3 Flash（プレビュー） — 入力 $0.50 / 出力 $3.00
+              </option>
+              <option value="gemini-4-argon">
+                Gemini 4 Argon — 入力 $2 / 出力 $10（2026年11月末まで）
+              </option>
+              <option value="custom">その他（モデルIDを入力）</option>
+            </select>
+            <input
+              id="model"
+              type="text"
+              spellcheck="false"
+              aria-label="カスタムモデルID"
+              hidden
+            />
+            <span class="note"
+              >料金は有料Standardのテキスト100万トークンあたり（USD）。出力は思考トークンを含みます。対象モデルの無料枠を利用する場合は
+              $0、Pro・Argonには無料枠がありません。</span
+            >
+            <span class="note"
+              >3.1 Proは入力20万トークン以下で $2 / $12、超えると $4 /
+              $18。3.6・3.8 Flashは2027年1月から $1.50 /
+              $7.50、Argonは2026年12月から $4 / $20（いずれも入力 /
+              出力）。</span
+            >
+            <a
+              href="https://ai.google.dev/gemini-api/docs/pricing"
+              target="_blank"
+              rel="noopener noreferrer"
+              >公式料金表（確認: 2026-11-02）</a
+            >
+            <span class="note"
+              >モデルIDは直接入力もできます。利用可否・無料枠はプロジェクトによって異なります。</span
+            >
+          </div>
+          <div class="field">
+            <button type="button" id="testKey">接続テスト</button>
+            <span id="testResult"></span>
+          </div>
+          <p class="note">
+            ⚠ Gemini
+            APIの<b>無料枠</b>では、送った文章がGoogleのサービス改善に使われ、人が読む場合があります。未公開の論文など外に出したくない文書には「ローカルAIで翻訳」を使ってください。
+          </p>
+          <p class="note">
+            APIキーはこのブラウザの、この拡張機能専用の保存領域にだけ保存され、Gemini
+            API以外には送られません。
+          </p>
         </div>
-        <div class="field">
-          <span class="name">モデル</span>
-          <select id="modelPreset" aria-label="Geminiモデル">
-            <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite（標準） — 入力 $0.30 / 出力 $2.50</option>
-            <option value="gemini-3.8-flash">Gemini 3.8 Flash — 入力 $0.75 / 出力 $3.75（2026年末まで）</option>
-            <option value="gemini-3.6-flash">Gemini 3.6 Flash — 入力 $0.75 / 出力 $3.75（2026年末まで）</option>
-            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash-Lite — 入力 $0.25 / 出力 $1.50</option>
-            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro（プレビュー） — 入力 $2〜4 / 出力 $12〜18</option>
-            <option value="gemini-3-flash-preview">Gemini 3 Flash（プレビュー） — 入力 $0.50 / 出力 $3.00</option>
-            <option value="gemini-4-argon">Gemini 4 Argon — 入力 $2 / 出力 $10（2026年11月末まで）</option>
-            <option value="custom">その他（モデルIDを入力）</option>
-          </select>
-          <input id="model" type="text" spellcheck="false" aria-label="カスタムモデルID" hidden>
-          <span class="note">料金は有料Standardのテキスト100万トークンあたり（USD）。出力は思考トークンを含みます。対象モデルの無料枠を利用する場合は $0、Pro・Argonには無料枠がありません。</span>
-          <span class="note">3.1 Proは入力20万トークン以下で $2 / $12、超えると $4 / $18。3.6・3.8 Flashは2027年1月から $1.50 / $7.50、Argonは2026年12月から $4 / $20（いずれも入力 / 出力）。</span>
-          <a href="https://ai.google.dev/gemini-api/docs/pricing" target="_blank" rel="noopener noreferrer">公式料金表（確認: 2026-11-02）</a>
-          <span class="note">モデルIDは直接入力もできます。利用可否・無料枠はプロジェクトによって異なります。</span>
-        </div>
-        <div class="field">
-          <button type="button" id="testKey">接続テスト</button>
-          <span id="testResult"></span>
-        </div>
-        <p class="note">⚠ Gemini APIの<b>無料枠</b>では、送った文章がGoogleのサービス改善に使われ、人が読む場合があります。未公開の論文など外に出したくない文書には「ローカルAIで翻訳」を使ってください。</p>
-        <p class="note">APIキーはこのブラウザの、この拡張機能専用の保存領域にだけ保存され、Gemini API以外には送られません。</p>
-      </div>
 
-      <menu>
-        <button value="cancel" formnovalidate>キャンセル</button>
-        <button value="save" class="primary">保存</button>
-      </menu>
-    </form>
-  </dialog>
-  <dialog id="citations" aria-labelledby="citationTitle">
-    <div class="citation-heading"><h2 id="citationTitle">引用</h2><button id="citationClose" aria-label="引用を閉じる" title="閉じる">×</button></div>
-    <p id="citationStatus" role="status" aria-live="polite"></p>
-    <div id="citationContent" hidden>
-      <p id="citationPaperTitle"></p>
-      <div class="citation-source"><a id="citationSource" target="_blank" rel="noopener noreferrer"></a><button id="citationChange">変更</button><a id="citationScholar" target="_blank" rel="noopener noreferrer">Google Scholarで確認</a></div>
-      <div class="citation-row"><span class="citation-style">MLA</span><p id="citation-mla"></p><button id="copy-mla">コピー</button></div>
-      <div class="citation-row"><span class="citation-style">APA</span><p id="citation-apa"></p><button id="copy-apa">コピー</button></div>
-      <div class="citation-row"><span class="citation-style">ISO 690</span><p id="citation-iso"></p><button id="copy-iso">コピー</button></div>
-      <div class="citation-exports" role="group" aria-label="引用の出力形式">
-        <button id="export-bibtex">BibTeX</button>
-        <button id="export-endnote" title="EndNoteで取り込めるRIS形式">EndNote</button>
-        <button id="export-refman" title="RefManで取り込めるRIS形式">RefMan</button>
-        <button id="export-refworks" title="RefWorksで取り込めるRIS形式">RefWorks</button>
+        <menu>
+          <button value="cancel" formnovalidate>キャンセル</button>
+          <button value="save" class="primary">保存</button>
+        </menu>
+      </form>
+    </dialog>
+    <dialog id="citations" aria-labelledby="citationTitle">
+      <div class="citation-heading">
+        <h2 id="citationTitle">引用</h2>
+        <button id="citationClose" aria-label="引用を閉じる" title="閉じる">
+          ×
+        </button>
       </div>
-      <div id="citationExport" hidden>
-        <label id="citationExportLabel" for="citationExportText"></label>
-        <textarea id="citationExportText" readonly spellcheck="false"></textarea>
-        <div class="citation-export-actions"><button id="citationExportCopy">コピー</button><button id="citationExportSave">ファイルに保存</button></div>
+      <p id="citationStatus" role="status" aria-live="polite"></p>
+      <div id="citationContent" hidden>
+        <p id="citationPaperTitle"></p>
+        <div class="citation-source">
+          <a id="citationSource" target="_blank" rel="noopener noreferrer"></a
+          ><button id="citationChange">変更</button
+          ><a id="citationScholar" target="_blank" rel="noopener noreferrer"
+            >Google Scholarで確認</a
+          >
+        </div>
+        <div class="citation-row">
+          <span class="citation-style">MLA</span>
+          <p id="citation-mla"></p>
+          <button id="copy-mla">コピー</button>
+        </div>
+        <div class="citation-row">
+          <span class="citation-style">APA</span>
+          <p id="citation-apa"></p>
+          <button id="copy-apa">コピー</button>
+        </div>
+        <div class="citation-row">
+          <span class="citation-style">ISO 690</span>
+          <p id="citation-iso"></p>
+          <button id="copy-iso">コピー</button>
+        </div>
+        <div class="citation-exports" role="group" aria-label="引用の出力形式">
+          <button id="export-bibtex">BibTeX</button>
+          <button id="export-endnote" title="EndNoteで取り込めるRIS形式">
+            EndNote
+          </button>
+          <button id="export-refman" title="RefManで取り込めるRIS形式">
+            RefMan
+          </button>
+          <button id="export-refworks" title="RefWorksで取り込めるRIS形式">
+            RefWorks
+          </button>
+        </div>
+        <div id="citationExport" hidden>
+          <label id="citationExportLabel" for="citationExportText"></label>
+          <textarea
+            id="citationExportText"
+            readonly
+            spellcheck="false"
+          ></textarea>
+          <div class="citation-export-actions">
+            <button id="citationExportCopy">コピー</button
+            ><button id="citationExportSave">ファイルに保存</button>
+          </div>
+        </div>
       </div>
-    </div>
-    <form id="citationLookup" hidden>
-      <label for="citationIdentifier">DOI / arXiv ID</label>
-      <div><input id="citationIdentifier" placeholder="10.1109/… または 2301.08243" autocomplete="off" spellcheck="false"><button type="submit">取得</button></div>
-      <p>引用情報は公開書誌データから取得します。PDF本文やGemini APIは使用しません。</p>
-    </form>
-  </dialog>
-  <main id="pages"></main>
-  <script type="module" src="viewer.js"></script>
-</body>
+      <form id="citationLookup" hidden>
+        <label for="citationIdentifier">DOI / arXiv ID</label>
+        <div>
+          <input
+            id="citationIdentifier"
+            placeholder="10.1109/… または 2301.08243"
+            autocomplete="off"
+            spellcheck="false"
+          /><button type="submit">取得</button>
+        </div>
+        <p>
+          引用情報は公開書誌データから取得します。PDF本文やGemini
+          APIは使用しません。
+        </p>
+      </form>
+    </dialog>
+    <main id="pages"></main>
+    <script type="module" src="viewer.js"></script>
+  </body>
 </html>

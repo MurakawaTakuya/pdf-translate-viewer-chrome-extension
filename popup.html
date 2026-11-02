@@ -1,26 +1,26 @@
 <!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <link rel="stylesheet" href="popup.css">
-</head>
-<body>
-  <header>
-    <img src="icons/icon32.png" alt="">
-    <b>PDF翻訳ビューア</b>
-  </header>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icons/icon32.png" alt="" />
+      <b>PDF翻訳ビューア</b>
+    </header>
 
-  <label class="row">
-    <span class="text">
-      <b>PDFを自動で翻訳ビューアで開く</b>
-      <small id="hint"></small>
-    </span>
-    <input type="checkbox" id="auto" class="switch" role="switch">
-  </label>
+    <label class="row">
+      <span class="text">
+        <b>PDFを自動で翻訳ビューアで開く</b>
+        <small id="hint"></small>
+      </span>
+      <input type="checkbox" id="auto" class="switch" role="switch" />
+    </label>
 
-  <button id="action" class="primary" hidden></button>
-  <p id="note" class="note" hidden></p>
+    <button id="action" class="primary" hidden></button>
+    <p id="note" class="note" hidden></p>
 
-  <script type="module" src="popup.js"></script>
-</body>
+    <script type="module" src="popup.js"></script>
+  </body>
 </html>

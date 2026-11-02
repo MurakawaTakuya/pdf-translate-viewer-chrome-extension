@@ -17,9 +17,7 @@
     "storage",
     "declarativeNetRequestWithHostAccess"
   ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
@@ -33,12 +31,8 @@
   },
   "web_accessible_resources": [
     {
-      "resources": [
-        "viewer.html"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
+      "resources": ["viewer.html"],
+      "matches": ["<all_urls>"]
     }
   ]
 }
