@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { extractBlocks } from '../pdf-layout.js';
+import { excludeReferences } from '../translation-scope.js';
 
 const item = (str, x, y, width = str.length * 4, font = 'regular', size = 10) => ({
   str, width, fontName: font, transform: [size, 0, 0, size, x, y],
@@ -11,6 +12,21 @@ async function extract(items) {
     commonObjs: { has: () => true, get: (name) => ({ name: ({ bold: 'Times-Bold', math: 'CMMI10', roman: 'CMR10', boldmath: 'CMMIB10' })[name] || 'Times-Roman', ascent: 0.8, descent: -0.2 }) },
   } });
 }
+
+test('a regular body line saying References does not suppress the rest of the document',async()=>{
+  const blocks=await extract([item('References',50,100,50),item('are stored in an indexed collection for this experiment.',50,112,280)]);
+  assert.equal(excludeReferences(blocks),false);
+  assert.ok(blocks.find(b=>b.text.includes('indexed collection')).translate);
+});
+
+test('a regular bibliography heading followed by a numbered entry is recognized',async()=>{
+  for(const preceding of [[],[item('We present the experimental results.',50,88,280)]]){
+    const blocks=await extract([...preceding,item('References',50,100,50),item('[1] An original publication title and its authors.',50,124,240)]);
+    const heading=blocks.find(b=>b.text==='References');assert.equal(heading?.kind,'heading');assert.equal(excludeReferences(blocks),true);
+    assert.ok(blocks.filter(b=>b!==blocks[0]||!preceding.length).every(b=>b.translate===false));
+    if(preceding.length)assert.equal(blocks[0].translate,true);
+  }
+});
 
 test('mixed bold caption lead-in joins its continuation and keeps the full display rectangle', async () => {
   const blocks = await extract([

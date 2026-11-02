@@ -3,6 +3,7 @@ import { loadSettings, openSettings } from './settings.js';
 import { createKeyedGeminiTranslator as createGeminiTranslator } from './gemini.js';
 import { createDocumentTranslator } from './document-translator.js';
 import { extractBlocks } from './pdf-layout.js';
+import { loadTranslationBlocks } from './translation-scope.js';
 import { createPdfLoadProgress } from './pdf-load-progress.js';
 import { horizontalZoomShift, verticalZoomShift } from './zoom-anchor.js';
 import { toRuns } from './math.js';
@@ -595,12 +596,8 @@ function releasePage(r) {
 
 // ---------- レイアウト解析（文字 → 行 → ブロック） ----------
 function getPageBlocks(r) {
-  if (r.blocks) return Promise.resolve(r.blocks);
   // 全文を先に読む場合も、フォント情報を読み込んでから段落を判定する。
-  return r.blocksP ??= r.page.getOperatorList().then(() => extractBlocks(r)).then((blocks) => (r.blocks = blocks)).catch((e) => {
-    r.blocksP = null;
-    throw e;
-  });
+  return loadTranslationBlocks(r, state.rows, row => row.page.getOperatorList().then(operators => extractBlocks(row, operators)));
 }
 
 // ---------- 色の推定（背景色と文字色をページ画像から拾う） ----------
@@ -1214,10 +1211,13 @@ async function translatePageInner(r, translator) {
 
   const targets = r.blocks.filter((b) => b.translate);
   if (!targets.length) {
-    const msg = document.createElement('div');
-    msg.className = 'page-msg';
-    msg.textContent = '翻訳するテキストがありません（画像だけのページかもしれません）';
-    r.dstLayer.appendChild(msg);
+    // Bibliographies and figure-only pages intentionally keep their originals.
+    if(!r.blocks.some(b=>b.translationSkip)){
+      const msg = document.createElement('div');
+      msg.className = 'page-msg';
+      msg.textContent = '翻訳するテキストがありません（画像だけのページかもしれません）';
+      r.dstLayer.appendChild(msg);
+    }
     r.translated = true;
     return;
   }

@@ -3,17 +3,20 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import * as pdfjsLib from '../../lib/pdf.min.mjs';
 import { extractBlocks } from '../../pdf-layout.js';
+import { excludeReferences } from '../../translation-scope.js';
 
 export async function extractPages(path) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../../lib/pdf.worker.min.mjs', import.meta.url).href;
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await readFile(path)), disableFontFace: true, isEvalSupported: false }).promise;
   try {
-    const pages = [];
+    const pages = []; let referencesOpen = false;
     for (let index = 1; index <= pdf.numPages; index++) {
       const page = await pdf.getPage(index);
-      await page.getOperatorList();
-      const blocks = await extractBlocks({ page, vp: page.getViewport({ scale: 1 }) });
+      const operators = await page.getOperatorList();
+      const blocks = await extractBlocks({ page, vp: page.getViewport({ scale: 1 }) }, operators);
+      referencesOpen = excludeReferences(blocks, referencesOpen);
       pages.push({ page: index, blocks: blocks.map((b, i) => ({ id: `p${index}-b${i}`, text: b.text, kind: b.kind, translate: b.translate,
+        ...(b.translationSkip ? { translationSkip:b.translationSkip } : {}),
         bbox: [b.x0, b.top, b.x1, b.bottom], fontSize: b.h, lines: b.lines.length,
         mathSpans: b.mathSpans, mathUncertain: b.mathUncertain })) });
     }
