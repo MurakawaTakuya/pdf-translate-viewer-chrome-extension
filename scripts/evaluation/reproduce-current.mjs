@@ -13,9 +13,10 @@ const panel = ['p1-b0','p1-b3','p1-b4','p1-b5','p1-b6','p1-b7','p1-b9','p1-b32',
 
 export async function captureCurrent(pages, { format = 'keyed' } = {}) {
   const targets = pages.flatMap((p) => p.blocks.filter((b) => b.translate).map((b) => ({ ...b, page: p.page })));
-  let request;
+  let request,requests=0;
   const original = globalThis.fetch;
   globalThis.fetch = async (_url, init) => {
+    if(++requests>1)throw new Error('This single-request evaluator cannot capture a batched document; use the batched evaluator');
     request = JSON.parse(init.body);
     const fixture = (b) => 'fixture ' + (b.text.match(/\[\d+(?:\s*[-–—]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–—]\s*\d+)?)*\]/g) || []).join(' ');
     const output = format === 'keyed'
@@ -27,6 +28,7 @@ export async function captureCurrent(pages, { format = 'keyed' } = {}) {
     const factory = format === 'keyed' ? createKeyedGeminiTranslator : createGeminiTranslator;
     await factory({...options,apiKey:'offline-placeholder'}).translateDocument(pages,targets.map((b)=>b.id));
   } finally { globalThis.fetch = original; }
+  if(requests!==1)throw new Error('This single-request evaluator requires exactly one request');
   const wires = format === 'keyed' ? request.response_format.schema.required : targets.map((_b,i)=>i+1);
   return {name:format === 'keyed'?'current-viewer-keyed':'legacy-viewer-unchanged',protocol:format === 'keyed'?'keyed-object':'sequential-flat',request,targets:targets.map((b,i)=>({...b,wire:wires[i]}))};
 }

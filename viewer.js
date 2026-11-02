@@ -572,6 +572,11 @@ function renderPage(r) {
     swapCanvas(r.right, copy);
     r.srcCanvas = canvas;
     r.scale = scale;
+    let cachedPixels;
+    for(const block of r.blocks||[])if(typeof block.ja==='string'&&!r.blockEls?.has(block)){
+      if(!block.colors){cachedPixels??=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height);block.colors=pickColors(r,cachedPixels,block);}
+      fillBlock(blockElement(r,block),block,block.ja);
+    }
     for (const [block, el] of r.blockEls || []) if (block.ja?.includes('<m_')) renderRuns(el, block.ja, block);
     r.sourceText ??= createSourceTextLayer(r, pdfjsLib.TextLayer, document);
     // Text extraction failure must not hide an otherwise readable PDF.
@@ -901,9 +906,19 @@ async function start(engine = state.engine) {
     let translator;
     if (engine === 'gemini') {
       const onProgress = (message) => { if (version === state.translationVersion) setStatus(message); };
+      const cacheKey=JSON.stringify([geminiModel||'',sourceLanguage,targetLanguage]);
       translator = createDocumentTranslator({
         rows: state.rows,
         getBlocks: getPageBlocks,
+        getCached: b=>b.geminiTranslation?.key===cacheKey?b.geminiTranslation.text:undefined,
+        onCommit: entries=>{
+          if(translator!==state.translator)return;
+          for(const {block:b,row,text}of entries)if(typeof text==='string'){
+            b.geminiTranslation={key:cacheKey,text};b.ja=text;
+            (row.previousTranslations??=new Map()).set(b,text);
+          }
+          displayCommittedTranslations(entries).catch(console.error);
+        },
         onProgress,
         onPreview: (r) => { if (translator === state.translator) previewTranslatedPage(r, translator).catch(console.error); },
         onResetPreview: () => { if (translator === state.translator) clearTranslationPreviews(); },
@@ -1084,7 +1099,7 @@ function showPageError(r, e) {
   retry.textContent = translator.missingCount
     ? `不足${translator.missingCount}段落だけ再翻訳`
     : translator.ready ? '全文を再試行' : 'このページを再試行';
-  if (translator.missingCount) retry.title = '全文を文脈として添え、不足分だけを翻訳します。追加のAPIリクエストを通常1回使います。';
+  if (translator.missingCount) retry.title = '全文を文脈として添え、不足分だけを翻訳します。対象が多い場合は複数回に分けて送信します。';
   retry.onclick = () => {
     if (translator !== state.translator) return;
     if (translator.missingCount) return repairMissingTranslations();
@@ -1097,7 +1112,7 @@ function showPageError(r, e) {
     const summary = document.createElement('summary');
     summary.textContent = `問題の${translator.issues.length}ブロックを確認`;
     details.append(summary);
-    const reasons = { citation: '参照番号が原文と不一致', unchanged: '原文のまま未翻訳', missing: '訳文が未受信', pending: '関連ブロックが未受信' };
+    const reasons = { citation: '参照番号が原文と不一致', unchanged: '原文のまま未翻訳', missing: '訳文が未受信', pending: '関連ブロックが未受信', request: 'API呼び出しが未完了' };
     for (const issue of translator.issues) {
       const item = document.createElement('div');
       const jump = document.createElement('button');
@@ -1158,6 +1173,19 @@ async function translatePage(r, translator) {
 }
 
 // 新しい訳が届くまでは、既存の訳（なければ原文）を残す。
+async function displayCommittedTranslations(entries){
+  const rows=new Set(entries.map(e=>e.row).filter(r=>r?.visible));
+  for(const row of rows){
+    await renderPage(row);
+    if(!row.visible)continue;
+    let pixels;
+    for(const {block,text,row:entryRow}of entries)if(entryRow===row&&typeof text==='string'&&block.ja===text){
+      if(!block.colors){pixels??=row.srcCanvas.getContext('2d').getImageData(0,0,row.srcCanvas.width,row.srcCanvas.height);block.colors=pickColors(row,pixels,block);}
+      fillBlock(blockElement(row,block),block,text);
+    }
+  }
+}
+
 async function previewTranslatedPage(r, translator) {
   if (!r?.visible || translator !== state.translator || translator.completed || !translator.previewPage(r).length) return;
   await renderPage(r);

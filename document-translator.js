@@ -1,7 +1,7 @@
-// 全文の翻訳は1回だけ行い、画面表示・スクロール・PDF保存で同じ結果を共有する。
+// 翻訳は1つの処理として共有する。大きい文書では対象を分割して送る。
 import { MissingTranslationsError } from './gemini.js';
 
-export function createDocumentTranslator({ rows, translator, getBlocks, onProgress = () => {}, onPreview = () => {}, onResetPreview = () => {}, signal }) {
+export function createDocumentTranslator({ rows, translator, getBlocks, getCached = () => undefined, onCommit = () => {}, onProgress = () => {}, onPreview = () => {}, onResetPreview = () => {}, signal }) {
   let documentPromise, translationPromise;
   let missingIds = [], repairing = false;
   let issues = [];
@@ -27,6 +27,8 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
           idsByBlock.set(b, id);
           blocksById.set(id, b);
           rowsById.set(id, r);
+          const cached=getCached(b);
+          if(b.translate&&typeof cached==='string'){partial.set(id,cached);preview.set(id,cached);}
           if (b.translate) { ids.push(id); targets.push(b); }
           return { id, kind: b.kind || 'paragraph', text: b.text,
             ...(b.mathSpans?.length ? { mathSpans: b.mathSpans } : {}),
@@ -34,6 +36,8 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
           };
         }) });
         targetsByRow.set(r, targets);
+        const cached=targets.filter(b=>partial.has(idsByBlock.get(b))).map(block=>({block,row:r,text:partial.get(idsByBlock.get(block))}));
+        if(cached.length){onCommit(cached);onPreview(r);}
       }
       return { pages, ids };
     })();
@@ -41,20 +45,33 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
 
   function ready() {
     // 失敗したPromiseも保持する。スクロールや保存では再送せず、明示的な再試行を待つ。
-    return translationPromise ??= prepare().then(({ pages, ids }) => {
+    return translationPromise ??= prepare().then(async ({ pages, ids }) => {
       signal?.throwIfAborted();
       onProgress(`全文をGeminiで翻訳中…（${ids.length}段落）`);
-      return streamDocument(pages, ids);
+      const result=await streamDocument(pages, ids.filter(id=>!partial.has(id)));
+      for(const [id,text]of result)partial.set(id,text);
+      originalCount=[...partial.values()].filter(v=>v===null).length;
+      return partial;
     }).catch(rememberMissing);
   }
 
   async function streamDocument(pages, ids) {
     completed = false;
+    let batchLabel='';
+    const shown=()=>ids.reduce((count,id)=>count+Number(preview.has(id)),0);
     const result = await translator.translateDocument(pages, ids, (id, text) => {
       signal?.throwIfAborted();
       preview.set(id, text);
-      onProgress(`Geminiで翻訳中… ${preview.size}/${ids.length}段落`);
+      onProgress(`Geminiで翻訳中…${batchLabel} ${shown()}/${ids.length}段落`);
       onPreview(rowsById.get(id));
+    },batch=>{
+      if(batch.translations){
+        const committed=[];
+        for(const [id,text]of batch.translations){partial.set(id,text);committed.push({block:blocksById.get(id),row:rowsById.get(id),text});}
+        onCommit(committed);return;
+      }
+      batchLabel=batch.total>1?`（分割${batch.index}/${batch.total}）`:'';
+      onProgress(`Geminiで翻訳中…${batchLabel} ${shown()}/${ids.length}段落`);
     });
     signal?.throwIfAborted();
     completed = true;
@@ -76,6 +93,8 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
         page: rowsById.get(id)?.index,
         block: (targetsByRow.get(rowsById.get(id)) || []).indexOf(blocksById.get(id)) + 1,
       }));
+    }else if(error?.name==='AbortError'&&partial.size){
+      missingIds=[...blocksById].filter(([id,b])=>b.translate&&!partial.has(id)).map(([id])=>id);
     }
     throw error;
   }
@@ -112,6 +131,7 @@ export function createDocumentTranslator({ rows, translator, getBlocks, onProgre
     const result = await translator.translateDocument(pages, related);
     signal?.throwIfAborted();
     for (const [key, text] of result) out.set(key, text);
+    onCommit([...result].map(([id,text])=>({block:blocksById.get(id),row:rowsById.get(id),text})));
     return new Map([...result].map(([key, text]) => [blocksById.get(key), text]));
   }
 

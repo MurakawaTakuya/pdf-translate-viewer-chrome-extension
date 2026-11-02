@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureCurrent, citationDiagnostics } from '../scripts/evaluation/reproduce-current.mjs';
+
+test('single-request capture refuses batched documents instead of assigning the last request keys to every source',async()=>{
+  const pages=[{page:1,blocks:Array.from({length:129},(_,i)=>({id:`b${i}`,text:`Source paragraph ${i}.`,translate:true,kind:'paragraph'}))}];
+  await assert.rejects(captureCurrent(pages),/single-request evaluator/);
+});
 import { legacyRequest } from '../scripts/evaluation/legacy-format.mjs';
 
 test('legacy reproduction captures the frozen comparison protocol without making a live request',async()=>{

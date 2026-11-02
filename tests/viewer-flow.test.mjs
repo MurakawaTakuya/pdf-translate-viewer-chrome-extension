@@ -1488,6 +1488,29 @@ test('pressing the active Gemini button cancels streaming without starting anoth
   assert.match(api.status(), /中断しました/);
 });
 
+test('completed Gemini batches stay visible after cancel and same-model restart sends only uncached blocks',async(t)=>{
+  const requests=[];
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{
+    const request=JSON.parse(init.body);requests.push(request);
+    if(requests.length===2)await new Promise((_resolve,reject)=>init.signal.addEventListener('abort',()=>reject(init.signal.reason),{once:true}));
+    const input=JSON.parse(request.input),output=Object.fromEntries(input.pages.flatMap(p=>p.blocks.filter(b=>b.translate_id).map(b=>[b.translate_id,'確定訳 '+b.text])));
+    return Response.json({status:'completed',steps:[{type:'model_output',content:[{type:'text',text:JSON.stringify(output)}]}]});
+  });
+  const api=await viewer('gemini',{},null,1,null,options=>createKeyedGeminiTranslator({...options,batchLimits:{maxTargets:1}}));
+  await api.localButton.onclick();await idle(api);
+  const oldOverlay=api.state.rows[0].blockEls.get(api.state.rows[0].blocks[0]);assert.match(oldOverlay.textContent,/ローカル訳/);
+  await api.startButton.onclick();await until(()=>requests.length===2);
+  const first=api.state.rows[0].blocks[0],text=first.ja;assert.match(text,/確定訳/);
+  await until(()=>oldOverlay.textContent===text);
+  await api.startButton.onclick();assert.equal(first.ja,text);assert.equal(first.geminiTranslation.text,text);
+  assert.equal(oldOverlay.textContent,text);
+  await api.startButton.onclick();await idle(api);
+  assert.equal(requests.length,4);assert.equal(first.ja,text);assert.equal(api.state.translator.completed,true);
+  const later=requests.slice(2).flatMap(r=>JSON.parse(r.input).pages.flatMap(p=>p.blocks.filter(b=>b.translate_id).map(b=>b.text)));
+  assert.ok(!later.includes(first.text));
+  api.state.settings.geminiModel='other-model-for-offline-test';await api.startButton.onclick();await idle(api);assert.equal(requests.length,7);
+});
+
 test('PDF serialization keeps engine buttons disabled until saving has finished', async (t) => {
   let release;
   const gate = new Promise((resolve) => { release = resolve; });

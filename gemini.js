@@ -2,6 +2,7 @@
 import { readTranslationStream } from './translation-stream.js';
 import { buildKeyedTask, keyedPrompt, keyedMembers, taskIssue } from './keyed-translations.js';
 import { readApiError, redactApiError } from './api-error.js';
+import { planTranslationBatches } from './translation-batches.js';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
@@ -46,8 +47,54 @@ const TRANSLATION_SCHEMA = {
 };
 
 export function createKeyedGeminiTranslator(options) {
-  return createGeminiTranslator({ ...options, outputFormat: 'keyed' });
+  const inner=createGeminiTranslator({ ...options, outputFormat: 'keyed' });
+  const src=LANG_NAMES[options.sourceLanguage]||options.sourceLanguage,dst=LANG_NAMES[options.targetLanguage]||options.targetLanguage;
+  async function translateDocument(pages,ids,onTranslation=()=>{},onBatch=()=>{}){
+    const {signal}=options;
+    signal?.throwIfAborted();
+    if(!ids.length)return new Map();
+    const plan=await planTranslationBatches(pages,ids,src,dst,signal,options.batchLimits);
+    const queue=[...plan.batches],out=new Map(),issues=new Map();let index=0,splits=0;
+    const sources=new Map(pages.flatMap(p=>p.blocks.map(b=>[b.id,b])));
+    while(index<queue.length){
+      signal?.throwIfAborted();
+      const batch=queue[index];onBatch({index:index+1,total:queue.length,targets:batch.ids.length});
+      try{
+        const result=await inner.translateDocument(pages,batch.ids,onTranslation);
+        signal?.throwIfAborted();for(const [id,text]of result)out.set(id,text);
+        onBatch({index:index+1,total:queue.length,translations:result});
+      }catch(error){
+        signal?.throwIfAborted();
+        if(error instanceof SchemaTooComplexError&&splits<plan.limits.maxSchemaSplits){
+          const smaller=plan.split(batch);
+          if(smaller){queue.splice(index,1,...smaller);splits++;continue;}
+        }
+        if(error instanceof MissingTranslationsError){
+          onBatch({index:index+1,total:queue.length,translations:error.partialTranslations});
+          if(queue.length===1)throw error; // Preserve existing small-paper diagnostics.
+          for(const [id,text]of error.partialTranslations)out.set(id,text);
+          for(const issue of error.issues)issues.set(issue.id,issue);
+        }else{
+          if(error?.name==='AbortError'||!out.size)throw error;
+          const missing=ids.filter(id=>!out.has(id));
+          for(const id of missing)if(!issues.has(id))issues.set(id,{id,reason:'request',source:sources.get(id)?.text||'',translated:''});
+          throw new MissingTranslationsError(`${error.message}。完了済み${out.size}段落を保持しています。残り${missing.length}段落だけ再翻訳できます`,out,missing,[...issues.values()]);
+        }
+      }
+      index++;
+    }
+    const missing=ids.filter(id=>!out.has(id));
+    if(missing.length)throw new MissingTranslationsError(`全文の翻訳を検証できませんでした（必要${ids.length}件／完了${out.size}件、補完対象${missing.length}件）。有効な訳文を保持しています。対象だけ再翻訳できます`,out,missing,
+      missing.map(id=>issues.get(id)||{id,reason:'missing',source:sources.get(id)?.text||'',translated:''}));
+    return out;
+  }
+  return {...inner,translateDocument,async translateBatch(texts,onEach){
+    const blocks=texts.map((text,i)=>({id:String(i),text})),result=await translateDocument([{page:1,blocks}],blocks.map(b=>b.id));
+    for(let i=0;i<texts.length;i++)if(onEach(i,result.get(String(i)))===false)return;
+  }};
 }
+
+export class SchemaTooComplexError extends Error {}
 
 export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLanguage, onWait = () => {}, signal, inputFormat = 'legacy', outputFormat = 'legacy', taskBuilder = buildKeyedTask, promptBuilder = keyedPrompt }) {
   // 分離入力は実生成で対応ずれが残ったため、評価用の明示指定だけで使う。
@@ -117,6 +164,7 @@ export function createGeminiTranslator({ apiKey, model, sourceLanguage, targetLa
       }
       if (res.ok) return parseOutput(await res.json().catch(() => ({})));
       const err = redactApiError(await readApiError(res), apiKey);
+      if(res.status===400&&/schema[\s\S]*too many states|schema[\s\S]*too much branching/i.test(err.message||''))throw new SchemaTooComplexError(describeError(res.status,err));
 
       // レート制限・一時的なエラーは待って再試行
       if ((res.status === 429 || res.status >= 500) && attempt < 6) {
