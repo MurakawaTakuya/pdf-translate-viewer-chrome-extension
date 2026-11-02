@@ -28,12 +28,16 @@ export async function pdfPaperTitle(pdf) {
   }
 }
 
-export function createPaperTitle({ document, fileUrl, tabId, tabs }) {
+export function createPaperTitle({ document, fileUrl, tabId, tabs, label }) {
   let priority = -1;
   function apply(title, rank) {
     if (!title || rank < priority) return;
     priority = rank;
     document.title = title;
+    if (label) {
+      label.textContent = title;
+      label.title = title; // The full title remains available when truncated.
+    }
     // A MIME viewer lives in a cross-origin child frame. Set the title of the
     // actual PDF document through our isolated, stream-backed viewer bridge.
     if (Number.isInteger(tabId) && tabs?.sendMessage)

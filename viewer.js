@@ -43,6 +43,7 @@ const tabTitle = createPaperTitle({
   fileUrl,
   tabId: pdfSource.fallback ? pdfSource.tabId : undefined,
   tabs: self.chrome?.tabs,
+  label: $("#filename"),
 });
 // 他のサイトに埋め込まれて使われないようにする（ビューアはWebから開ける資源として登録しているため）
 // Chrome自身がトップレベルPDFのために作る内部フレームだけは認証済みストリームで許可する。
@@ -584,14 +585,12 @@ async function load() {
   let name = fileUrl;
   try {
     name =
-      decodeURIComponent(fileUrl.split("?")[0].split("/").pop()) || fileUrl;
+      decodeURIComponent(new URL(fileUrl).pathname.split("/").pop()) || fileUrl;
   } catch {
     /* Optional metadata/parsing can be unavailable; keep the existing fallback. */
   }
   state.name = name;
-  $("#filename").textContent = name;
-  $("#filename").title = name;
-  tabTitle.fallback(name + " - PDF翻訳ビューア");
+  tabTitle.fallback(name);
 
   setStatus("PDFを読み込み中…");
   pdfLoadProgress.start();

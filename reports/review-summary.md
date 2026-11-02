@@ -200,3 +200,11 @@ PDF XMP dc:title/info.Titleを優先し、メタデータがなければ既存�
 MIMEハンドラは内部フレームにあり、そのdocument.titleを変更しても実タブ名は変わらない。親はChrome生成のtext/html文書であり、MessageSender.frameIdもMIME viewerからのtabs.sendMessageでは省略されることを実機で確認。既存host権限のcontent scriptを追加し、自拡張viewer.htmlから送られた、親文書のURLと同じPDFのプレーンなタイトルだけをtop-frameへ反映する。HTMLページ自身・他拡張・別PDFの送信は無視する。scripting等の追加権限なし。ローカルfile URLへのcontent script注入はユーザーのファイルURLアクセス許可が必要でREADMEに制約を記載。
 
 Chrome実機で2609.36598v2のmetadataからBeyond Legibility...、metadataが空の2301.08243の引用先読みからSelf-Supervised Learning...が親ページ・タブ名に反映されることを確認。どちらも元のarXiv URLを維持。診断用consoleログは除去済み。npm run checkはlint・整形確認・356tests成功。追加のGemini生成なし。merge・Release更新なし。
+
+## ヘッダーも原文タイトルへ統一
+
+追記日時: 2026-11-02 21:57:39 JST
+
+追加要望によりpaper-title controllerでタブ名とヘッダー#filenameを同時更新し、tooltipにも全文を設定。タイトル未取得・取得失敗時は両方とも元ファイル名のみを表示し、従来のアプリ名suffixは外した。保存名state.nameは元ファイル名で保持し、URL.pathnameから抽出してquery/fragmentを混ぜない。既存のellipsis表示を使うためツールバー配置の変更はない。
+
+実loadの回帰で、metadataがUntitledのPDFはdecoded filenameを表示すること、query/fragmentを除外すること、正常な原文titleでも保存名は元filenameのままであることを確認。npm run checkはlint・整形確認・358tests成功。今回のヘッダー追加分はオフライン確認、前段の元URL/タブ名反映は2論文の実機で確認済み。

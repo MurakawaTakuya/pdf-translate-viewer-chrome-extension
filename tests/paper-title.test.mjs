@@ -46,14 +46,18 @@ test("PDF titles normalize whitespace, prefer XMP and ignore placeholder metadat
 
 test("metadata wins over early or late citations and only the matching MIME tab is addressed", async () => {
   const document = {},
+    label = {},
     calls = [];
   const title = createPaperTitle({
     document,
+    label,
     fileUrl: "https://example.org/p.pdf",
     tabId: 42,
     tabs: { sendMessage: async (...args) => calls.push(args) },
   });
-  title.fallback("p.pdf - PDF翻訳ビューア");
+  title.fallback("p.pdf");
+  assert.equal(label.textContent, "p.pdf");
+  assert.equal(label.title, "p.pdf");
   title.fromCitation("Original citation title");
   await title.fromPdf({
     getMetadata: async () => ({ info: { Title: "Original PDF title" } }),
@@ -61,10 +65,12 @@ test("metadata wins over early or late citations and only the matching MIME tab 
   title.fromCitation("Late citation title");
   await new Promise(setImmediate);
   assert.equal(document.title, "Original PDF title");
+  assert.equal(label.textContent, "Original PDF title");
+  assert.equal(label.title, "Original PDF title");
   assert.deepEqual(
     calls.map((c) => [c[0], c[1].title, c[2]]),
     [
-      [42, "p.pdf - PDF翻訳ビューア", { frameId: 0 }],
+      [42, "p.pdf", { frameId: 0 }],
       [42, "Original citation title", { frameId: 0 }],
       [42, "Original PDF title", { frameId: 0 }],
     ]
@@ -72,10 +78,12 @@ test("metadata wins over early or late citations and only the matching MIME tab 
   assert.ok(calls.every((c) => c[1].fileUrl === "https://example.org/p.pdf"));
 });
 
-test("a failed MIME bridge does not break a legacy title or overwrite the download filename", async () => {
-  const document = {};
+test("missing titles keep the filename in the tab and header, even if the MIME bridge fails", async () => {
+  const document = {},
+    label = {};
   const title = createPaperTitle({
     document,
+    label,
     fileUrl: "file:///paper.pdf",
     tabId: 42,
     tabs: {
@@ -84,9 +92,12 @@ test("a failed MIME bridge does not break a legacy title or overwrite the downlo
       },
     },
   });
-  title.fallback("paper.pdf - PDF翻訳ビューア");
+  title.fallback("paper.pdf");
   await title.fromPdf({});
-  assert.equal(document.title, "paper.pdf - PDF翻訳ビューア");
+  title.fromCitation("Untitled");
+  assert.equal(document.title, "paper.pdf");
+  assert.equal(label.textContent, "paper.pdf");
+  assert.equal(label.title, "paper.pdf");
   title.fromCitation("Recovered original title");
   await new Promise(setImmediate);
   assert.equal(document.title, "Recovered original title");
