@@ -1,7 +1,17 @@
 // 操作中の見た目と、CSS zoom確定後の中央寄せ・横スクロール範囲を一致させる。
-export function horizontalZoomShift({ left, width, pointer, start, end }, scale) {
-  if (![left, width, pointer, start, end, scale].every(Number.isFinite) || width <= 0 || end <= start || scale <= 0) return 0;
-  const available = end - start, nextWidth = width * scale;
+export function horizontalZoomShift(
+  { left, width, pointer, start, end },
+  scale
+) {
+  if (
+    ![left, width, pointer, start, end, scale].every(Number.isFinite) ||
+    width <= 0 ||
+    end <= start ||
+    scale <= 0
+  )
+    return 0;
+  const available = end - start,
+    nextWidth = width * scale;
   const pointerLeft = pointer + (left - pointer) * scale;
   let nextLeft;
   if (nextWidth <= available) {
@@ -9,9 +19,10 @@ export function horizontalZoomShift({ left, width, pointer, start, end }, scale)
     nextLeft = start + (available - nextWidth) / 2;
   } else {
     // 余白がなくなる倍率までは中央。その境界からマウス中心に切り替える。
-    nextLeft = width <= available
-      ? pointer + (start - pointer) * (nextWidth / available)
-      : pointerLeft;
+    nextLeft =
+      width <= available
+        ? pointer + (start - pointer) * (nextWidth / available)
+        : pointerLeft;
     // 縮小中に左右の端を超えて空白ができないよう、確定後と同じ範囲に収める。
     nextLeft = Math.max(end - nextWidth, Math.min(start, nextLeft));
   }
@@ -20,7 +31,8 @@ export function horizontalZoomShift({ left, width, pointer, start, end }, scale)
 
 // 縮小のプレビューでも、文書上端をヘッダー下の通常位置より下げない。
 export function verticalZoomShift({ top, pointer, start }, scale) {
-  if (![top, pointer, start, scale].every(Number.isFinite) || scale <= 0) return 0;
+  if (![top, pointer, start, scale].every(Number.isFinite) || scale <= 0)
+    return 0;
   const pointerTop = pointer + (top - pointer) * scale;
   return Math.min(0, start - pointerTop);
 }
