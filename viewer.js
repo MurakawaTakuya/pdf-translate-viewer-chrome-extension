@@ -576,7 +576,7 @@ function renderPage(r) {
     r.scale = scale;
     let cachedPixels;
     for(const block of r.blocks||[])if(typeof block.ja==='string'&&!r.blockEls?.has(block)){
-      if(!block.colors){cachedPixels??=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height);block.colors=pickColors(r,cachedPixels,block);}
+      if(!block.colors){cachedPixels??=readPagePixels(r);block.colors=pickColors(r,cachedPixels,block);}
       fillBlock(blockElement(r,block),block,block.ja);
     }
     for (const [block, el] of r.blockEls || []) if (block.ja?.includes('<m_')) renderRuns(el, block.ja, block);
@@ -609,6 +609,18 @@ function getPageBlocks(r) {
 }
 
 // ---------- 色の推定（背景色と文字色をページ画像から拾う） ----------
+// Readback uses a temporary CPU-oriented surface; display canvases stay optimized
+// for rendering and zoom. Release the temporary bitmap after copying its pixels.
+function readPagePixels(r) {
+  const source=r.srcCanvas,copy=document.createElement('canvas');
+  copy.width=source.width;copy.height=source.height;
+  try {
+    const context=copy.getContext('2d',{willReadFrequently:true});
+    context.drawImage(source,0,0);
+    return context.getImageData(0,0,copy.width,copy.height);
+  } finally { copy.width=copy.height=0; }
+}
+
 function pickColors(r, pix, b) {
   const W = pix.width, H = pix.height, d = pix.data, k = r.scale;
   const x0 = Math.max(0, Math.floor((b.x0 - 3) * k)), x1 = Math.min(W, Math.ceil((b.x1 + 3) * k));
@@ -1269,7 +1281,7 @@ async function displayCommittedTranslations(entries){
     if(!row.visible)continue;
     let pixels;
     for(const {block,text,row:entryRow}of entries)if(entryRow===row&&typeof text==='string'&&block.ja===text){
-      if(!block.colors){pixels??=row.srcCanvas.getContext('2d').getImageData(0,0,row.srcCanvas.width,row.srcCanvas.height);block.colors=pickColors(row,pixels,block);}
+      if(!block.colors){pixels??=readPagePixels(row);block.colors=pickColors(row,pixels,block);}
       fillBlock(blockElement(row,block),block,text);
     }
   }
@@ -1286,7 +1298,7 @@ async function previewTranslatedPage(r, translator) {
     let el = r.previewEls.get(b);
     if (el && b.ja === text) continue;
     if (!b.colors) {
-      pix ??= r.srcCanvas.getContext('2d').getImageData(0, 0, r.srcCanvas.width, r.srcCanvas.height);
+      pix ??= readPagePixels(r);
       b.colors = pickColors(r, pix, b);
     }
     if (!el) { el = blockElement(r, b); r.previewEls.set(b, el); }
@@ -1319,7 +1331,7 @@ async function translatePageInner(r, translator) {
   if (translator !== state.translator) return;
   if (r.blocks.some((b) => b.translate && !b.colors)) {
     // 背景色・文字色は訳文に関係ないので、ページ画像の読み出し（重い）は1ページにつき1回だけ
-    const pix = r.srcCanvas.getContext('2d').getImageData(0, 0, r.srcCanvas.width, r.srcCanvas.height);
+    const pix = readPagePixels(r);
     for (const b of r.blocks) if (b.translate) b.colors = pickColors(r, pix, b);
   }
   if (translator !== state.translator) return; // 待っている間にやり直された

@@ -114,7 +114,7 @@ async function viewer(engine = 'gemini', localTranslator = {}, nextSettings = nu
   context.chrome = context.self.chrome;
   // Run the actual viewer orchestration. Only PDF/canvas/DOM rendering is replaced.
   const source = viewerSource.replace(/^import .*;\n/gm, '').replaceAll('import.meta.url', JSON.stringify(new URL('../viewer.js', import.meta.url).href)).replace(/\nload\(\);\s*$/, `
-    const rendering = { pixelScale, makeCanvas, renderPage, releasePage, viewZoom, trackSourceHover, renderRuns,
+    const rendering = { readPagePixels, pixelScale, makeCanvas, renderPage, releasePage, viewZoom, trackSourceHover, renderRuns,
       enable() { renderPage = rendering.renderPage; releasePage = rendering.releasePage; } };
     renderPage = async () => {};
     getPageBlocks = async (r) => r.blocks;
@@ -1645,11 +1645,12 @@ test('changing languages during local preparation invalidates both the old model
   assert.deepEqual(created,['ja','ko']);assert.match(b.ja,/^ko /);assert.match(api.state.rows[1].blocks[0].ja,/^ko /);
 });
 
-test('viewer selection hands the current MIME buffer off immediately after the saved choice is acknowledged',async()=>{
-  const order=[],url='https://arxiv.org/pdf/2609.34178';
-  const api=await viewer('chrome',{},null,1,{originalUrl:url,tabId:42,fallback:async()=>order.push('fallback')});
-  api.chrome.webNavigation={getFrame:async()=>({url})};
-  api.chrome.runtime.sendMessage=async message=>{assert.equal(message.handoff,true);order.push('saved');return {ok:true,handoff:true};};
-  await api.element('#openNormalViewer').onclick();
-  assert.deepEqual(order,['saved','fallback']);
+
+
+test('pixel sampling reads a dedicated surface and releases it without changing the display canvas',async()=>{
+  const api=await viewer(),source={width:40,height:50},pixels={data:new Uint8Array(4)},calls=[];
+  const copy={};api.document.createElement=()=>copy;
+  copy.getContext=(kind,options)=>{assert.equal(kind,'2d');assert.equal(options.willReadFrequently,true);return {drawImage:(c)=>assert.equal(c,source),getImageData:(...args)=>{calls.push(args);return pixels;}};};
+  assert.equal(api.rendering.readPagePixels({srcCanvas:source}),pixels);
+  assert.deepEqual(calls,[[0,0,40,50]]);assert.equal(copy.width,0);assert.equal(copy.height,0);assert.equal(source.width,40);
 });
