@@ -54,7 +54,9 @@ test('arXiv resolves unique published match, caches formats and sends only publi
   assert.equal(await service.formatted(doi, 'mla'), 'Smith, Jane. Paper, Publisher.');
   assert.equal(await service.formatted(doi, 'mla'), 'Smith, Jane. Paper, Publisher.');
   assert.equal(await service.exported(doi, 'ris'), 'TY  - CONF\nER  -');
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 4);
+  assert.equal(calls.filter(({options})=>options.headers.Accept.includes('csl+json')).length,0);
+  assert.equal(record.title,title);
   for (const { options } of calls) {
     assert.equal(options.credentials, 'omit');
     assert.equal(options.referrerPolicy, 'no-referrer');

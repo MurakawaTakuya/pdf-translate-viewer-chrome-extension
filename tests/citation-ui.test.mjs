@@ -91,3 +91,45 @@ test('latest export selection wins when responses arrive out of order', async ()
   f.$('#citationExportSave').onclick();
   assert.deepEqual(f.downloads, [{ text: 'RIS source', filename: 'citation.ris' }]);
 });
+
+test('metadata and fast styles appear while a slow style is still pending; completed reopen reuses the panel',async()=>{
+  const pending=deferred(),formats=[];
+  const f=fixture(undefined,{formatted:async(_doi,style)=>{formats.push(style);return style==='iso'?pending.promise:style+' early';}});
+  const opening=f.controller.open();
+  await new Promise(setImmediate);
+  assert.equal(f.$('#citationContent').hidden,false);
+  assert.equal(f.$('#citationPaperTitle').textContent,'Paper title');
+  assert.equal(f.$('#citation-mla').textContent,'mla early');
+  assert.equal(f.$('#copy-mla').disabled,false);
+  assert.equal(f.$('#citation-iso').textContent,'取得中…');
+  assert.equal(f.$('#copy-iso').disabled,true);
+  await f.$('#copy-mla').onclick();
+  pending.resolve('iso late');await opening;
+  assert.equal(f.$('#citationStatus').textContent,'コピーしました');
+  assert.equal(f.$('#citation-iso').textContent,'iso late');
+  await f.$('#export-bibtex').onclick();
+  f.$('#citationClose').onclick();await f.controller.open();
+  assert.equal(f.calls.length,1);assert.equal(formats.length,3);
+  assert.equal(f.$('#citationExport').hidden,false);
+  assert.equal(f.$('#citation-iso').textContent,'iso late');
+});
+
+test('closing before metadata resolves does not start formatting requests',async()=>{
+  const pending=deferred();let started=0;
+  const f=fixture(undefined,{resolve:()=>pending.promise,formatted:async()=>{started++;return 'unused';}});
+  const opening=f.controller.open();await new Promise(setImmediate);
+  f.$('#citationClose').onclick();pending.resolve({doi:'10.1234/paper',title:'late',version:'test'});await opening;
+  assert.equal(started,0);
+});
+
+test('late formats from a previous identifier cannot overwrite a newly selected paper',async()=>{
+  const pending=deferred();
+  const f=fixture(undefined,{resolve:async id=>({doi:id.value,title:id.value,version:'test'}),formatted:async(doi,style)=>doi==='10.1234/paper'?pending.promise:style+' new'});
+  const old=f.controller.open();await new Promise(setImmediate);
+  f.$('#citationIdentifier').value='10.1234/new';
+  await f.$('#citationLookup').onsubmit({preventDefault(){}});
+  pending.resolve('stale');await old;
+  assert.equal(f.$('#citationPaperTitle').textContent,'10.1234/new');
+  assert.equal(f.$('#citation-mla').textContent,'mla new');
+  await f.$('#copy-mla').onclick();assert.deepEqual(f.copied,['mla new']);
+});

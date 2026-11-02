@@ -139,7 +139,7 @@ export function createCitationService({ fetch: fetcher = globalThis.fetch } = {}
     const id = parsed && (typeof identifier === 'string' || identifier?.type === parsed.type) ? parsed : null;
     if (!id) throw new Error('DOIまたはarXiv IDを入力してください');
     return cached(`resolve:${id.type}:${id.value.toLowerCase()}`, async () => {
-      let doi = id.value, version = 'DOI登録情報';
+      let doi = id.value, version = 'DOI登録情報',metadata;
       if (id.type === 'arxiv') {
         doi = `10.48550/arXiv.${baseArxiv(id.value)}`;
         version = 'arXiv版';
@@ -153,12 +153,17 @@ export function createCitationService({ fetch: fetcher = globalThis.fetch } = {}
             url.searchParams.set('rows', '5');
             const result = JSON.parse(await request(url.href, 'application/json'));
             const match = matchingPublication(result.message?.items || [], arxiv);
-            if (match) { doi = match.DOI; version = '出版版（Crossref）'; }
+            if (match) {
+              doi = match.DOI; version = '出版版（Crossref）';
+              // The title/author/year match already verified this Crossref
+              // record. Reuse it instead of fetching the same DOI metadata.
+              // Human-readable styles and exports still come from the DOI service.
+              metadata={...match,title:plain(match.title[0])};
+            }
           }
         } catch { /* 出版版を照合できなければ、識別子の確かなarXiv版を引用する */ }
       }
-      let metadata;
-      try { metadata = JSON.parse(await request(doiUrl(doi), 'application/vnd.citationstyles.csl+json')); }
+      try { metadata ??= JSON.parse(await request(doiUrl(doi), 'application/vnd.citationstyles.csl+json')); }
       catch (error) { throw new Error(/書誌情報/.test(error.message) ? error.message : '書誌情報の形式を読み取れませんでした'); }
       if (!plain(metadata.title) || String(metadata.DOI || '').toLowerCase() !== doi.toLowerCase()) throw new Error('対象論文の書誌情報を確認できませんでした');
       records.set(doi.toLowerCase(), metadata);

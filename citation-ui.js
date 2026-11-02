@@ -6,9 +6,11 @@ export function createCitationDialog({ document, getPdf, fileUrl, download, clip
   const dialog = $('#citations');
   dismissOnOutsideClick(dialog);
   let generation = 0, exportGeneration = 0, source = null, exportText = '', exportFormat = null, detected;
+  let ready=false,statusOwner='action';
   const text = (selector, value) => { $(selector).textContent = value; };
 
-  function status(message, error = false) {
+  function status(message, error = false, owner='action') {
+    statusOwner=owner;
     text('#citationStatus', message);
     $('#citationStatus').classList.toggle('error', error);
   }
@@ -23,6 +25,7 @@ export function createCitationDialog({ document, getPdf, fileUrl, download, clip
   }
   async function load(identifier) {
     const version = ++generation;
+    ready=false;
     source = null;
     exportText = '';
     exportFormat = null;
@@ -32,7 +35,6 @@ export function createCitationDialog({ document, getPdf, fileUrl, download, clip
     status('引用情報を取得中…');
     try {
       const result = await service.resolve(identifier);
-      const formats = await Promise.allSettled(CITATION_STYLES.map((entry) => service.formatted(result.doi, entry.id)));
       if (version !== generation || !dialog.open) return;
       source = result;
       text('#citationPaperTitle', result.title);
@@ -43,18 +45,31 @@ export function createCitationDialog({ document, getPdf, fileUrl, download, clip
       scholar.searchParams.set('hl', 'ja');
       scholar.searchParams.set('q', `"${result.title}"`);
       $('#citationScholar').href = scholar.href;
-      let failed = 0;
-      for (const [i, entry] of CITATION_STYLES.entries()) {
-        const value = formats[i];
-        text(`#citation-${entry.id}`, value.status === 'fulfilled' ? value.value : 'この形式を取得できませんでした');
+      let failed = 0,settled=0;
+      for(const entry of CITATION_STYLES){
+        text(`#citation-${entry.id}`,'取得中…');
         const button = $(`#copy-${entry.id}`);
-        button.disabled = value.status !== 'fulfilled';
-        button.onclick = () => copy(value.value);
-        if (value.status !== 'fulfilled') failed++;
+        button.disabled=true;button.onclick=null;
       }
       $('#citationContent').hidden = false;
       $('#citationLookup').hidden = true;
-      status(failed ? `${failed}形式を取得できませんでした。識別子を再指定すると再試行できます` : '');
+      status('引用形式を取得中…',false,'formats');
+      await Promise.all(CITATION_STYLES.map(async entry=>{
+        try{
+          const value=await service.formatted(result.doi,entry.id);
+          if(version!==generation||!dialog.open)return;
+          text(`#citation-${entry.id}`,value);
+          const button=$(`#copy-${entry.id}`);button.disabled=false;button.onclick=()=>copy(value);
+        }catch{
+          if(version!==generation||!dialog.open)return;
+          failed++;text(`#citation-${entry.id}`,'この形式を取得できませんでした');
+        }finally{
+          settled++;
+          if(version===generation&&dialog.open&&statusOwner==='formats')status(settled<CITATION_STYLES.length?`引用形式を取得中…（${settled}/${CITATION_STYLES.length}）`:
+            failed?`${failed}形式を取得できませんでした。識別子を再指定すると再試行できます`:'',false,'formats');
+        }
+      }));
+      if(version===generation&&dialog.open)ready=failed===0;
     } catch (error) {
       if (version !== generation || !dialog.open) return;
       $('#citationLookup').hidden = false;
@@ -100,9 +115,11 @@ export function createCitationDialog({ document, getPdf, fileUrl, download, clip
   return {
     async open() {
       if (!getPdf()) return;
-      if (!dialog.open) dialog.showModal();
+      if(dialog.open)return;
+      dialog.showModal();
       $('#cite').setAttribute('aria-expanded', 'true');
       position();
+      if(ready&&source)return;
       status('論文の識別情報を確認中…');
       const opening = ++generation;
       detected ??= detectCitationIdentifier(fileUrl, getPdf());
