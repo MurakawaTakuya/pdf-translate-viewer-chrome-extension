@@ -75,18 +75,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     // Explicitly select this viewer. Reloading the original URL could instead
     // reopen another extension that has higher MIME-handler priority.
     // Normal PDF navigation still uses the original-URL MIME route.
-    chrome.tabs.update(msg.tabId, { url: toViewer(msg.url) })
+    chrome.storage.session.remove(`nativePdf:${msg.tabId}`).then(() => chrome.tabs.update(msg.tabId, { url: toViewer(msg.url) }))
       .then(() => reply({ ok: true }), (e) => reply({ ok: false, error: e.message }));
     return true;
   }
   if (msg.type === 'openOriginal') {
-    openOriginal(msg.tabId, msg.url, msg.reload === true).then(() => reply({ ok: true }), (e) => reply({ ok: false, error: e.message }));
+    openOriginal(msg.tabId, msg.url, msg.reload === true, msg.handoff === true).then((result) => reply({ ok: true, ...result }), (e) => reply({ ok: false, error: e.message }));
     return true;
   }
 });
 
 // 翻訳ビューアを通さずに、このPDFだけ通常のビューアで開く（自動切り替えが ON のままでも）
-async function openOriginal(tabId, url, reload = false) {
+async function openOriginal(tabId, url, reload = false, handoff = false) {
   if (mimeHandler) {
     // Old viewer.html tabs can also hand just this navigation to the native viewer.
     // webNavigation already has permission to read file URLs; Tab.url can be
@@ -94,18 +94,21 @@ async function openOriginal(tabId, url, reload = false) {
     const frame = chrome.webNavigation.getFrame
       ? await chrome.webNavigation.getFrame({ tabId, frameId: 0 }).catch(() => null) : null;
     const currentUrl = frame?.url || (chrome.tabs.get ? (await chrome.tabs.get(tabId)).url : null);
+    const samePdf = currentUrl?.split('#')[0] === url.split('#')[0];
+    // A handler can give its existing buffered PDF to Chrome after receiving
+    // this reply. Never hand a different document that buffer, or unload the
+    // frame with reload before it has acknowledged the prepared destination.
+    if (handoff && !samePdf) throw new Error('同じPDFの表示先を確認できませんでした');
     const key = `nativePdf:${tabId}`;
     if (await isAutoOpen()) await chrome.storage.session.set({ [key]: url });
     try {
       await chrome.tabs.update(tabId, { url });
-      // A fragment-only update keeps the existing handler frame alive. Force a
-      // new document so the scoped one-shot handoff is consumed by the MIME route.
-      if (reload || currentUrl?.split('#')[0] === url.split('#')[0]) await chrome.tabs.reload(tabId);
+      if (!handoff && (reload || samePdf)) await chrome.tabs.reload(tabId);
     } catch (error) {
       await chrome.storage.session.remove(key);
       throw error;
     }
-    return;
+    return { handoff };
   }
   const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   await chrome.declarativeNetRequest.updateSessionRules({
@@ -123,9 +126,18 @@ async function openOriginal(tabId, url, reload = false) {
 
 // 通常のビューアで開き終わったら、止めていた差し替えを元に戻す
 chrome.webNavigation.onCommitted.addListener(async (details) => {
-  if (details.frameId !== 0 || details.url.startsWith(VIEWER)) return;
+  if (details.frameId !== 0) return;
+  if (mimeHandler) {
+    const key = `nativePdf:${details.tabId}`;
+    const selected = (await chrome.storage.session.get({ [key]: null }))[key];
+    if (selected && selected.split('#')[0] !== details.url.split('#')[0]) await chrome.storage.session.remove(key);
+    return;
+  }
+  if (details.url.startsWith(VIEWER)) return;
   const { bypassTab } = await chrome.storage.session.get({ bypassTab: null });
   if (bypassTab !== details.tabId) return;
   await chrome.storage.session.remove('bypassTab');
   await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [BYPASS_RULE_ID] });
 });
+
+chrome.tabs.onRemoved?.addListener((tabId) => chrome.storage.session.remove(`nativePdf:${tabId}`));

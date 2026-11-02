@@ -17,8 +17,8 @@ export function viewerDestinationUrl(url, destination) {
 }
 
 const withoutHash = (url) => url?.split('#')[0];
-const requestsChromeViewer = (url) => {
-  try { return new URLSearchParams(new URL(url).hash.slice(1)).get('gsr') === '0'; }
+const requestsOtherViewer = (url) => {
+  try { return ['0', '1'].includes(new URLSearchParams(new URL(url).hash.slice(1)).get('gsr')); }
   catch { return false; }
 };
 
@@ -39,8 +39,10 @@ export async function resolvePdfSource({ search, mimeHandler, storage, getFrameU
   const frameUrl = getFrameUrl ? await getFrameUrl(stream.tabId).catch(() => null) : null;
   const address = withoutHash(frameUrl) === withoutHash(stream.originalUrl) ? frameUrl : stream.originalUrl;
   const nativeFallback = !!bypass && withoutHash(bypass) === withoutHash(stream.originalUrl)
-    || requestsChromeViewer(address);
-  if (bypass && storage) await storage.remove(bypassKey);
+    || requestsOtherViewer(address);
+  // The choice belongs to this tab and PDF, not just one navigation. Keep it
+  // through refresh; release it when a different document reaches this tab.
+  if (bypass && storage && withoutHash(bypass) !== withoutHash(stream.originalUrl)) await storage.remove(bypassKey);
 
   let bytes;
   const read = (onProgress = () => {}) => bytes ??= (async () => {

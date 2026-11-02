@@ -1485,9 +1485,10 @@ async function openViewerDestination(destination) {
       ? await chrome.webNavigation.getFrame({ tabId: tab.id, frameId: 0 }).catch(() => null) : tab;
     const address = frame?.url?.split('#')[0] === fileUrl.split('#')[0] ? frame.url : fileUrl;
     const reply = await chrome.runtime.sendMessage({
-      type: 'openOriginal', tabId: tab.id, url: viewerDestinationUrl(address, destination), reload: !!pdfSource.fallback,
+      type: 'openOriginal', tabId: tab.id, url: viewerDestinationUrl(address, destination), reload: !!pdfSource.fallback, handoff: !!pdfSource.fallback,
     });
     if (!reply?.ok) throw new Error(reply?.error || '切り替えを開始できませんでした');
+    if(reply.handoff)await openNativeViewer();
   } catch (error) { setStatus('ビューアへの切り替えに失敗しました: ' + error.message); }
 }
 if (fileUrl && self.chrome?.tabs) {

@@ -59,14 +59,17 @@ test('a failed stream is never fetched twice and native handoff remains availabl
   assert.deepEqual(f.calls, ['native']);
 });
 
-test('the native-viewer bypass is scoped to the exact source and tab and consumed once', async () => {
+test('the viewer choice survives refresh for the same source and is removed for a different PDF', async () => {
   for (const url of [originalUrl, 'https://example.org/other.pdf']) {
     const f = fixture({ storage: { get: async () => ({ 'nativePdf:42': url }), remove: async (key) => f.removed.push(key) } });
     const source = await resolvePdfSource(f.options);
     assert.equal(source.nativeFallback, url === originalUrl);
-    assert.deepEqual(f.removed, ['nativePdf:42']);
+    assert.deepEqual(f.removed, url === originalUrl ? [] : ['nativePdf:42']);
     assert.deepEqual(f.calls, []);
   }
+  const otherTab = fixture({ storage: { get: async () => ({ 'nativePdf:42': originalUrl }), remove: async () => assert.fail('another tab choice must stay untouched') } });
+  otherTab.info.tabId = 43;
+  assert.equal((await resolvePdfSource(otherTab.options)).nativeFallback, false);
 });
 
 test('an embedded PDF is refused and an ordinary page cannot manufacture a MIME context', async () => {
@@ -95,19 +98,23 @@ test('viewer destinations preserve the paper URL, query and page anchor while op
   assert.throws(() => viewerDestinationUrl('javascript:alert(1)', 'chrome'));
 });
 
-test('Scholar native-viewer intent is honored even if Chrome strips the hash from the stream URL', async () => {
+test('both normal and Chrome viewer choices are honored when Chrome strips the stream hash', async () => {
   const f = fixture({ getFrameUrl: async () => originalUrl + '#page=3&gsr=0' });
   const source = await resolvePdfSource(f.options);
   assert.equal(source.nativeFallback, true);
   assert.equal(source.originalUrl, originalUrl);
   await source.fallback();
   assert.deepEqual(f.calls, ['stream://once', 'native']);
-  for (const url of [originalUrl, originalUrl + '#page=3&gsr=1', 'https://example.org/other.pdf#gsr=0']) {
+  for (const url of [originalUrl + '#page=3&gsr=1', originalUrl + '#page=3&gsr=0']) {
+    assert.equal((await resolvePdfSource(fixture({ getFrameUrl: async () => url }).options)).nativeFallback, true);
+  }
+  for (const url of [originalUrl, originalUrl + '#gsr=2', 'https://example.org/other.pdf#gsr=0']) {
     assert.equal((await resolvePdfSource(fixture({ getFrameUrl: async () => url }).options)).nativeFallback, false);
   }
 });
 
-test('one-shot handoff ignores fragments but remains scoped to the same PDF and tab', async () => {
-  const f = fixture({ storage: { get: async () => ({ 'nativePdf:42': originalUrl + '#gsr=1' }), remove: async () => {} } });
+test('a stored normal viewer choice ignores fragments and survives repeated refreshes without a stream hash', async () => {
+  const f = fixture({ storage: { get: async () => ({ 'nativePdf:42': originalUrl + '#gsr=1' }), remove: async () => assert.fail('refresh must not consume the choice') } });
+  assert.equal((await resolvePdfSource(f.options)).nativeFallback, true);
   assert.equal((await resolvePdfSource(f.options)).nativeFallback, true);
 });

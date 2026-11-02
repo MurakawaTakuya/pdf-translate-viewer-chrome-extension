@@ -1644,3 +1644,12 @@ test('changing languages during local preparation invalidates both the old model
   await until(()=>api.state.translationPair==='en:ko');release();await old;await idle(api);
   assert.deepEqual(created,['ja','ko']);assert.match(b.ja,/^ko /);assert.match(api.state.rows[1].blocks[0].ja,/^ko /);
 });
+
+test('viewer selection hands the current MIME buffer off immediately after the saved choice is acknowledged',async()=>{
+  const order=[],url='https://arxiv.org/pdf/2609.34178';
+  const api=await viewer('chrome',{},null,1,{originalUrl:url,tabId:42,fallback:async()=>order.push('fallback')});
+  api.chrome.webNavigation={getFrame:async()=>({url})};
+  api.chrome.runtime.sendMessage=async message=>{assert.equal(message.handoff,true);order.push('saved');return {ok:true,handoff:true};};
+  await api.element('#openNormalViewer').onclick();
+  assert.deepEqual(order,['saved','fallback']);
+});

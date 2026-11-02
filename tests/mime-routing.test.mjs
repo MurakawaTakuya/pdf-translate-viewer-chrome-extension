@@ -25,7 +25,7 @@ function fixture(mime = true) {
       setBadgeText: async (options) => calls.push(['badge', options]),
       setBadgeBackgroundColor: async () => {}, setTitle: async () => {},
     },
-    tabs: { update: async (id, options) => calls.push(['navigate', id, options]) },
+    tabs: { update: async (id, options) => calls.push(['navigate', id, options]), onRemoved: listen('removed') },
     webNavigation: { onBeforeNavigate: listen('before'), onCommitted: listen('committed') },
   };
   if (mime) chrome.mimeHandler = {
@@ -61,7 +61,7 @@ test('old Chrome retains both HTTP redirects and the local-file route', async ()
   assert.equal(f.calls.at(-1)[2].url, VIEWER + '?file=file%3A%2F%2F%2Fpaper.pdf');
 });
 
-test('an old viewer tab can bypass the MIME handler for exactly one tab and source', async () => {
+test('a viewer choice is stored for just its tab and source', async () => {
   const f = fixture(), url = 'https://arxiv.org/pdf/2301.08243';
   await f.api.openOriginal(42, url);
   assert.equal(f.session['nativePdf:42'], url);
@@ -74,8 +74,10 @@ test('an old viewer tab can bypass the MIME handler for exactly one tab and sour
 
 test('manual open explicitly selects this viewer even when another MIME handler has priority', async () => {
   const f = fixture(), url = 'https://arxiv.org/pdf/2301.08243';
+  f.session['nativePdf:42'] = url;
   const send = () => new Promise((resolve) => f.events.message({ type: 'openInViewer', tabId: 42, url }, {}, resolve));
   assert.equal((await send()).ok, true);
+  assert.equal(f.session['nativePdf:42'], undefined);
   assert.equal(f.calls.at(-1)[2].url, VIEWER + '?file=' + encodeURIComponent(url));
   f.local.autoOpen = false;
   await send();
@@ -94,10 +96,47 @@ test('switching viewers reloads only same-document PDF navigation and leaves aut
   assert.equal(f.calls.some(([kind]) => kind === 'mimeOptions'), false);
 });
 
-test('a failed viewer navigation removes its one-shot bypass rather than affecting a later open', async () => {
+test('a failed viewer navigation removes its stored choice rather than affecting a later open', async () => {
   const f = fixture();
   f.chrome.tabs.update = async () => { throw new Error('closed tab'); };
   await assert.rejects(f.api.openOriginal(42, 'https://arxiv.org/pdf/2301.08243#gsr=1'), /closed tab/);
+  assert.equal(f.session['nativePdf:42'], undefined);
+});
+
+test('same-PDF handoff replies after updating the hash without reloading its handler frame', async () => {
+  const f = fixture(), base = 'https://arxiv.org/pdf/2301.08243', url = base + '#gsr=1';
+  f.chrome.webNavigation.getFrame = async () => ({ url: base });
+  f.chrome.tabs.reload = async () => assert.fail('the current MIME frame must perform its buffered fallback after the reply');
+  const reply = await new Promise(resolve => f.events.message({ type: 'openOriginal', tabId: 42, url, reload: true, handoff: true }, {}, resolve));
+  assert.equal(reply.ok, true);
+  assert.equal(reply.handoff, true);
+  assert.equal(f.session['nativePdf:42'], url);
+  assert.deepEqual(f.calls, [['navigate', 42, { url }]]);
+});
+
+test('a buffered handoff refuses a different or unconfirmed PDF before changing navigation', async () => {
+  for (const currentUrl of ['https://example.org/other.pdf', undefined]) {
+    const f = fixture();
+    f.chrome.webNavigation.getFrame = async () => currentUrl ? { url: currentUrl } : null;
+    const reply = await new Promise(resolve => f.events.message({ type: 'openOriginal', tabId: 42, url: 'https://arxiv.org/pdf/2301.08243#gsr=1', handoff: true }, {}, resolve));
+    assert.equal(reply.ok, false);
+    assert.match(reply.error, /同じPDF/);
+    assert.equal(f.session['nativePdf:42'], undefined);
+    assert.deepEqual(f.calls, []);
+  }
+});
+
+test('refresh keeps the chosen viewer while a different PDF or tab removal releases that tab choice', async () => {
+  const f = fixture(), base = 'https://arxiv.org/pdf/2301.08243';
+  f.session['nativePdf:42'] = base + '#gsr=1';
+  await f.events.committed({ frameId: 0, tabId: 42, url: base + '#page=3' });
+  assert.equal(f.session['nativePdf:42'], base + '#gsr=1');
+  await f.events.committed({ frameId: 0, tabId: 43, url: 'https://example.org/other.pdf' });
+  assert.equal(f.session['nativePdf:42'], base + '#gsr=1');
+  await f.events.committed({ frameId: 0, tabId: 42, url: base + '?different=1' });
+  assert.equal(f.session['nativePdf:42'], undefined);
+  f.session['nativePdf:42'] = base;
+  await f.events.removed(42);
   assert.equal(f.session['nativePdf:42'], undefined);
 });
 
