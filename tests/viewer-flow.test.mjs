@@ -2155,7 +2155,7 @@ test("viewer button opts into Scholar on a fresh default PDF document and report
     return { ok: true };
   };
   await api.element("#openOriginal").onclick();
-  assert.equal(messages[0].url, url + "#page=3&gsr=1");
+  assert.equal(messages[0].url, url + "#page=3");
   assert.equal(messages[0].reload, true);
   assert.equal(messages[0].handoff, false);
   let accepted;
@@ -2164,7 +2164,7 @@ test("viewer button opts into Scholar on a fresh default PDF document and report
   });
   assert.equal(accepted, true);
   await until(() => messages.length === 2);
-  assert.equal(messages[1].url, url + "#page=3&gsr=1");
+  assert.equal(messages[1].url, url + "#page=3");
   assert.equal(messages[1].reload, true);
   assert.equal(messages[1].handoff, false);
   api.runtimeMessage({ type: "openChromeViewer" }, {}, () => {});

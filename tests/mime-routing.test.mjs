@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
 import { readFile } from "node:fs/promises";
+import { resolvePdfSource, viewerDestinationUrl } from "../pdf-source.js";
 
 const background = (
   await readFile(new URL("../background.js", import.meta.url), "utf8")
@@ -499,6 +500,37 @@ test("popup still offers a manual viewer open for a native PDF tab", async () =>
   assert.equal(f.element("#action").textContent, "このPDFを翻訳ビューアで開く");
 });
 
+test("a fragment-free normal choice survives Scholar's subsequent Chrome switch without reopening the translation viewer", async () => {
+  const f = fixture();
+  const base = "https://arxiv.org/pdf/2301.08243";
+  let address = base;
+  f.chrome.webNavigation.getFrame = async () => ({ url: address });
+  f.chrome.tabs.reload = async () => {};
+  await f.api.openOriginal(42, viewerDestinationUrl(base, "normal"), true);
+  assert.equal(f.session["nativePdf:42"], base);
+  const options = {
+    search: "",
+    storage: f.chrome.storage.session,
+    getFrameUrl: async () => address,
+    mimeHandler: {
+      getStreamInfo: async () => ({
+        originalUrl: base,
+        streamUrl: "stream://once",
+        tabId: 42,
+      }),
+      abortAndFallbackToNativeHandler: async () => {},
+    },
+    fetch: async () => new Response(new Uint8Array([1])),
+  };
+  assert.equal((await resolvePdfSource(options)).nativeFallback, true);
+  address = base + "#page=3.00&gsr=0";
+  await f.events.committed({ tabId: 42, frameId: 0, url: address });
+  const source = await resolvePdfSource(options);
+  assert.equal(source.nativeFallback, true);
+  await source.fallback();
+  assert.equal(f.session["nativePdf:42"], base);
+});
+
 test("legacy popup opts Scholar in without requiring extension discovery", async () => {
   const url = "https://arxiv.org/pdf/2301.08243#page=3&toolbar=0&gsr=0";
   const f = await popupFixture(
@@ -508,7 +540,7 @@ test("legacy popup opts Scholar in without requiring extension discovery", async
   await f.element("#action").onclick();
   const message = f.runtimeMessages.at(-1);
   assert.equal(message.type, "openOriginal");
-  assert.equal(message.url, "https://arxiv.org/pdf/2301.08243#page=3&gsr=1");
+  assert.equal(message.url, "https://arxiv.org/pdf/2301.08243#page=3");
   assert.equal(message.reload, true);
 });
 

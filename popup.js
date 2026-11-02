@@ -48,7 +48,7 @@ if (viewerState?.fileUrl || url.startsWith(VIEWER)) {
         const target = new URL(file),
           hash = new URLSearchParams(target.hash.slice(1));
         if (hash.get("toolbar") === "0") hash.delete("toolbar");
-        hash.set("gsr", "1");
+        hash.delete("gsr");
         target.hash = hash.toString();
         await chrome.runtime.sendMessage({
           type: "openOriginal",

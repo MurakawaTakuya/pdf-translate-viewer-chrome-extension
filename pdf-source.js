@@ -17,7 +17,11 @@ export function viewerDestinationUrl(url, destination) {
   // choice must clear it so a previously hidden toolbar cannot block Scholar.
   if (destination === "normal" && hash.get("toolbar") === "0")
     hash.delete("toolbar");
-  hash.set("gsr", destination === "chrome" ? "0" : "1");
+  // Scholar's Chrome-viewer action appends &gsr=0 instead of replacing it.
+  // Leaving gsr=1 here would shadow that later opt-out (URLSearchParams.get
+  // reads the first value). Scholar already opens by default without gsr.
+  if (destination === "chrome") hash.set("gsr", "0");
+  else hash.delete("gsr");
   target.hash = hash.toString();
   return target.href;
 }
