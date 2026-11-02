@@ -2138,7 +2138,7 @@ test("changing the language pair clears previous text rather than showing a tran
   await idle(api);
 });
 
-test("viewer button directly requests a new Chrome-native document and reports rejected switches", async () => {
+test("viewer button opts into Scholar on a fresh default PDF document and reports rejected switches", async () => {
   const url = "https://arxiv.org/pdf/2301.08243",
     messages = [];
   const api = await viewer("chrome", {}, null, 1, {
@@ -2148,16 +2148,30 @@ test("viewer button directly requests a new Chrome-native document and reports r
       assert.fail("must reload for Scholar to recheck fragment"),
   });
   api.chrome.webNavigation = {
-    getFrame: async () => ({ url: url + "#page=3&gsr=1" }),
+    getFrame: async () => ({ url: url + "#page=3&toolbar=0&gsr=0" }),
   };
   api.chrome.runtime.sendMessage = async (msg) => {
     messages.push(msg);
     return { ok: true };
   };
   await api.element("#openOriginal").onclick();
-  assert.equal(messages[0].url, url + "#page=3&gsr=0");
+  assert.equal(messages[0].url, url + "#page=3&gsr=1");
   assert.equal(messages[0].reload, true);
   assert.equal(messages[0].handoff, false);
+  let accepted;
+  api.runtimeMessage({ type: "openDefaultViewer" }, {}, (reply) => {
+    accepted = reply.ok;
+  });
+  assert.equal(accepted, true);
+  await until(() => messages.length === 2);
+  assert.equal(messages[1].url, url + "#page=3&gsr=1");
+  assert.equal(messages[1].reload, true);
+  assert.equal(messages[1].handoff, false);
+  api.runtimeMessage({ type: "openChromeViewer" }, {}, () => {});
+  await until(() => messages.length === 3);
+  assert.equal(messages[2].url, url + "#page=3&toolbar=0&gsr=0");
+  assert.equal(messages[2].reload, true);
+  assert.equal(messages[2].handoff, false);
   api.chrome.runtime.sendMessage = async () => ({ ok: false, error: "failed" });
   await api.element("#openOriginal").onclick();
   assert.match(api.status(), /failed/);

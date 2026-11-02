@@ -457,6 +457,7 @@ async function popupFixture(
   };
   await vm.runInNewContext(`(async()=>{${popup}})()`, {
     URL,
+    URLSearchParams,
     document: { querySelector: element },
     window: { close() {} },
     chrome: {
@@ -487,15 +488,28 @@ test("popup recognizes a MIME viewer despite the address bar containing the orig
   });
   assert.equal(
     f.element("#action").textContent,
-    "このPDFをChrome内蔵ビューアで開く"
+    "このPDFを通常のビューアで開く"
   );
   await f.element("#action").onclick();
-  assert.equal(f.messages.at(-1).type, "openChromeViewer");
+  assert.equal(f.messages.at(-1).type, "openDefaultViewer");
 });
 
 test("popup still offers a manual viewer open for a native PDF tab", async () => {
   const f = await popupFixture(null);
   assert.equal(f.element("#action").textContent, "このPDFを翻訳ビューアで開く");
+});
+
+test("legacy popup opts Scholar in without requiring extension discovery", async () => {
+  const url = "https://arxiv.org/pdf/2301.08243#page=3&toolbar=0&gsr=0";
+  const f = await popupFixture(
+    null,
+    VIEWER + "?file=" + encodeURIComponent(url)
+  );
+  await f.element("#action").onclick();
+  const message = f.runtimeMessages.at(-1);
+  assert.equal(message.type, "openOriginal");
+  assert.equal(message.url, "https://arxiv.org/pdf/2301.08243#page=3&gsr=1");
+  assert.equal(message.reload, true);
 });
 
 test("the popup explicitly returns a Chrome PDF to this viewer and clears its stored viewer choice", async () => {

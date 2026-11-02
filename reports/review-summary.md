@@ -170,3 +170,13 @@ PR #1をmainへmergeした後、chore/lint-formatを作成。個人のreact-next
 2担当の独立レビューで必須指摘なし。設定/依存/CI担当はnpm check（lint/format/346tests）を独立実行。整形担当は74JS/MJSのAST一致と説明済み6ファイルだけの構造差、manifest値同一、複数行import除去で実処理を保持することを確認。UMD fontkitのglobal/default対応後も実PDF生成/再抽出のアサーションを維持。関連108tests成功、lib/fonts/reports/LICENSESに既存差分なし。
 
 GitHub Actionsのクリーンnpm ci・lint・format:check・全346testsが成功。[CI実行](https://github.com/MurakawaTakuya/pdf-translate-viewer-chrome-extension/actions/runs/41411018733/job/125163849051)。PR #2は自身のforkのmain宛てdraftで、ユーザーのmerge許可待ち。Chrome操作・実API生成・Release公開は行っていない。
+
+## 通常ビューアはScholarを優先
+
+追記日時: 2026-11-02 18:08:50 JST
+
+ユーザー依頼により通常ビューアボタンをChrome指定（gsr=0）からScholar許可（gsr=1）へ変更。Scholarが有効で対象PDFへアクセスできれば重ね表示、未導入ならChrome標準へ戻す。インストール一覧への権限は追加しない。popupのMIME/旧URLの両経路を統一し、既存openChromeViewer互換メッセージとエラー時のbuffer fallbackは維持。fragment確定後の再読み込みと同一タブ・PDFの選択保持、翻訳ビューアへの明示復帰は既存処理を利用する。
+
+独立レビューでScholar配布0.5.2がtoolbar=0も起動抑止条件に使う点を指摘。normal指定に限りtoolbar=0を解除し、page/zoomとChrome指定時のtoolbarは保持するよう修正。新popupメッセージのテストfixture公開名を修正し、旧Chromeメッセージの回帰も追加した。最終npm run checkはlint・整形確認・348testsすべて成功。
+
+Chromeでは新規検証タブに最新の通常ビューアラベルを確認したが、切替完了は未確認。操作競合通知を受けて追加操作を停止した。Scholar未導入の実環境も未確認。GeminiのAPI生成なし。mainへのmergeと配布ZIP差し替えは行っていない。公開済みv0.8.0の本文はfork元v0.7.0との差分説明へ更新済みで、この追加修正を配布済みと記載していない。

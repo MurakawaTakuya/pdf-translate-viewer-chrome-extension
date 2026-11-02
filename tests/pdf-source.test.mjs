@@ -201,6 +201,17 @@ test("both normal and Chrome viewer choices are honored when Chrome strips the s
   }
 });
 
+test("explicit normal selection clears Scholar's hidden-toolbar opt-out without losing the page", () => {
+  const url = originalUrl + "#page=3&toolbar=0&zoom=150&gsr=0";
+  const normal = new URL(viewerDestinationUrl(url, "normal"));
+  const hash = new URLSearchParams(normal.hash.slice(1));
+  assert.equal(hash.has("toolbar"), false);
+  assert.equal(hash.get("page"), "3");
+  assert.equal(hash.get("zoom"), "150");
+  assert.equal(hash.get("gsr"), "1");
+  assert.match(viewerDestinationUrl(url, "chrome"), /toolbar=0/);
+});
+
 test("a stored normal viewer choice ignores fragments and survives repeated refreshes without a stream hash", async () => {
   const f = fixture({
     storage: {

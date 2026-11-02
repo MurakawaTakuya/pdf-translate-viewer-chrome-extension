@@ -13,6 +13,10 @@ export function viewerDestinationUrl(url, destination) {
   if (!["https:", "http:", "file:"].includes(target.protocol))
     throw new Error("PDFのURLが不正です");
   const hash = new URLSearchParams(target.hash.slice(1));
+  // Scholar also treats toolbar=0 as an opt-out. An explicit normal-viewer
+  // choice must clear it so a previously hidden toolbar cannot block Scholar.
+  if (destination === "normal" && hash.get("toolbar") === "0")
+    hash.delete("toolbar");
   hash.set("gsr", destination === "chrome" ? "0" : "1");
   target.hash = hash.toString();
   return target.href;
