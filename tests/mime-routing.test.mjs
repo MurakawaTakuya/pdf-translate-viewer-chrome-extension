@@ -7,9 +7,13 @@ const background = (await readFile(new URL('../background.js', import.meta.url),
 const popup = await readFile(new URL('../popup.js', import.meta.url), 'utf8');
 const VIEWER = 'chrome-extension://test/viewer.html';
 
-function fixture(mime = true) {
-  const calls = [], local = { autoOpen: true }, session = {}, events = {};
-  const listen = (name) => ({ addListener: (listener) => { events[name] = listener; } });
+function fixture(mime = true, timers = { setTimeout, clearTimeout }) {
+  const calls = [], errors = [], local = { autoOpen: true }, session = {}, events = {};
+  const listen = (name) => {
+    const listeners = new Set();
+    events[name] = (...args) => Promise.all([...listeners].map(listener => listener(...args)));
+    return { addListener: listener => listeners.add(listener), removeListener: listener => listeners.delete(listener), hasListener: listener => listeners.has(listener), get size() { return listeners.size; } };
+  };
   const chrome = {
     runtime: { getURL: () => VIEWER, onStartup: listen('startup'), onInstalled: listen('installed'), onMessage: listen('message') },
     storage: {
@@ -25,15 +29,18 @@ function fixture(mime = true) {
       setBadgeText: async (options) => calls.push(['badge', options]),
       setBadgeBackgroundColor: async () => {}, setTitle: async () => {},
     },
-    tabs: { update: async (id, options) => calls.push(['navigate', id, options]), onRemoved: listen('removed') },
-    webNavigation: { onBeforeNavigate: listen('before'), onCommitted: listen('committed') },
+    tabs: { update: async (id, options) => {
+      calls.push(['navigate', id, options]);
+      if (options.url) await events.fragment({ tabId: id, frameId: 0, url: options.url });
+    }, onRemoved: listen('removed') },
+    webNavigation: { onBeforeNavigate: listen('before'), onCommitted: listen('committed'), onReferenceFragmentUpdated: listen('fragment'), onErrorOccurred: listen('navigationError') },
   };
   if (mime) chrome.mimeHandler = {
     getStreamInfo() { assert.fail('stream info belongs to the handler page, never the service worker'); },
     setMimeHandlerOptions: async (...args) => calls.push(['mimeOptions', ...args]),
   };
-  const api = vm.runInNewContext(`(function(){${background};return {applyAutoOpen,openOriginal};})()`, { chrome, console });
-  return { api, chrome, get calls() { return JSON.parse(JSON.stringify(calls)); }, local, session, events };
+  const api = vm.runInNewContext(`(function(){${background};return {applyAutoOpen,openOriginal};})()`, { chrome, ...timers, console: { ...console, error: (...args) => errors.push(args) } });
+  return { api, chrome, errors, get calls() { return JSON.parse(JSON.stringify(calls)); }, local, session, events };
 }
 
 test('MIME routing removes persisted legacy redirects before enabling original-URL handling', async () => {
@@ -96,6 +103,70 @@ test('switching viewers reloads only same-document PDF navigation and leaves aut
   assert.equal(f.calls.some(([kind]) => kind === 'mimeOptions'), false);
 });
 
+test('a fragment switch never reloads the old address even after tabs.update has resolved', async () => {
+  const f = fixture(), base = 'https://arxiv.org/pdf/2301.08243', target = base + '#gsr=0';
+  let updated, reloads = 0;
+  const requested = new Promise(resolve => { updated = resolve; });
+  f.chrome.webNavigation.getFrame = async () => ({ url: base });
+  f.chrome.tabs.update = async () => { updated(); };
+  f.chrome.tabs.reload = async () => { reloads++; };
+  const pending = f.api.openOriginal(42, target, true);
+  await requested;await Promise.resolve();
+  assert.equal(reloads, 0);
+  await f.events.fragment({ tabId: 43, frameId: 0, url: target });
+  await f.events.fragment({ tabId: 42, frameId: 1, url: target });
+  assert.equal(reloads, 0);
+  await f.events.fragment({ tabId: 42, frameId: 0, url: target });
+  await pending;
+  assert.equal(reloads, 1);
+  assert.equal(f.chrome.webNavigation.onReferenceFragmentUpdated.size, 0);
+  assert.equal(f.chrome.webNavigation.onCommitted.size, 1);
+  await f.events.fragment({ tabId: 42, frameId: 0, url: target });
+  assert.equal(reloads, 1);
+});
+
+test('an already selected hash reloads directly, and a different PDF only navigates once', async () => {
+  const target = 'https://arxiv.org/pdf/2301.08243#gsr=0', same = fixture();
+  let reloads = 0;
+  same.chrome.webNavigation.getFrame = async () => ({ url: target });
+  same.chrome.tabs.update = async () => assert.fail('the current URL is already exact');
+  same.chrome.tabs.reload = async () => { reloads++; };
+  await same.api.openOriginal(42, target, true);
+  assert.equal(reloads, 1);
+  const other = fixture();
+  other.chrome.webNavigation.getFrame = async () => ({ url: 'https://example.org/other.pdf' });
+  other.chrome.tabs.reload = async () => assert.fail('a full navigation already creates a new document');
+  await other.api.openOriginal(42, target, true);
+  assert.deepEqual(other.calls, [['navigate', 42, { url: target }]]);
+});
+
+test('a same-PDF update that commits a new document does not reload it a second time', async () => {
+  const f = fixture(), base = 'https://arxiv.org/pdf/2301.08243', target = base + '#gsr=0';
+  f.chrome.webNavigation.getFrame = async () => ({ url: base });
+  f.chrome.tabs.update = async () => f.events.committed({ tabId: 42, frameId: 0, url: target });
+  f.chrome.tabs.reload = async () => assert.fail('the new document already started with gsr=0');
+  await f.api.openOriginal(42, target, true);
+  assert.equal(f.chrome.webNavigation.onReferenceFragmentUpdated.size, 0);
+});
+
+test('an unconfirmed fragment times out without reloading and removes temporary listeners', async () => {
+  let timeout, updated;
+  const requested = new Promise(resolve => { updated = resolve; });
+  const f = fixture(true, { setTimeout: callback => { timeout = callback; return 1; }, clearTimeout() {} });
+  const base = 'https://arxiv.org/pdf/2301.08243';
+  f.chrome.webNavigation.getFrame = async () => ({ url: base });
+  f.chrome.tabs.update = async () => { updated(); };
+  f.chrome.tabs.reload = async () => assert.fail('an unconfirmed URL must never be reloaded');
+  const pending = f.api.openOriginal(42, base + '#gsr=0', true);
+  await requested;
+  timeout();
+  await assert.rejects(pending, /URL変更を確認/);
+  assert.equal(f.session['nativePdf:42'], undefined);
+  assert.equal(f.chrome.webNavigation.onReferenceFragmentUpdated.size, 0);
+  assert.equal(f.chrome.webNavigation.onCommitted.size, 1);
+  assert.equal(f.chrome.tabs.onRemoved.size, 1);
+});
+
 test('a failed viewer navigation removes its stored choice rather than affecting a later open', async () => {
   const f = fixture();
   f.chrome.tabs.update = async () => { throw new Error('closed tab'); };
@@ -112,6 +183,43 @@ test('same-PDF handoff replies after updating the hash without reloading its han
   assert.equal(reply.handoff, true);
   assert.equal(f.session['nativePdf:42'], url);
   assert.deepEqual(f.calls, [['navigate', 42, { url }]]);
+});
+
+test('Chrome default selection is accepted before replacing the sender and then reloads the gsr=0 document', async () => {
+  const f = fixture(), base = 'https://arxiv.org/pdf/2301.08243', url = base + '#gsr=0';
+  let reply, reloaded;
+  const reload = new Promise(resolve => { reloaded = resolve; });
+  f.chrome.webNavigation.getFrame = async () => ({ url: base });
+  f.chrome.tabs.update = async (tabId, change) => {
+    assert.equal(reply.ok, true);
+    assert.equal(reply.accepted, true);
+    assert.equal(f.session['nativePdf:42'], url);
+    assert.equal(change.url, url);
+    await f.events.fragment({ tabId, frameId: 0, url });
+  };
+  f.chrome.tabs.reload = async tabId => { assert.equal(tabId, 42); reloaded(); };
+  f.events.message({ type: 'openOriginal', tabId: 42, url, reload: true, handoff: false }, {}, result => { reply = result; });
+  await reload;
+  assert.equal(reply.handoff, false);
+  assert.equal(f.errors.length, 0);
+});
+
+test('a reload failure after acceptance is logged and reported to a surviving viewer', async () => {
+  const f = fixture(), url = 'https://arxiv.org/pdf/2301.08243#gsr=0';
+  let reply, notified;
+  const notification = new Promise(resolve => { notified = resolve; });
+  f.chrome.tabs.reload = async () => { throw new Error('reload denied'); };
+  f.chrome.tabs.sendMessage = async (tabId, message) => {
+    assert.equal(tabId, 42);
+    assert.equal(message.type, 'viewerSwitchFailed');
+    assert.equal(message.error, 'reload denied');
+    notified();
+  };
+  f.events.message({ type: 'openOriginal', tabId: 42, url, reload: true, handoff: false }, {}, result => { reply = result; });
+  await notification;
+  assert.equal(reply.accepted, true);
+  assert.equal(f.errors[0][1].message, 'reload denied');
+  assert.equal(f.session['nativePdf:42'], undefined);
 });
 
 test('a buffered handoff refuses a different or unconfirmed PDF before changing navigation', async () => {
@@ -140,8 +248,8 @@ test('refresh keeps the chosen viewer while a different PDF or tab removal relea
   assert.equal(f.session['nativePdf:42'], undefined);
 });
 
-async function popupFixture(viewerState) {
-  const elements = new Map(), messages = [];
+async function popupFixture(viewerState, tabUrl = 'https://arxiv.org/pdf/2301.08243') {
+  const elements = new Map(), messages = [], runtimeMessages = [];
   const element = (selector) => {
     if (!elements.has(selector)) elements.set(selector, { classList: { add() {} } });
     return elements.get(selector);
@@ -149,27 +257,43 @@ async function popupFixture(viewerState) {
   await vm.runInNewContext(`(async()=>{${popup}})()`, {
     URL, document: { querySelector: element }, window: { close() {} },
     chrome: {
-      runtime: { getURL: () => VIEWER, sendMessage: () => assert.fail('native MIME handoff belongs to the current handler frame') },
+      runtime: { getURL: () => VIEWER, sendMessage: async message => { runtimeMessages.push(message); return { ok: true }; } },
       storage: { local: { get: async () => ({ autoOpen: true }) } },
       tabs: {
-        query: async () => [{ id: 42, url: 'https://arxiv.org/pdf/2301.08243' }],
+        query: async () => [{ id: 42, url: tabUrl }],
         sendMessage: async (_id, message) => { messages.push(message); return viewerState; },
       },
     },
   });
-  return { element, messages };
+  return { element, messages, runtimeMessages };
 }
 
 test('popup recognizes a MIME viewer despite the address bar containing the original PDF URL', async () => {
   const f = await popupFixture({ fileUrl: 'https://arxiv.org/pdf/2301.08243', mime: true });
-  assert.equal(f.element('#action').textContent, 'このPDFを通常のビューアで開く');
+  assert.equal(f.element('#action').textContent, 'このPDFをChrome内蔵ビューアで開く');
   await f.element('#action').onclick();
-  assert.equal(f.messages.at(-1).type, 'openNativeViewer');
+  assert.equal(f.messages.at(-1).type, 'openChromeViewer');
 });
 
 test('popup still offers a manual viewer open for a native PDF tab', async () => {
   const f = await popupFixture(null);
   assert.equal(f.element('#action').textContent, 'このPDFを翻訳ビューアで開く');
+});
+
+test('the popup explicitly returns a Chrome PDF to this viewer and clears its stored viewer choice', async () => {
+  const url = 'https://arxiv.org/pdf/2301.08243#gsr=0';
+  const popup = await popupFixture(null, url);
+  assert.equal(popup.element('#action').textContent, 'このPDFを翻訳ビューアで開く');
+  await popup.element('#action').onclick();
+  const message = popup.runtimeMessages.at(-1);
+  assert.equal(message.type, 'openInViewer');
+  assert.equal(message.url, url);
+  const background = fixture();
+  background.session['nativePdf:42'] = url;
+  const result = await new Promise(resolve => background.events.message(message, {}, resolve));
+  assert.equal(result.ok, true);
+  assert.equal(background.session['nativePdf:42'], undefined);
+  assert.equal(background.calls.at(-1)[2].url, VIEWER + '?file=' + encodeURIComponent(url));
 });
 
 test('file PDF viewer selection uses the main-frame URL even when Tab.url is hidden', async () => {

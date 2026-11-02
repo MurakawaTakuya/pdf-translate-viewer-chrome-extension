@@ -1313,28 +1313,15 @@ test('changing the language pair clears previous text rather than showing a tran
   await idle(api);
 });
 
-test('viewer menu selects Scholar-compatible or native intent without changing the paper URL', async () => {
-  const url = 'https://arxiv.org/pdf/2301.08243', messages = [];
-  const api = await viewer('gemini', {}, null, 1, { originalUrl: url, tabId: 42, fallback: async () => {} });
-  api.chrome.webNavigation = { getFrame: async () => ({ url: url + '#page=3&gsr=0' }) };
-  api.chrome.runtime.sendMessage = async (message) => { messages.push(message); return { ok: true }; };
-  api.element('#openOriginal').onclick();
-  assert.equal(api.element('#viewerMenu').hidden, false);
-  await api.element('#openNormalViewer').onclick();
-  assert.equal(messages[0].url, url + '#page=3&gsr=1');
-  assert.equal(messages[0].type, 'openOriginal');
-  assert.equal(api.element('#viewerMenu').hidden, true);
-  await api.element('#openChromeViewer').onclick();
-  assert.equal(messages[1].url, url + '#page=3&gsr=0');
-  api.element('#openOriginal').onclick();
-  api.pointerDown({ target: { closest: () => null } });
-  assert.equal(api.element('#viewerMenu').hidden, true);
-  api.element('#openOriginal').onclick();
-  api.key({ key: 'Escape' });
-  assert.equal(api.element('#viewerMenu').hidden, true);
-  api.chrome.runtime.sendMessage = async () => ({ ok: false, error: 'tab closed' });
-  await api.element('#openChromeViewer').onclick();
-  assert.match(api.status(), /tab closed/);
+test('viewer button directly requests a new Chrome-native document and reports rejected switches', async () => {
+  const url='https://arxiv.org/pdf/2301.08243',messages=[];
+  const api=await viewer('chrome',{},null,1,{originalUrl:url,tabId:42,fallback:async()=>assert.fail('must reload for Scholar to recheck fragment')});
+  api.chrome.webNavigation={getFrame:async()=>({url:url+'#page=3&gsr=1'})};
+  api.chrome.runtime.sendMessage=async msg=>{messages.push(msg);return {ok:true};};
+  await api.element('#openOriginal').onclick();
+  assert.equal(messages[0].url,url+'#page=3&gsr=0');assert.equal(messages[0].reload,true);assert.equal(messages[0].handoff,false);
+  api.chrome.runtime.sendMessage=async()=>({ok:false,error:'failed'});
+  await api.element('#openOriginal').onclick();assert.match(api.status(),/failed/);
 });
 
 test('Gemini validation details expose problem pages, original text and withheld output locally', async (t) => {

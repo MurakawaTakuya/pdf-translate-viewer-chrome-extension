@@ -80,13 +80,62 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     return true;
   }
   if (msg.type === 'openOriginal') {
-    openOriginal(msg.tabId, msg.url, msg.reload === true, msg.handoff === true).then((result) => reply({ ok: true, ...result }), (e) => reply({ ok: false, error: e.message }));
+    let accepted = false;
+    openOriginal(msg.tabId, msg.url, msg.reload === true, msg.handoff === true, (result) => {
+      accepted = true;
+      // Reply before tabs.update/reload can destroy the sender's MIME frame.
+      // This acknowledges a prepared switch, not successful completion.
+      reply({ ok: true, accepted: true, ...result });
+    }).then((result) => {
+      if (!accepted) reply({ ok: true, ...result });
+    }, (error) => {
+      console.error('PDFビューアへの切り替えに失敗しました', error);
+      if (!accepted) reply({ ok: false, error: error.message });
+      else chrome.tabs.sendMessage?.(msg.tabId, { type: 'viewerSwitchFailed', error: error.message }).catch(() => {});
+    });
     return true;
   }
 });
 
+// tabs.update resolves when the request is accepted, before a fragment-only
+// navigation necessarily commits. Reloading at that point can use the old URL.
+// Register before updating so even a fast fragment commit cannot be missed.
+function waitForPdfAddress(tabId, url) {
+  let finish;
+  const listeners = [];
+  const promise = new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => finish({ error: new Error('PDFのURL変更を確認できませんでした。もう一度お試しください') }), 10000);
+    finish = (result) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      for (const [event, listener] of listeners) event.removeListener(listener);
+      resolve(result);
+    };
+    const add = (event, listener) => {
+      if (!event) return;
+      event.addListener(listener);
+      listeners.push([event, listener]);
+    };
+    const committed = (newDocument) => (details) => {
+      if (details.tabId !== tabId || details.frameId !== 0) return;
+      finish(details.url === url ? { newDocument } : { error: new Error('切り替え中にPDFのURLが変わりました') });
+    };
+    add(chrome.webNavigation.onReferenceFragmentUpdated, committed(false));
+    add(chrome.webNavigation.onCommitted, committed(true));
+    add(chrome.webNavigation.onErrorOccurred, (details) => {
+      if (details.tabId === tabId && details.frameId === 0) finish({ error: new Error('PDFのURL変更に失敗しました') });
+    });
+    add(chrome.tabs.onRemoved, (removedTabId) => {
+      if (removedTabId === tabId) finish({ error: new Error('切り替え中にタブが閉じられました') });
+    });
+  });
+  return { promise, cancel: () => finish({ cancelled: true }) };
+}
+
 // 翻訳ビューアを通さずに、このPDFだけ通常のビューアで開く（自動切り替えが ON のままでも）
-async function openOriginal(tabId, url, reload = false, handoff = false) {
+async function openOriginal(tabId, url, reload = false, handoff = false, onAccepted = () => {}) {
   if (mimeHandler) {
     // Old viewer.html tabs can also hand just this navigation to the native viewer.
     // webNavigation already has permission to read file URLs; Tab.url can be
@@ -101,13 +150,28 @@ async function openOriginal(tabId, url, reload = false, handoff = false) {
     if (handoff && !samePdf) throw new Error('同じPDFの表示先を確認できませんでした');
     const key = `nativePdf:${tabId}`;
     if (await isAutoOpen()) await chrome.storage.session.set({ [key]: url });
+    let address;
     try {
-      await chrome.tabs.update(tabId, { url });
-      if (!handoff && (reload || samePdf)) await chrome.tabs.reload(tabId);
+      if (!handoff) onAccepted({ handoff });
+      let newDocument = false;
+      if (currentUrl !== url) {
+        if (samePdf || (!currentUrl && reload)) address = waitForPdfAddress(tabId, url);
+        await chrome.tabs.update(tabId, { url });
+        if (address) {
+          const result = await address.promise;
+          if (result.error) throw result.error;
+          newDocument = result.newDocument;
+        } else newDocument = true;
+      }
+      if (handoff) onAccepted({ handoff });
+      // Scholar reads #gsr=0 only at DOMContentLoaded. A fragment change plus
+      // buffered fallback cannot remove an overlay already in the parent PDF
+      // document. A fresh top-level document must see the opt-out from the start.
+      if (!handoff && !newDocument && (reload || samePdf)) await chrome.tabs.reload(tabId);
     } catch (error) {
       await chrome.storage.session.remove(key);
       throw error;
-    }
+    } finally { address?.cancel(); }
     return { handoff };
   }
   const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -121,6 +185,7 @@ async function openOriginal(tabId, url, reload = false, handoff = false) {
     }],
   });
   await chrome.storage.session.set({ bypassTab: tabId, ...(url.startsWith('file:') ? { bypass: url } : {}) });
+  onAccepted({ handoff: false });
   await chrome.tabs.update(tabId, { url });
 }
 

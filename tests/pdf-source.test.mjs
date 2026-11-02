@@ -118,3 +118,11 @@ test('a stored normal viewer choice ignores fragments and survives repeated refr
   assert.equal((await resolvePdfSource(f.options)).nativeFallback, true);
   assert.equal((await resolvePdfSource(f.options)).nativeFallback, true);
 });
+
+test('removing gsr=0 from the address does not erase a Chrome choice, but an explicit viewer link overrides it', async () => {
+  const options = { storage: { get: async () => ({ 'nativePdf:42': originalUrl + '#gsr=0' }), remove: async () => assert.fail('the same PDF choice must persist') }, getFrameUrl: async () => originalUrl };
+  assert.equal((await resolvePdfSource(fixture(options).options)).nativeFallback, true);
+  const explicit = await resolvePdfSource(fixture({ ...options, search: '?file=' + encodeURIComponent(originalUrl + '#gsr=0') }).options);
+  assert.equal(explicit.nativeFallback, undefined);
+  assert.deepEqual(await explicit.parameters(), { url: originalUrl + '#gsr=0' });
+});

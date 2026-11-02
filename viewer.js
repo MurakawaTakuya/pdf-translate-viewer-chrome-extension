@@ -1395,7 +1395,6 @@ function closeDownloadMenu() {
 }
 
 function toggleDownloadMenu() {
-  closeViewerMenu();
   const menu = $('#downloadMenu');
   $('#downloadOriginal').disabled = !state.pdf || state.exporting;
   $('#downloadTranslated').disabled = !canExportTranslation() || state.exporting;
@@ -1486,19 +1485,14 @@ async function openNativeViewer() {
   const tab = await chrome.tabs.getCurrent();
   await chrome.runtime.sendMessage({ type: 'openOriginal', tabId: tab.id, url: fileUrl });
 }
-function closeViewerMenu() {
-  $('#viewerMenu').hidden = true;
-  $('#openOriginal').setAttribute('aria-expanded', 'false');
-}
 async function openViewerDestination(destination) {
-  closeViewerMenu();
   try {
     const tab = pdfSource.tabId !== undefined ? { id: pdfSource.tabId } : await chrome.tabs.getCurrent();
     const frame = chrome.webNavigation?.getFrame
       ? await chrome.webNavigation.getFrame({ tabId: tab.id, frameId: 0 }).catch(() => null) : tab;
     const address = frame?.url?.split('#')[0] === fileUrl.split('#')[0] ? frame.url : fileUrl;
     const reply = await chrome.runtime.sendMessage({
-      type: 'openOriginal', tabId: tab.id, url: viewerDestinationUrl(address, destination), reload: !!pdfSource.fallback, handoff: !!pdfSource.fallback,
+      type: 'openOriginal', tabId: tab.id, url: viewerDestinationUrl(address, destination), reload: true, handoff: false,
     });
     if (!reply?.ok) throw new Error(reply?.error || '切り替えを開始できませんでした');
     if(reply.handoff)await openNativeViewer();
@@ -1506,22 +1500,16 @@ async function openViewerDestination(destination) {
 }
 if (fileUrl && self.chrome?.tabs) {
   $('#openOriginal').hidden = false;
-  $('#openOriginal').onclick = () => {
-    closeDownloadMenu();
-    const menu = $('#viewerMenu');
-    menu.hidden = !menu.hidden;
-    $('#openOriginal').setAttribute('aria-expanded', String(!menu.hidden));
-  };
+  $('#openOriginal').onclick = () => { closeDownloadMenu(); return openViewerDestination('chrome'); };
 }
-$('#openNormalViewer').onclick = () => openViewerDestination('normal');
-$('#openChromeViewer').onclick = () => openViewerDestination('chrome');
 self.chrome?.runtime?.onMessage?.addListener((message, _sender, reply) => {
   if (message.type === 'getViewerState') reply({ fileUrl, mime: !!pdfSource.fallback });
-  if (message.type === 'openNativeViewer') {
+  if(message.type==='viewerSwitchFailed')setStatus('ビューアへの切り替えに失敗しました: '+message.error);
+  if (message.type === 'openNativeViewer' || message.type === 'openChromeViewer') {
     // A successful handoff destroys this frame. Acknowledge acceptance first,
     // otherwise the popup waits on a message port that can no longer reply.
     reply({ ok: true });
-    openNativeViewer().catch((error) => {
+    (message.type==='openChromeViewer'?openViewerDestination('chrome'):openNativeViewer()).catch((error) => {
       console.error(error);
       setStatus('通常のビューアへの切り替えに失敗しました: ' + error.message);
     });
@@ -1539,13 +1527,12 @@ citationDialog = createCitationDialog({
   document, fileUrl, getPdf: () => state.pdf,
   download: (text, filename) => saveFile(new TextEncoder().encode(text), filename, 'text/plain;charset=utf-8'),
 });
-$('#cite').onclick = () => { closeDownloadMenu(); closeViewerMenu(); return citationDialog.open(); };
+$('#cite').onclick = () => { closeDownloadMenu(); return citationDialog.open(); };
 window.addEventListener('pointerdown', (e) => {
   if (!$('#downloadMenu').hidden && !e.target?.closest?.('.download-control')) closeDownloadMenu();
-  if (!$('#viewerMenu').hidden && !e.target?.closest?.('.viewer-choice-control')) closeViewerMenu();
 });
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { closeDownloadMenu(); closeViewerMenu(); }
+  if (e.key === 'Escape') { closeDownloadMenu(); }
   handleZoomKey(e);
 });
 srcSel.onchange = dstSel.onchange = () => {

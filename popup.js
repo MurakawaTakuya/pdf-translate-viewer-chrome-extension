@@ -30,12 +30,15 @@ if (viewerState?.fileUrl || url.startsWith(VIEWER)) {
   const m = /[?&]file=(.*)$/s.exec(new URL(url).search);
   const file = viewerState?.fileUrl || (m && (/^[a-z]+%3A/i.test(m[1]) ? decodeURIComponent(m[1]) : m[1]));
   if (file) {
-    actionBtn.textContent = 'このPDFを通常のビューアで開く';
+    actionBtn.textContent = 'このPDFをChrome内蔵ビューアで開く';
     actionBtn.classList.add('sub');
     actionBtn.hidden = false;
     actionBtn.onclick = async () => {
-      if (viewerState?.mime) await chrome.tabs.sendMessage(tab.id, { type: 'openNativeViewer' });
-      else await chrome.runtime.sendMessage({ type: 'openOriginal', tabId: tab.id, url: file });
+      if (viewerState?.mime) await chrome.tabs.sendMessage(tab.id, { type: 'openChromeViewer' });
+      else {
+        const target=new URL(file),hash=new URLSearchParams(target.hash.slice(1));hash.set('gsr','0');target.hash=hash.toString();
+        await chrome.runtime.sendMessage({ type: 'openOriginal', tabId: tab.id, url: target.href, reload:true });
+      }
       window.close();
     };
   }
