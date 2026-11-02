@@ -1,0 +1,10 @@
+# Third-party distribution files and licenses
+lib/
+fonts/
+icons/
+LICENSES/
+# Historical experiment evidence and prose are kept verbatim
+reports/
+*.md
+**/*.md
+package-lock.json
