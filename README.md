@@ -24,7 +24,7 @@
 
 パソコン版Google Chrome 138以降。ローカルAIの利用可否は、ChromeのTranslator APIと選択した言語ペアの対応状況によります。初回は翻訳モデルのダウンロードが必要になる場合があります。スマートフォン版には対応していません。
 
-1. このリポジトリの利用するブランチをcloneするか、ZIPで取得して展開します。
+1. [Releases](https://github.com/MurakawaTakuya/pdf-translate-viewer-chrome-extension/releases) の `pdf-translate-viewer-vX.Y.Z.zip` をダウンロードして展開します。開発する場合はこのリポジトリをcloneしても使えます。
 2. `chrome://extensions` を開き、「デベロッパー モード」をONにします。
 3. 「パッケージ化されていない拡張機能を読み込む」から、`manifest.json` のあるフォルダを選びます。
 4. PDFを開きます。拡張機能を読み込んだフォルダは削除・移動しないでください。
