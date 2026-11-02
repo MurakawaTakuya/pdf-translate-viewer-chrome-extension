@@ -131,6 +131,7 @@ function loader({
       state,
       autoTranslatePending: true,
       document: {},
+      tabTitle: { fallback() {}, fromPdf() {} },
       console: { error() {} },
       citationDialog: { prefetch() {} },
       openNativeViewer: async () => {

@@ -190,3 +190,13 @@ Chromeでは新規検証タブに最新の通常ビューアラベルを確認�
 normal指定ではgsrをすべて削除する方式へ変更。Scholarはgsrなしでも標準で起動する。toolbar=0解除、Chrome互換指定でgsr=0を設定する処理、ページ番号と倍率は保持。自拡張の回避はnativePdfセッションの同一タブ・同一PDF指定で継続し、他拡張のフラグをオン指定として残さない。popup旧URL経路も同様に修正した。
 
 npm run checkはlint・整形確認・350testsすべて成功。独立レビューでは関連114tests成功、追加必須指摘なし。Chrome実機で元URLから新規に開く→本拡張→通常ビューアボタン→Scholar→ScholarメニューのChromeビューアで開く→Chrome内蔵（mhjfbmdgcfjbbpaeojofohoefgiehjai）を確認。再読み込み後も内蔵を維持。今回の検証タブを閉じ、既にループしていたユーザーの2609.36598v2タブも重複hashの整理・再読み込みでChrome内蔵へ復旧した。Gemini追加生成なし。merge・配布ZIP差し替えは未実施。
+
+## 原文の論文タイトルをタブ名へ表示
+
+追記日時: 2026-11-02 21:48:18 JST
+
+PDF XMP dc:title/info.Titleを優先し、メタデータがなければ既存のURL由来引用先読みのtitleを補完に使う。翻訳結果や手動で変更した引用識別子はタブ名に使わない。先読みとmetadataの応答順によらずPDF metadataが優先する。どちらも取得できなければ元のファイル名を使い、PDF保存名は従来通り元のファイル名を保持。追加の翻訳API送信はない。
+
+MIMEハンドラは内部フレームにあり、そのdocument.titleを変更しても実タブ名は変わらない。親はChrome生成のtext/html文書であり、MessageSender.frameIdもMIME viewerからのtabs.sendMessageでは省略されることを実機で確認。既存host権限のcontent scriptを追加し、自拡張viewer.htmlから送られた、親文書のURLと同じPDFのプレーンなタイトルだけをtop-frameへ反映する。HTMLページ自身・他拡張・別PDFの送信は無視する。scripting等の追加権限なし。ローカルfile URLへのcontent script注入はユーザーのファイルURLアクセス許可が必要でREADMEに制約を記載。
+
+Chrome実機で2609.36598v2のmetadataからBeyond Legibility...、metadataが空の2301.08243の引用先読みからSelf-Supervised Learning...が親ページ・タブ名に反映されることを確認。どちらも元のarXiv URLを維持。診断用consoleログは除去済み。npm run checkはlint・整形確認・356tests成功。追加のGemini生成なし。merge・Release更新なし。
