@@ -99,3 +99,16 @@ TeXの重なったアクセントと次の文字を分断する抽出を限定�
 新たな依頼として、図表内部の文字・参考文献一覧を原文で保持する。caption24件は翻訳対象に残し、参考文献後の付録本文は再開する。ローカルAI/Geminiの両方に共通の対象判定で適用。[詳細](translation-scope.md)、[実抽出の記録](translation-scope.json)。元212→124target、除外は図内10/表内52/参考文献27、新規caption1。
 
 独立レビューで、表の取り違え・直後本文の誤除外、References本文語の誤除外、unbold Referencesの前本文との結合、図中見出しによる文献除外解除を修正し再確認した。全302tests成功。原文PDFの図表ページも描画確認。API生成/Chrome操作/merge/Release/lint導入なし。今回変更後のユーザー表示確認とmerge許可が残る。
+
+
+## 大きい論文の分割送信
+
+追記日時: 2026-11-02 15:14:32 JST
+
+ユーザーが大きい論文だけ2〜数回に分ける方針を選択。本文の原文と必須ID対応を維持し、各回に全文文脈を添える。目安128対象/80,000byteで逐次送信、schema固有400のみ最大2回追加split、完了済みはcheckpointして中断/失敗時も保持する。同モデル・言語で再開時は未確定分だけ、モデル/言語変更はcache不使用。通常の17頁124対象は1回のまま。
+
+独立レビューの指摘として、単発評価captureが最後のrequestだけを保存する誤配線、中断時checkpoint損失、JSON成功時のDOM未更新、単発部分成功のcheckpoint漏れを修正し、既報fixtureを再確認。全314tests成功。通常書体のREFERENCESと全大文字付録見出しも修正し、新論文では参考文献を除外し付録は翻訳する。
+
+指定論文2609.36598v2は280対象を128/128/24で送信し全3回HTTP200・completed。約95.32秒で279受理、1caption未翻訳保留。その1件だけ別途手動補完1回（約5.05秒）し、計4APIrequest。実応答と実DocTranslatorのready→repairMissingを再生し、送信body4つ完全一致・280受理・missing0・completed=trueを確認。独立21件smokeでも評価可能20件に大きな別block誤代入は見つからなかった。内容完全一致の保証とは扱わない。
+
+[分割の詳細](translation-batches.md)、[結果](batched-document-result.json)。Chrome操作/merge/Release/lint導入なし。更新後の表示確認・merge許可待ち。

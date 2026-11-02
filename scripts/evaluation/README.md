@@ -108,3 +108,11 @@ The recorded N1 returned HTTP 400 without model output; N2/N3 were not run. Its 
 `atom-tags.mjs --prepare --input pages.json --panel-plan reports/compact-node-experiment-plan.json --directory /tmp/new-tag-run` freezes the actual tag factory request and the same 73-block panel. It is offline. `--run --project PROJECT --key-resource RESOURCE --directory DIRECTORY` permits one exploratory live request, guarded by source/request/implementation hashes and an exclusive start marker. A 150-second deadline applies. No retries or repairs occur. Its `gate` is mechanical only; independent semantic review remains mandatory before any promotion. Failed/incomplete outputs must not be patched into passes.
 
 Evaluation transport now records content type, byte count/hash and event counts without thought payloads or signatures, accepts SSE `event:` names, and explicitly reports a missing terminal completion. This does not recover the lost historical C1 transport.
+
+## Actual batched document factory
+
+`batched-document.mjs --prepare --input pages.json --source PDF_URL --project PROJECT --directory /tmp/new-batched-run` captures every request from the production factory, preserving the source-to-key mapping independently in each batch. Preparation is offline. `--run --project PROJECT --key-resource RESOURCE --directory DIRECTORY` sends each exact frozen request once, in order; extra or changed requests, including retries or schema fallback, are refused before network access. Completed checkpoints are retained even on abort. HTTP acceptance, decoded coverage and semantic correctness remain separate.
+
+The older `reproduce-current.mjs` single-request capture now rejects documents requiring multiple calls rather than saving the final request and incorrectly assigning its keys to the whole paper. Use the batched evaluator for those documents.
+
+The recorded 35-page run used three successful requests, held one unchanged caption, and then used a separately frozen one-request manual repair. Replaying the actual responses through document ready/repair matched all four request bodies and completed all 280 targets. See [results and limits](../../reports/translation-batches.md).
