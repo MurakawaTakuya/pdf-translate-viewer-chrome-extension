@@ -7,6 +7,7 @@ export function createCitationDialog({ document, getPdf, fileUrl, download, clip
   dismissOnOutsideClick(dialog);
   let generation = 0, exportGeneration = 0, source = null, exportText = '', exportFormat = null, detected;
   let ready=false,statusOwner='action';
+  let prefetching;
   const text = (selector, value) => { $(selector).textContent = value; };
 
   function status(message, error = false, owner='action') {
@@ -113,6 +114,18 @@ export function createCitationDialog({ document, getPdf, fileUrl, download, clip
   dialog.onclose = () => { generation++; $('#cite').setAttribute('aria-expanded', 'false'); };
 
   return {
+    // Only recognized public identifiers in the URL are prefetched. Local and
+    // unrecognized PDFs retain the explicit-click metadata lookup path.
+    prefetch() {
+      const id=citationIdentifier(fileUrl);
+      if(!id||!/^https?:/i.test(fileUrl))return Promise.resolve();
+      return prefetching??=(async()=>{
+        try{
+          const result=await service.resolve(id);
+          await Promise.allSettled(CITATION_STYLES.map(entry=>service.formatted(result.doi,entry.id)));
+        }catch{ /* Opening the panel can explicitly retry failed lookups. */ }
+      })();
+    },
     async open() {
       if (!getPdf()) return;
       if(dialog.open)return;

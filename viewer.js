@@ -445,6 +445,7 @@ async function load() {
     setStatus('PDFを開けませんでした ' + hint);
     return;
   }
+  citationDialog?.prefetch();
   await autoTranslateOnOpen();
 }
 

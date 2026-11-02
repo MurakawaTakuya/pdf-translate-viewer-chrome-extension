@@ -133,3 +133,16 @@ test('late formats from a previous identifier cannot overwrite a newly selected 
   assert.equal(f.$('#citation-mla').textContent,'mla new');
   await f.$('#copy-mla').onclick();assert.deepEqual(f.copied,['mla new']);
 });
+
+test('public identifier prefetch prepares all formats without opening or changing the panel',async()=>{
+  const formats=[];const f=fixture(undefined,{formatted:async(doi,style)=>{formats.push(style);return style;}});
+  await Promise.all([f.controller.prefetch(),f.controller.prefetch()]);
+  assert.equal(f.calls.length,1);assert.deepEqual(formats,['mla','apa','iso']);
+  assert.equal(f.$('#citations').open,false);assert.equal(f.$('#citationContent').hidden,true);
+});
+
+test('prefetch does not inspect local or unidentified PDF metadata or send it externally',async()=>{
+  for(const url of ['file:///paper.pdf','https://example.com/private.pdf']){
+    const f=fixture(url);await f.controller.prefetch();assert.equal(f.calls.length,0);
+  }
+});

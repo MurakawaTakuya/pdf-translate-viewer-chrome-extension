@@ -42,7 +42,7 @@ function loader({failureStage,autoTranslate=false,pdfSource={parameters:async()=
   const task={promise:network.promise},translations=[],dstSel={value:'ko'};let status='',built=false,painted=false;
   const parameters=[],nativeCalls=[];
   const load=vm.runInNewContext(`(function(){${loadSource};return load;})()`,{
-    fileUrl:'https://example.test/paper.pdf',pdfSource,state,autoTranslatePending:true,document:{},console:{error(){}},
+    fileUrl:'https://example.test/paper.pdf',pdfSource,state,autoTranslatePending:true,document:{},console:{error(){}},citationDialog:{prefetch(){}},
     openNativeViewer:async()=>{nativeCalls.push('native');},
     $:()=>({}),setStatus:text=>{status=text;},pdfLoadProgress:f.progress,
     pdfjsLib:{getDocument:(options)=>{parameters.push(options);return task;}},srcSel:{value:'en'},dstSel,start:async(engine)=>{translations.push([engine,dstSel.value]);},
