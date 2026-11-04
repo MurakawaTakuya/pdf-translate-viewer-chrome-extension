@@ -885,6 +885,15 @@ body[data-view="orig"] .row {
 .source-text-layer br::selection {
   background: transparent;
 }
+/* Find highlights must not redraw the invisible text over the PDF canvas. */
+.source-text-layer ::search-text {
+  color: transparent;
+  background-color: rgba(255, 230, 0, 0.45);
+  text-shadow: none;
+}
+.source-text-layer ::search-text:current {
+  background-color: rgba(255, 145, 0, 0.55);
+}
 .source-text-layer[data-main-rotation="90"] {
   transform: rotate(90deg) translateY(-100%);
 }
