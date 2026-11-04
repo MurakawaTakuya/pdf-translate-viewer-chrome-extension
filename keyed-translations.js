@@ -1,4 +1,5 @@
 // One required property per source block. Keep the source beside its value's schema.
+import { pageContinuations } from "./translation-continuations.js";
 export async function buildKeyedTask(
   pages,
   ids,
@@ -68,9 +69,29 @@ export async function buildKeyedTask(
       for (const member of group) groups.set(member, group);
     }
   }
+  const fixedCitations = new Map();
+  if (sourceLanguage === "English")
+    for (const { a, b, fixedA, fixedB } of pageContinuations(pages)) {
+      const key = keys.get(a.id),
+        next = keys.get(b.id);
+      // Do not widen an existing number/unit group or infer a group from only
+      // the requested subset of the document's paragraphs.
+      if (
+        !key ||
+        !next ||
+        groups.get(key).length !== 1 ||
+        groups.get(next).length !== 1
+      )
+        continue;
+      const group = [key, next];
+      for (const member of group) groups.set(member, group);
+      fixedCitations.set(key, citationList(fixedA));
+      fixedCitations.set(next, citationList(fixedB));
+    }
   return {
     byKey,
     groups,
+    fixedCitations,
     input: {
       pages: pages.map((p) => ({
         page: p.page,
@@ -181,35 +202,33 @@ export function keyedMembers(onItem = () => {}) {
   };
 }
 
-const citations = (text) =>
+const citationList = (text) =>
   [
     ...text
       .normalize("NFKC")
       .matchAll(
         /\[(\d+(?:\s*[-–—]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–—]\s*\d+)?)*)\]/g
       ),
-  ]
-    .flatMap((m) =>
-      m[1].split(",").flatMap((part) => {
-        const range = part
-          .trim()
-          .split(/\s*[-–—]\s*/)
-          .map(Number);
-        if (range.length === 1) return range;
-        const [first, last] = range;
-        // Bound work for untrusted PDF strings; huge/descending ranges remain literal markers.
-        if (
-          !Number.isSafeInteger(first) ||
-          !Number.isSafeInteger(last) ||
-          last < first ||
-          last - first > 10000
-        )
-          return [`range:${part.trim()}`];
-        return Array.from({ length: last - first + 1 }, (_, i) => first + i);
-      })
-    )
-    .sort()
-    .join(",");
+  ].flatMap((m) =>
+    m[1].split(",").flatMap((part) => {
+      const range = part
+        .trim()
+        .split(/\s*[-–—]\s*/)
+        .map(Number);
+      if (range.length === 1) return range;
+      const [first, last] = range;
+      // Bound work for untrusted PDF strings; huge/descending ranges remain literal markers.
+      if (
+        !Number.isSafeInteger(first) ||
+        !Number.isSafeInteger(last) ||
+        last < first ||
+        last - first > 10000
+      )
+        return [`range:${part.trim()}`];
+      return Array.from({ length: last - first + 1 }, (_, i) => first + i);
+    })
+  );
+const citations = (text) => citationList(text).sort().join(",");
 
 export function blockIssue(source, translated, sourceLanguage, targetLanguage) {
   if (citations(source.text) !== citations(translated)) return "citation";
@@ -245,5 +264,14 @@ export function taskIssue(task, key, values, src, dst) {
     return blockIssue(task.byKey.get(key), values.get(key), src, dst);
   const source = group.map((member) => task.byKey.get(member).text).join(" ");
   const translated = group.map((member) => values.get(member)).join(" ");
-  return citations(source) === citations(translated) ? null : "citation";
+  if (citations(source) !== citations(translated)) return "citation";
+  for (const member of group) {
+    const remaining = citationList(values.get(member));
+    for (const fixed of task.fixedCitations?.get(member) || []) {
+      const index = remaining.indexOf(fixed);
+      if (index < 0) return "citation";
+      remaining.splice(index, 1);
+    }
+  }
+  return null;
 }

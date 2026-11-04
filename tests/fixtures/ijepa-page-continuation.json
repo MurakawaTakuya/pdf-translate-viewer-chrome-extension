@@ -1,0 +1,227 @@
+{
+  "source": "https://arxiv.org/pdf/2301.08243",
+  "pages": [
+    {
+      "page": 5,
+      "blocks": [
+        {
+          "id": "p5-b80",
+          "text": "ImageNet-1K. Table 1 shows performance on the com-mon ImageNet-1K linear-evaluation benchmark. After self-supervised pretraining, the model weights are frozen and a linear classifier is trained on top using the full ImageNet- 1K training set. Compared to popular methods such as Masked Autoencoders (MAE) [36], Context Autoencoders (CAE) [22], and data2vec [8], which also do not rely on ex-tensive hand-crafted data-augmentations during pretraining, we see that I-JEPA significantly improves linear probing performance, while using less computational effort (see sec-tion 7). By leveraging the improved efficiency of I-JEPA, we can train larger models that outperform the best CAE model while using a fraction of the compute. I-JEPA also benefits from scale; in particular, a ViT-H/16 trained at res-olution 448 × 448 pixels matches the performance of view-",
+          "kind": "paragraph",
+          "translate": true
+        }
+      ]
+    },
+    {
+      "page": 6,
+      "blocks": [
+        {
+          "id": "p6-b0",
+          "text": "Method",
+          "kind": "heading",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b1",
+          "text": "Arch.",
+          "kind": "heading",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b2",
+          "text": "CIFAR100 Places205 iNat18",
+          "kind": "heading",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b3",
+          "text": "Methods without view data augmentations data2vec [8] ViT-L/16",
+          "kind": "paragraph",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b4",
+          "text": "81.6",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b5",
+          "text": "54.6",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b6",
+          "text": "28.1",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b7",
+          "text": "MAE [36]",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b8",
+          "text": "ViT-H/14",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b9",
+          "text": "77.3",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b10",
+          "text": "55.0",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b11",
+          "text": "32.9",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b12",
+          "text": "ViT-H/14",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b13",
+          "text": "87.5",
+          "kind": "heading",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b14",
+          "text": "58.4",
+          "kind": "heading",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b15",
+          "text": "47.6",
+          "kind": "heading",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b16",
+          "text": "I-JEPA",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b17",
+          "text": "Methods using extra view data augmentations DINO [18]",
+          "kind": "paragraph",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b18",
+          "text": "ViT-B/8",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b19",
+          "text": "84.9",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b20",
+          "text": "57.9",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b21",
+          "text": "55.9",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b22",
+          "text": "iBOT [79]",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b23",
+          "text": "ViT-L/16",
+          "kind": "other",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b24",
+          "text": "88.3",
+          "kind": "heading",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b25",
+          "text": "60.4",
+          "kind": "heading",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b26",
+          "text": "57.3",
+          "kind": "heading",
+          "translate": false,
+          "translationSkip": "table"
+        },
+        {
+          "id": "p6-b27",
+          "text": "Table 3. Linear-probe transfer for image classification. Linear-evaluation on downstream image classification tasks. I-JEPA sig-nificantly outperforms previous methods that also do not use aug-mentations (MAE and data2vec), and decreases the gap with the best view-invariance-based methods that leverage hand-crafted data augmentations during pretraining.",
+          "kind": "caption",
+          "translate": true
+        },
+        {
+          "id": "p6-b28",
+          "text": "invariant approaches such as iBOT [79], despite avoiding the use of hand-crafted data-augmentations.",
+          "kind": "paragraph",
+          "translate": true
+        }
+      ]
+    }
+  ],
+  "ids": ["p5-b80", "p6-b28"],
+  "translations": [
+    "ImageNet-1K。表1は、一般的なImageNet-1K線形評価ベンチマークにおける性能を示している。自己教師あり事前学習の後、モデルの重みは凍結され、完全なImageNet-1K訓練セットを使用してその上に線形分類器が訓練される。事前学習時に大規模な手作業によるデータ拡張に依存しない、Masked Autoencoders (MAE) [36]、Context Autoencoders (CAE) [22]、data2vec [8]などの一般的な手法と比較して、I-JEPAはより少ない計算量を用いながら線形プロービングの性能を大幅に向上させることがわかる（セクション7を参照）。I-JEPAの改善された効率性を活用することで、計算資源の一部を使用するだけで、最高のCAEモデルを上回る大型モデルを訓練することができる。I-JEPAはスケールの恩恵も受ける。特に、$448 \\times 448$ ピクセルの解像度で訓練されたViT-H/16は、手作業によるデータ拡張の使用を回避しているにもかかわらず、iBOT [79]などのビュー",
+    "不変性アプローチの性能に匹敵する"
+  ]
+}
