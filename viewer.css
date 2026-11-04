@@ -963,6 +963,7 @@ body[data-view="orig"] .row {
   z-index: 5;
   transform: translateX(-100%);
   display: flex;
+  flex-wrap: wrap;
   gap: 3px;
   padding: 2px;
   border-radius: 6px;

@@ -1108,7 +1108,9 @@ redoBtn.title = "この段落だけ、もう一度翻訳します";
 const toggleBtn = document.createElement("button");
 const blockGeminiBtn = document.createElement("button");
 blockGeminiBtn.textContent = "Geminiで翻訳";
-tools.append(redoBtn, blockGeminiBtn, toggleBtn);
+const fullContextBtn = document.createElement("button");
+fullContextBtn.textContent = "全文を添えて翻訳";
+tools.append(redoBtn, blockGeminiBtn, fullContextBtn, toggleBtn);
 let toolsFor = null;
 let toolsOnSource = false;
 let hideTimer = 0;
@@ -1119,7 +1121,7 @@ function showTools(el, onSource = false) {
   const canGemini =
     !!state.settings.geminiKey?.trim() &&
     b.translate !== false &&
-    state.engine !== "gemini";
+    (state.engine !== "gemini" || !state.translator);
   if (el.classList.contains("pending") && !canGemini) {
     tools.remove();
     return;
@@ -1147,24 +1149,46 @@ function showTools(el, onSource = false) {
   blockGeminiBtn.setAttribute("aria-busy", String(!!active));
   blockGeminiBtn.title = active
     ? "この段落のGemini翻訳を中断します"
-    : "全文を文脈として添え、この段落だけをGeminiで翻訳します";
+    : "前後最大2段落を文脈として添え、この段落だけをGeminiで翻訳します";
   // Chrome内蔵は何度訳しても同じ結果になるので、訳し直しは Gemini のときだけ
   redoBtn.hidden =
     (b.hidden && !b.failed) ||
     state.engine !== "gemini" ||
+    !state.translator ||
     (state.translator?.ready && !state.translator.completed);
+  redoBtn.title = "前後最大2段落を参照して、この段落を訳し直します";
+  fullContextBtn.hidden =
+    !state.settings.geminiKey?.trim() ||
+    b.translate === false ||
+    (state.engine === "gemini" && !!state.translator && redoBtn.hidden);
+  fullContextBtn.disabled =
+    state.exporting || srcSel.value === dstSel.value || !!blockGeminiJob;
+  fullContextBtn.textContent =
+    typeof b.ja === "string" ? "全文を添えて訳し直す" : "全文を添えて翻訳";
+  fullContextBtn.title =
+    "PDF全文を文脈として添え、この段落だけをGeminiで新しく翻訳します。通常より時間がかかります";
   toggleBtn.hidden =
     !!b.failed || typeof b.ja !== "string" || el.classList.contains("pending");
   toggleBtn.textContent = b.hidden ? "訳を表示" : "原文を表示";
   toggleBtn.title = b.hidden
     ? "この段落の訳を元に戻します"
     : "この段落の訳を消して、原文が見えるようにします";
-  // 段落の右上（枠のすぐ外）に置く。ページの上端に近いときは枠の内側
+  // ページ端で操作が切れない幅に折り返し、上に収まらないときは枠の内側。
   const top = parseFloat(el.style.top);
-  tools.style.top = (top >= 20 ? top - 20 : top) + "px";
+  const pageWidth = el._row?.vp?.width || 612;
+  const maxWidth = Math.min(320, pageWidth - 8);
+  tools.style.maxWidth = maxWidth + "px";
   tools.style.left =
-    parseFloat(el.style.left) + parseFloat(el.style.width) + "px";
+    Math.min(
+      pageWidth - 4,
+      Math.max(
+        maxWidth + 4,
+        parseFloat(el.style.left) + parseFloat(el.style.width)
+      )
+    ) + "px";
   (onSource ? el._row.srcLayer : el.parentNode).appendChild(tools);
+  const height = tools.offsetHeight || 20;
+  tools.style.top = (top >= height ? top - height : top) + "px";
 }
 
 function hideToolsSoon() {
@@ -1206,6 +1230,12 @@ blockGeminiBtn.onclick = () => {
   }
   if (toolsFor) return translateBlockWithGemini(toolsFor);
 };
+fullContextBtn.onclick = () => {
+  if (!toolsFor || fullContextBtn.disabled) return;
+  return state.engine === "gemini" && state.translator
+    ? redoBlock(toolsFor, { context: "full" })
+    : translateBlockWithGemini(toolsFor, { context: "full" });
+};
 
 function cancelBlockGemini() {
   const job = blockGeminiJob;
@@ -1227,7 +1257,7 @@ function cancelBlockGemini() {
   if (toolsFor) showTools(toolsFor, toolsOnSource);
 }
 
-async function translateBlockWithGemini(el) {
+async function translateBlockWithGemini(el, { context = "nearby" } = {}) {
   const b = el._b,
     { geminiKey, geminiModel } = state.settings,
     sourceLanguage = srcSel.value,
@@ -1236,7 +1266,7 @@ async function translateBlockWithGemini(el) {
     !geminiKey?.trim() ||
     state.exporting ||
     blockGeminiJob ||
-    state.engine === "gemini" ||
+    (state.engine === "gemini" && state.translator) ||
     b.translate === false ||
     sourceLanguage === targetLanguage
   )
@@ -1293,7 +1323,7 @@ async function translateBlockWithGemini(el) {
       (blocks) => {
         job.blocks = new Set(blocks);
       },
-      { force }
+      { force, context, row: el._row }
     );
     if (!active()) return;
     const entries = [];
@@ -1323,7 +1353,7 @@ async function translateBlockWithGemini(el) {
   }
 }
 
-async function redoBlock(el) {
+async function redoBlock(el, { context = "nearby" } = {}) {
   const b = el._b,
     tr = state.translator;
   if (!tr || el.classList.contains("pending")) return;
@@ -1333,8 +1363,8 @@ async function redoBlock(el) {
   const finish = beginTranslation();
   try {
     const updates = tr.retranslateBlocks
-      ? await tr.retranslateBlocks(b)
-      : new Map([[b, await tr.retranslateBlock(b)]]);
+      ? await tr.retranslateBlocks(b, { context })
+      : new Map([[b, await tr.retranslateBlock(b, { context })]]);
     if (tr !== state.translator) return;
     for (const [block, text] of updates) {
       const row = state.rows.find((r) => r.blocks?.includes(block));
