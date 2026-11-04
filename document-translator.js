@@ -1,5 +1,6 @@
 // 翻訳は1つの処理として共有する。大きい文書では対象を分割して送る。
 import { MissingTranslationsError } from "./gemini.js";
+import { nearbyContext } from "./block-context.js";
 
 export function createDocumentTranslator({
   rows,
@@ -25,60 +26,86 @@ export function createDocumentTranslator({
   let completed = false;
   let originalCount = 0;
 
-  function prepare() {
-    return (documentPromise ??= (async () => {
-      const pages = [],
-        ids = [];
-      for (const r of rows) {
-        signal?.throwIfAborted();
-        onProgress(`全文を読み取り中… ${r.index}/${rows.length}ページ`);
-        const blocks = await getBlocks(r);
-        signal?.throwIfAborted();
-        const targets = [];
-        pages.push({
-          page: r.index,
-          blocks: blocks.map((b, i) => {
-            const id = `p${r.index}-b${i}`;
-            idsByBlock.set(b, id);
-            blocksById.set(id, b);
-            rowsById.set(id, r);
-            const cached = getCached(b);
-            if (b.translate && typeof cached === "string") {
-              partial.set(id, cached);
-              preview.set(id, cached);
-            }
-            if (b.translate) {
-              ids.push(id);
-              targets.push(b);
-            }
-            return {
-              id,
-              kind: b.kind || "paragraph",
-              text: b.text,
-              translate: !!b.translate,
-              ...(b.translationSkip
-                ? { translationSkip: b.translationSkip }
-                : {}),
-              ...(b.mathSpans?.length ? { mathSpans: b.mathSpans } : {}),
-              ...(b.mathUncertain ? { mathUncertain: true } : {}),
-            };
-          }),
-        });
-        targetsByRow.set(r, targets);
-        const cached = targets
-          .filter((b) => partial.has(idsByBlock.get(b)))
-          .map((block) => ({
-            block,
-            row: r,
-            text: partial.get(idsByBlock.get(block)),
-          }));
-        if (cached.length) {
-          onCommit(cached);
-          onPreview(r);
-        }
+  const preparedRows = new Map();
+  function readRow(r, label = "全文") {
+    if (preparedRows.has(r)) return preparedRows.get(r);
+    const pending = (async () => {
+      signal?.throwIfAborted();
+      onProgress(`${label}を読み取り中… ${r.index}/${rows.length}ページ`);
+      const blocks = await getBlocks(r);
+      signal?.throwIfAborted();
+      const targets = [];
+      const page = {
+        page: r.index,
+        blocks: blocks.map((b, i) => {
+          const id = `p${r.index}-b${i}`;
+          idsByBlock.set(b, id);
+          blocksById.set(id, b);
+          rowsById.set(id, r);
+          const cached = getCached(b);
+          if (b.translate && typeof cached === "string") {
+            partial.set(id, cached);
+            preview.set(id, cached);
+          }
+          if (b.translate) targets.push(b);
+          return {
+            id,
+            kind: b.kind || "paragraph",
+            text: b.text,
+            translate: !!b.translate,
+            ...(b.translationSkip
+              ? { translationSkip: b.translationSkip }
+              : {}),
+            ...(b.mathSpans?.length ? { mathSpans: b.mathSpans } : {}),
+            ...(b.mathUncertain ? { mathUncertain: true } : {}),
+          };
+        }),
+      };
+      targetsByRow.set(r, targets);
+      const cached = targets
+        .filter((b) => partial.has(idsByBlock.get(b)))
+        .map((block) => ({
+          block,
+          row: r,
+          text: partial.get(idsByBlock.get(block)),
+        }));
+      if (cached.length) {
+        onCommit(cached);
+        onPreview(r);
       }
-      return { pages, ids };
-    })());
+      return page;
+    })();
+    preparedRows.set(r, pending);
+    return pending;
+  }
+
+  async function readRows(selected, label) {
+    const pages = [];
+    for (const r of selected) pages.push(await readRow(r, label));
+    return {
+      pages,
+      ids: pages.flatMap((p) =>
+        p.blocks.filter((b) => b.translate).map((b) => b.id)
+      ),
+    };
+  }
+
+  function prepare() {
+    return (documentPromise ??= readRows(rows, "全文"));
+  }
+
+  async function prepareSelection(b, context, row) {
+    if (context === "full") return prepare();
+    row ??=
+      rowsById.get(idsByBlock.get(b)) ||
+      rows.find((r) => r.blocks?.includes(b));
+    const index = rows.indexOf(row);
+    // Generic callers without row metadata keep the existing discovery path.
+    if (index < 0) return prepare();
+    return readRows(
+      rows.slice(Math.max(0, index - 1), index + 2),
+      "周辺の文脈"
+    );
   }
 
   function ready() {
@@ -201,7 +228,7 @@ export function createDocumentTranslator({
     return translationPromise;
   }
 
-  async function retranslateBlocks(b) {
+  async function retranslateBlocks(b, { context = "nearby" } = {}) {
     const out = await ready();
     const { pages, ids } = await prepare();
     signal?.throwIfAborted();
@@ -212,7 +239,10 @@ export function createDocumentTranslator({
       : [id];
     signal?.throwIfAborted();
     // A shared sentence's citations must be replaced atomically, never one fragment alone.
-    const result = await translator.translateDocument(pages, related);
+    const result = await translator.translateDocument(
+      context === "full" ? pages : nearbyContext(pages, related),
+      related
+    );
     signal?.throwIfAborted();
     for (const [key, text] of result) out.set(key, text);
     onCommit(
@@ -227,14 +257,14 @@ export function createDocumentTranslator({
     );
   }
 
-  // Read reference context without ready(): only the selected block's citation
-  // group is an output target, never the remaining document.
+  // Read only nearby pages by default; a full-context request is explicit.
+  // Only the selected citation group is an output target.
   async function translateSelectedBlocks(
     b,
     onTargets = () => {},
-    { force = false } = {}
+    { force = false, context = "nearby", row } = {}
   ) {
-    const { pages, ids } = await prepare();
+    const { pages, ids } = await prepareSelection(b, context, row);
     signal?.throwIfAborted();
     const id = idsByBlock.get(b);
     if (!id || !ids.includes(id))
@@ -244,10 +274,18 @@ export function createDocumentTranslator({
       : [id];
     signal?.throwIfAborted();
     onTargets(related.map((id) => blocksById.get(id)));
+    onProgress(
+      context === "full"
+        ? "全文を参照してGeminiで翻訳中…"
+        : "前後の文脈を使ってGeminiで翻訳中…"
+    );
     const result =
-      !force && related.every((id) => partial.has(id))
+      !force && context !== "full" && related.every((id) => partial.has(id))
         ? new Map(related.map((id) => [id, partial.get(id)]))
-        : await translator.translateDocument(pages, related);
+        : await translator.translateDocument(
+            context === "full" ? pages : nearbyContext(pages, related),
+            related
+          );
     signal?.throwIfAborted();
     return new Map([...result].map(([id, text]) => [blocksById.get(id), text]));
   }
@@ -289,8 +327,8 @@ export function createDocumentTranslator({
           return;
       }
     },
-    async retranslateBlock(b) {
-      return (await retranslateBlocks(b)).get(b);
+    async retranslateBlock(b, options) {
+      return (await retranslateBlocks(b, options)).get(b);
     },
   };
 }

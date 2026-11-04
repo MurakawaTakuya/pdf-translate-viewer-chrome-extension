@@ -31,7 +31,7 @@ const deferred = () => {
   return { promise, resolve };
 };
 
-test("all pages use one request; scrolling/export reuse it; manual redo retains full context", async (t) => {
+test("all pages use one request; scrolling/export reuse it; explicit full-context redo retains every page", async (t) => {
   const rows = Array.from({ length: 3 }, (_, i) => ({ index: i + 1 }));
   const blocks = rows.map((_, p) => [
     { text: `Figure label ${p}`, translate: false },
@@ -120,7 +120,9 @@ test("all pages use one request; scrolling/export reuse it; manual redo retains 
   await Promise.all(rows.map((r) => tr.translatePage(r, () => {})));
   assert.equal(requests.length, 1);
 
-  const replacement = await tr.retranslateBlock(blocks[2][1]);
+  const replacement = await tr.retranslateBlock(blocks[2][1], {
+    context: "full",
+  });
   assert.equal(replacement, "訳文 1 (2)");
   assert.equal(requests.length, 2);
   assert.deepEqual(

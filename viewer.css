@@ -932,12 +932,6 @@ body[data-view="orig"] .row {
   outline: 1.5px dashed var(--accent);
   outline-offset: 1px;
   background: color-mix(in srgb, var(--accent) 8%, transparent);
-  animation: pulse 1.2s ease-in-out infinite;
-}
-@keyframes pulse {
-  50% {
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-  }
 }
 
 /* 数式の下付き・上付き（行の高さを崩さない） */
@@ -969,6 +963,7 @@ body[data-view="orig"] .row {
   z-index: 5;
   transform: translateX(-100%);
   display: flex;
+  flex-wrap: wrap;
   gap: 3px;
   padding: 2px;
   border-radius: 6px;

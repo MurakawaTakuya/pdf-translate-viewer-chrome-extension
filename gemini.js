@@ -225,6 +225,23 @@ export function createGeminiTranslator({
       outputFormat === "keyed"
         ? await taskBuilder(pages, translateIds, src, dst, signal)
         : null;
+    let instruction = task ? promptBuilder(system, src, dst) : system;
+    if (pages.some((p) => p.contextScope === "nearby")) {
+      instruction = instruction
+        .replace(
+          "contains all PDF text blocks",
+          "contains selected PDF text blocks"
+        )
+        .replace("every page of a PDF paper", "nearby parts of a PDF paper")
+        .replace(
+          "Use the entire paper to understand",
+          "Use the provided surrounding text to understand"
+        )
+        .replace(
+          /^- Read the entire paper.*$/m,
+          "- The provided pages are excerpts surrounding the target, not the entire paper. Use this nearby context to interpret the target; do not infer or invent missing text. Only the marked targets are output tasks."
+        );
+    }
     const parseOutput = (body) =>
       task?.parse
         ? task.parse(body)
@@ -276,7 +293,7 @@ export function createGeminiTranslator({
         }, // キーはURLに載せない
         body: JSON.stringify({
           model: model || DEFAULT_MODEL,
-          system_instruction: task ? promptBuilder(system, src, dst) : system,
+          system_instruction: instruction,
           input: JSON.stringify(task ? task.input : input),
           response_format: {
             type: "text",

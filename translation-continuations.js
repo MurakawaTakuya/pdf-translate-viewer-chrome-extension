@@ -13,6 +13,7 @@ export function pageContinuations(pages) {
     const before = pages[i],
       after = pages[i + 1];
     if (after.page !== before.page + 1) continue;
+    if (before.endComplete === false || after.startComplete === false) continue;
     const aIndex = before.blocks.findLastIndex(body);
     const bIndex = after.blocks.findIndex(body);
     if (aIndex < 0 || bIndex < 0) continue;
