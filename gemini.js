@@ -372,6 +372,16 @@ export function createGeminiTranslator({
     translateDocument,
     ...(outputFormat === "keyed"
       ? {
+          async expandTargets(pages, ids, selectedIds) {
+            const task = await taskBuilder(pages, ids, src, dst, signal);
+            const selected = new Set(selectedIds);
+            const related = new Set();
+            for (const [key, b] of task.byKey)
+              if (selected.has(b.id))
+                for (const member of task.groups.get(key))
+                  related.add(task.byKey.get(member).id);
+            return ids.filter((id) => related.has(id));
+          },
           async relatedTargets(pages, ids, id) {
             const task = await taskBuilder(pages, ids, src, dst, signal);
             const key = [...task.byKey].find(([, b]) => b.id === id)?.[0];

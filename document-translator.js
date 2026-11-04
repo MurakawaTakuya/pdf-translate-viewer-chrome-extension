@@ -55,6 +55,10 @@ export function createDocumentTranslator({
               id,
               kind: b.kind || "paragraph",
               text: b.text,
+              translate: !!b.translate,
+              ...(b.translationSkip
+                ? { translationSkip: b.translationSkip }
+                : {}),
               ...(b.mathSpans?.length ? { mathSpans: b.mathSpans } : {}),
               ...(b.mathUncertain ? { mathUncertain: true } : {}),
             };
@@ -96,6 +100,11 @@ export function createDocumentTranslator({
 
   async function streamDocument(pages, ids) {
     completed = false;
+    if (ids.length && translator.expandTargets) {
+      const { ids: allIds } = await prepare();
+      ids = await translator.expandTargets(pages, allIds, ids);
+      signal?.throwIfAborted();
+    }
     let batchLabel = "";
     const shown = () =>
       ids.reduce((count, id) => count + Number(preview.has(id)), 0);
