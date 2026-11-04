@@ -283,11 +283,8 @@ async function viewer(
   return api;
 }
 async function idle(api) {
-  for (let i = 0; i < 100; i++) {
-    await new Promise(setImmediate);
-    if (!api.state.working) return;
-  }
-  assert.fail("viewer queue did not become idle");
+  // WebCrypto can outlive a fixed number of event-loop turns on a busy runner.
+  await until(() => !api.state.working);
 }
 
 test("protected math keeps original glyph pixels and baseline proportions in translated text", async () => {
