@@ -1103,14 +1103,12 @@ function renderRuns(el, text, block) {
 const tools = document.createElement("div");
 tools.className = "blk-tools";
 const redoBtn = document.createElement("button");
-redoBtn.textContent = "↻ 訳し直す";
+redoBtn.textContent = "選択範囲をGeminiで翻訳";
 redoBtn.title = "この段落だけ、もう一度翻訳します";
 const toggleBtn = document.createElement("button");
 const blockGeminiBtn = document.createElement("button");
-blockGeminiBtn.textContent = "Geminiで翻訳";
-const fullContextBtn = document.createElement("button");
-fullContextBtn.textContent = "全文を添えて翻訳";
-tools.append(redoBtn, blockGeminiBtn, fullContextBtn, toggleBtn);
+blockGeminiBtn.textContent = "選択範囲をGeminiで翻訳";
+tools.append(redoBtn, blockGeminiBtn, toggleBtn);
 let toolsFor = null;
 let toolsOnSource = false;
 let hideTimer = 0;
@@ -1128,13 +1126,6 @@ function showTools(el, onSource = false) {
   }
   toolsFor = el;
   toolsOnSource = onSource;
-  const key = JSON.stringify([
-    state.settings.geminiModel || "",
-    srcSel.value,
-    dstSel.value,
-  ]);
-  const cached =
-    b.geminiTranslation?.key === key && b.ja === b.geminiTranslation.text;
   const active = blockGeminiJob?.blocks.has(b);
   blockGeminiBtn.hidden = !canGemini;
   blockGeminiBtn.disabled =
@@ -1143,9 +1134,7 @@ function showTools(el, onSource = false) {
     (!!blockGeminiJob && !active);
   blockGeminiBtn.textContent = active
     ? "Geminiを中断"
-    : cached
-      ? "Geminiで訳し直す"
-      : "Geminiで翻訳";
+    : "選択範囲をGeminiで翻訳";
   blockGeminiBtn.setAttribute("aria-busy", String(!!active));
   blockGeminiBtn.title = active
     ? "この段落のGemini翻訳を中断します"
@@ -1157,16 +1146,6 @@ function showTools(el, onSource = false) {
     !state.translator ||
     (state.translator?.ready && !state.translator.completed);
   redoBtn.title = "前後最大2段落を参照して、この段落を訳し直します";
-  fullContextBtn.hidden =
-    !state.settings.geminiKey?.trim() ||
-    b.translate === false ||
-    (state.engine === "gemini" && !!state.translator && redoBtn.hidden);
-  fullContextBtn.disabled =
-    state.exporting || srcSel.value === dstSel.value || !!blockGeminiJob;
-  fullContextBtn.textContent =
-    typeof b.ja === "string" ? "全文を添えて訳し直す" : "全文を添えて翻訳";
-  fullContextBtn.title =
-    "PDF全文を文脈として添え、この段落だけをGeminiで新しく翻訳します。通常より時間がかかります";
   toggleBtn.hidden =
     !!b.failed || typeof b.ja !== "string" || el.classList.contains("pending");
   toggleBtn.textContent = b.hidden ? "訳を表示" : "原文を表示";
@@ -1220,7 +1199,7 @@ toggleBtn.onclick = () => {
   showTools(el, toolsOnSource);
 };
 redoBtn.onclick = () => {
-  if (toolsFor) redoBlock(toolsFor);
+  if (toolsFor) return redoBlock(toolsFor);
 };
 blockGeminiBtn.onclick = () => {
   if (blockGeminiJob?.blocks.has(toolsFor?._b)) {
@@ -1229,12 +1208,6 @@ blockGeminiBtn.onclick = () => {
     return;
   }
   if (toolsFor) return translateBlockWithGemini(toolsFor);
-};
-fullContextBtn.onclick = () => {
-  if (!toolsFor || fullContextBtn.disabled) return;
-  return state.engine === "gemini" && state.translator
-    ? redoBlock(toolsFor, { context: "full" })
-    : translateBlockWithGemini(toolsFor, { context: "full" });
 };
 
 function cancelBlockGemini() {

@@ -252,7 +252,7 @@ async function viewer(
     };
     fillBlock = (el, b, text) => { b.ja = text; el.textContent = text; el.classList.remove('pending'); };
     saveFile = (bytes, name) => { savedFiles.push({bytes, name}); };
-    return { state, buildRows, autoTranslateOnOpen, start, enqueue, enqueueVisiblePages, translateAll, redoBlock, translateBlockWithGemini, cancelBlockGemini, showTools, blockGeminiButton:blockGeminiBtn, fullContextButton:fullContextBtn, tools, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
+    return { state, buildRows, autoTranslateOnOpen, start, enqueue, enqueueVisiblePages, translateAll, redoBlock, translateBlockWithGemini, cancelBlockGemini, showTools, blockGeminiButton:blockGeminiBtn, redoButton:redoBtn, tools, createdElements, savedFiles, document, element: $, resize: dispatchResize, headerResize: dispatchHeaderResize, scroll: dispatchScroll, key: dispatchKey, wheel: dispatchWheel, flushPageFrames: dispatchPageFrames, scrollCalls, scrollY: () => scrollY, goToPage, updatePageNavigation, status: () => $('#status').textContent, startButton: $('#startGemini'), localButton: $('#startLocal'), settingsButton: $('#openSettings'), beginTranslation, finishZoomGesture, rendering, window, viewSelect: viewSel };
   `
     );
   context.elementStub = element;
@@ -2613,7 +2613,6 @@ test("a source-only block exposes Gemini when configured and translates that blo
   api.state.settings.geminiKey = "";
   api.showTools(el);
   assert.equal(api.blockGeminiButton.hidden, true);
-  assert.equal(api.fullContextButton.hidden, true);
   api.state.settings.geminiKey = "mock-key";
   api.showTools(el);
   await api.blockGeminiButton.onclick();
@@ -2633,22 +2632,10 @@ test("a source-only block exposes Gemini when configured and translates that blo
   assert.equal(api.state.engine, null);
   assert.equal(api.state.translator, null);
   assert.equal(api.state.rows[1].blocks[0].ja, undefined);
-  assert.equal(api.blockGeminiButton.textContent, "Geminiで訳し直す");
-  assert.equal(api.fullContextButton.hidden, false);
-  assert.equal(api.fullContextButton.textContent, "全文を添えて訳し直す");
-  await api.fullContextButton.onclick();
-  assert.equal(requests.length, 2);
-  assert.equal(JSON.parse(requests[1].input).pages.length, 3);
-  assert.match(requests[1].system_instruction, /Read the entire paper/);
-  assert.deepEqual(
-    requests[1].response_format.schema.required,
-    requests[0].response_format.schema.required
-  );
-  assert.equal(api.state.engine, null);
-  assert.equal(api.state.rows[1].blocks[0].ja, undefined);
+  assert.equal(api.blockGeminiButton.textContent, "選択範囲をGeminiで翻訳");
 });
 
-test("a completed Gemini translation offers a full-context redo while the usual redo stays nearby", async (t) => {
+test("the block action uses the requested label and nearby context before and after stopping Gemini", async (t) => {
   const api = await viewer(
       "gemini",
       {},
@@ -2677,20 +2664,20 @@ test("a completed Gemini translation offers a full-context redo while the usual 
   };
   api.showTools(el);
   assert.equal(api.blockGeminiButton.hidden, true);
-  assert.equal(api.fullContextButton.hidden, false);
-  await api.fullContextButton.onclick();
-  await api.redoBlock(el);
-  assert.deepEqual(contexts, ["full", "nearby"]);
+  assert.equal(api.redoButton.hidden, false);
+  assert.equal(api.redoButton.textContent, "選択範囲をGeminiで翻訳");
+  await api.redoButton.onclick();
+  assert.deepEqual(contexts, ["nearby"]);
   assert.equal(b.ja, "新しい訳");
   api.state.translator.completed = false;
   api.showTools(el);
-  assert.equal(api.fullContextButton.hidden, true);
+  assert.equal(api.redoButton.hidden, true);
   api.state.translator = null; // Stopping whole-document Gemini keeps the engine choice.
   let calls = 0;
   t.mock.method(globalThis, "fetch", async (_url, init) => {
     calls++;
     const r = JSON.parse(init.body);
-    assert.equal(JSON.parse(r.input).pages.length, 3);
+    assert.equal(JSON.parse(r.input).pages.length, 2);
     return Response.json({
       status: "completed",
       steps: [
@@ -2709,16 +2696,15 @@ test("a completed Gemini translation offers a full-context redo while the usual 
     });
   });
   api.showTools(el);
-  assert.equal(api.fullContextButton.hidden, false);
   assert.equal(api.blockGeminiButton.hidden, false);
   api.state.exporting = true;
   api.showTools(el);
-  assert.equal(api.fullContextButton.disabled, true);
-  await api.fullContextButton.onclick();
+  assert.equal(api.blockGeminiButton.disabled, true);
+  await api.blockGeminiButton.onclick();
   assert.equal(calls, 0);
   api.state.exporting = false;
   api.showTools(el);
-  await api.fullContextButton.onclick();
+  await api.blockGeminiButton.onclick();
   assert.equal(calls, 1);
   assert.equal(b.ja, "中断後の段落訳");
   assert.equal(api.state.translator, null);
