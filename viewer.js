@@ -1329,6 +1329,7 @@ async function redoBlock(el) {
   if (!tr || el.classList.contains("pending")) return;
   tools.remove();
   el.classList.add("pending");
+  setStatus("この段落を訳し直しています…現在の訳文はそのまま読めます");
   const finish = beginTranslation();
   try {
     const updates = tr.retranslateBlocks
@@ -1344,6 +1345,7 @@ async function redoBlock(el) {
       }
       fillBlock(block === b ? el : blockElement(row, block), block, text);
     }
+    setStatus("この段落の訳し直しが完了しました");
   } catch (e) {
     if (tr !== state.translator) return;
     console.error(e);
